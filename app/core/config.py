@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     # Firebase
     FIREBASE_CREDENTIALS: str
     
+    # Google OAuth
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/google/callback"
+    
     # DOKU Payment
     DOKU_CLIENT_ID: str = ""
     DOKU_SECRET_KEY: str = ""
