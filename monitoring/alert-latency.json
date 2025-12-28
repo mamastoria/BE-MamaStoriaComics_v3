@@ -1,0 +1,36 @@
+{
+    "displayName": "Cloud Run - High Latency Alert",
+    "combiner": "OR",
+    "conditions": [
+        {
+            "displayName": "P95 Latency > 10s",
+            "conditionThreshold": {
+                "filter": "resource.type = \"cloud_run_revision\" AND metric.type = \"run.googleapis.com/request_latencies\"",
+                "aggregations": [
+                    {
+                        "alignmentPeriod": "300s",
+                        "perSeriesAligner": "ALIGN_PERCENTILE_95",
+                        "crossSeriesReducer": "REDUCE_MEAN",
+                        "groupByFields": [
+                            "resource.labels.service_name"
+                        ]
+                    }
+                ],
+                "comparison": "COMPARISON_GT",
+                "thresholdValue": 10000,
+                "duration": "300s",
+                "trigger": {
+                    "count": 1
+                }
+            }
+        }
+    ],
+    "alertStrategy": {
+        "autoClose": "604800s"
+    },
+    "documentation": {
+        "content": "## High Latency Detected\n\nThe Cloud Run service P95 latency is above 10 seconds.\n\n### Actions:\n1. Check if Worker queue is backed up\n2. Verify Vertex AI response times\n3. Check database query performance\n4. Consider scaling up instances\n\n### Links:\n- [Cloud Run Console](https://console.cloud.google.com/run?project=nanobananacomic-482111)\n- [Cloud Trace](https://console.cloud.google.com/traces?project=nanobananacomic-482111)",
+        "mimeType": "text/markdown"
+    },
+    "severity": "WARNING"
+}
