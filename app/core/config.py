@@ -25,13 +25,13 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     
     # Google Cloud
-    GOOGLE_PROJECT_ID: str
-    GOOGLE_BUCKET_NAME: str
-    GOOGLE_APPLICATION_CREDENTIALS: str
+    GOOGLE_PROJECT_ID: str = ""
+    GOOGLE_BUCKET_NAME: str = ""
+    GOOGLE_APPLICATION_CREDENTIALS: str = ""  # Make optional
     VERTEX_LOCATION: str = "us-central1"
     
     # Firebase
-    FIREBASE_CREDENTIALS: str
+    FIREBASE_CREDENTIALS: str = ""
     
     # DOKU Payment
     DOKU_CLIENT_ID: str = ""
@@ -40,11 +40,13 @@ class Settings(BaseSettings):
     DOKU_IS_PRODUCTION: bool = False
     
     # CORS
-    CORS_ORIGINS: str = "http://localhost:3000"
+    CORS_ORIGINS: str = "*"
     
     @property
     def cors_origins_list(self) -> List[str]:
         """Convert CORS_ORIGINS string to list"""
+        if self.CORS_ORIGINS == "*":
+            return ["*"]
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
     
     # File Upload
@@ -67,6 +69,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"
 
 
 # Create global settings instance

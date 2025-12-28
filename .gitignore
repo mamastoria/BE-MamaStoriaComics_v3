@@ -6,3 +6,5 @@ __pycache__/
 exports/
 generated/
 .DS_Store
+
+cloud_sql_proxy.exe
