@@ -69,6 +69,7 @@ class User(Base):
     comments = relationship("Comment", back_populates="user", cascade="all, delete-orphan")
     subscriptions = relationship("Subscription", back_populates="user", cascade="all, delete-orphan")
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
+    commissions = relationship("Commission", back_populates="user", cascade="all, delete-orphan")
     
     # Many-to-Many relationships
     liked_comics = relationship(

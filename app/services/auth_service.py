@@ -25,9 +25,19 @@ class AuthService:
     """Service for authentication operations"""
     
     @staticmethod
-    def generate_referral_code(length: int = 8) -> str:
-        """Generate unique referral code"""
-        return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
+    def generate_referral_code() -> str:
+        """Generate unique referral code: 2 random numbers + 2 random letters + 4 digits from timestamp"""
+        # 2 random digits
+        numbers = ''.join(random.choices(string.digits, k=2))
+
+        # 2 random uppercase letters
+        letters = ''.join(random.choices(string.ascii_uppercase, k=2))
+
+        # 4 digits from current timestamp (last 4 digits of unix timestamp)
+        import time
+        timestamp = str(int(time.time()))[-4:]
+
+        return numbers + letters + timestamp
     
     @staticmethod
     def create_user(
