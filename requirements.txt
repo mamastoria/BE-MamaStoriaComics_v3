@@ -1,7 +1,7 @@
 # FastAPI & Web Framework
 fastapi==0.115.0
 uvicorn[standard]==0.32.0
-python-multipart==0.0.12
+python-multipart==0.0.9
 
 # Database
 sqlalchemy==2.0.36
@@ -27,8 +27,8 @@ google-api-python-client==2.149.0
 firebase-admin==6.5.0
 
 # Validation
-pydantic==2.9.2
-pydantic-settings==2.6.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
 email-validator==2.2.0
 
 # Utilities

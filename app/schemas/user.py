@@ -77,7 +77,7 @@ class UpdateProfile(BaseModel):
 class UpdateKredit(BaseModel):
     """Schema for updating user credits"""
     amount: int = Field(..., description="Amount to add/subtract")
-    operation: str = Field(..., regex="^(add|subtract)$")
+    operation: str = Field(..., pattern="^(add|subtract)$")
 
 
 class UpdateFCMToken(BaseModel):

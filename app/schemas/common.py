@@ -1,7 +1,7 @@
 """
 Common/Shared Pydantic schemas
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Any
 from datetime import datetime
 
@@ -50,6 +50,4 @@ class MessageResponse(ResponseBase):
 
 
 # Config for all schemas
-class ORMConfig:
-    """Shared config for ORM mode"""
-    from_attributes = True
+ORMConfig = ConfigDict(from_attributes=True)
