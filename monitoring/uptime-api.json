@@ -1,0 +1,24 @@
+{
+    "displayName": "API Backend Health Check",
+    "monitoredResource": {
+        "type": "uptime_url",
+        "labels": {
+            "project_id": "nanobananacomic-482111",
+            "host": "nanobanana-backend-1089713441636.asia-southeast2.run.app"
+        }
+    },
+    "httpCheck": {
+        "path": "/health",
+        "port": 443,
+        "useSsl": true,
+        "validateSsl": true,
+        "requestMethod": "GET"
+    },
+    "period": "300s",
+    "timeout": "10s",
+    "checkerType": "STATIC_IP_CHECKERS",
+    "selectedRegions": [
+        "ASIA_PACIFIC",
+        "USA"
+    ]
+}
