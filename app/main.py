@@ -51,8 +51,8 @@ async def health_check():
 from app.api import auth, master_data, users, comics, comments, likes, history, subscriptions, notifications, analytics
 
 # Include routers
-app.include_router(auth.router, prefix="/api", tags=["Authentication"])
-app.include_router(users.router, prefix="/api", tags=["Users"])
+app.include_router(auth.router, prefix="/api/v1", tags=["Authentication"])
+app.include_router(users.router, prefix="/api/v1", tags=["Users"])
 app.include_router(master_data.router, prefix="/api/v1", tags=["Master Data"])
 app.include_router(comics.router, prefix="/api/v1", tags=["Comics"])
 app.include_router(comments.router, prefix="/api/v1", tags=["Comments"])
@@ -60,7 +60,7 @@ app.include_router(likes.router, prefix="/api/v1", tags=["Likes"])
 app.include_router(history.router, prefix="/api/v1", tags=["History"])
 app.include_router(subscriptions.router, prefix="/api/v1", tags=["Subscriptions"])
 app.include_router(notifications.router, prefix="/api/v1", tags=["Notifications"])
-app.include_router(analytics.router, prefix="/api", tags=["Analytics"])
+app.include_router(analytics.router, prefix="/api/v1", tags=["Analytics"])
 
 
 if __name__ == "__main__":
