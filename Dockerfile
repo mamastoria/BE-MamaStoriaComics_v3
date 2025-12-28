@@ -7,6 +7,11 @@ ENV PYTHONUNBUFFERED=1
 
 # Cloud Run listens on 8080
 ENV PORT=8080
+# Fallback Defaults to prevent startup crash
+ENV GOOGLE_CLOUD_PROJECT=nanobananacomic-482111
+ENV GOOGLE_PROJECT_ID=nanobananacomic-482111
+ENV VERTEX_LOCATION=asia-southeast2
+ENV APP_ENV=production
 
 WORKDIR /app
 

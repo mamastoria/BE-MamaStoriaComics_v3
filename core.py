@@ -52,12 +52,12 @@ def _project_id() -> str:
         or os.getenv("GCLOUD_PROJECT", "").strip()
         or os.getenv("GOOGLE_PROJECT", "").strip()
         or os.getenv("PROJECT_ID", "").strip()
+        or "nanobananacomic-482111"  # Fallback
     )
     if not pid:
-        raise RuntimeError(
-            "Project ID is empty. Set GOOGLE_CLOUD_PROJECT (recommended) "
-            "or GCLOUD_PROJECT/GOOGLE_PROJECT (or legacy PROJECT_ID)."
-        )
+        # Should not happen with fallback
+        print("WARNING: Project ID not found in env, using default.")
+        return "nanobananacomic-482111"
     if "NAMA_PROJECT" in pid.upper():
         raise RuntimeError(f"Invalid placeholder project id detected: {pid}")
     return pid

@@ -1,0 +1,311 @@
+{
+  "comic_id": "414344a9938c",
+  "pdf_url": "/api/comic/414344a9938c.pdf",
+  "script": {
+    "global": {
+      "comic_title": "Tragedi Pasukan Gajah: Runtuhnya Kesombongan Abrahah",
+      "tagline": "Ketika kekuatan duniawi tunduk di hadapan keagungan Sang Pencipta.",
+      "global_style": {
+        "art_style": "clean modern comic",
+        "color_mood": "cinematic warm, high contrast",
+        "line_style": "clean ink lines, sharp",
+        "camera": "simple cinematic framing"
+      },
+      "characters": [
+        {
+          "name": "Abrahah Al-Asyram",
+          "appearance": "Pria bertubuh besar, wajah tegas dengan bekas luka, janggut hitam tebal.",
+          "outfit": "Zirah emas mewah khas Yaman, jubah merah tua, mahkota kecil di atas helm tempur.",
+          "personality": "Sombong, ambisius, pemarah, dan haus akan pengakuan."
+        },
+        {
+          "name": "Abdul Muttalib",
+          "appearance": "Pria tua yang sangat berwibawa, wajah tenang, janggut putih panjang yang rapi.",
+          "outfit": "Jubah putih bersih dengan kain penutup kepala (sorban) berwarna krem.",
+          "personality": "Bijaksana, tenang, memiliki iman yang teguh, dan sangat dihormati."
+        },
+        {
+          "name": "Mahmud (Gajah Besar)",
+          "appearance": "Gajah Afrika raksasa, kulit abu-abu gelap bertekstur, gading yang sangat panjang.",
+          "outfit": "Hiasan kepala dari besi dan kain merah di punggungnya untuk tempat duduk Abrahah.",
+          "personality": "Tenang namun memiliki insting spiritual yang kuat."
+        }
+      ],
+      "style_id": "cinematic_modern",
+      "style_label": "Cinematic Modern (default)"
+    },
+    "parts": [
+      {
+        "part_no": 1,
+        "part_title": "Ambisi Sang Penguasa Yaman",
+        "panels": [
+          {
+            "panel_no": 1,
+            "panel_title": "Movie Poster",
+            "narration": "TRAGEDI PASUKAN GAJAH: RUNTUHNYA KESOMBONGAN ABRAHAH\nKetika kekuatan duniawi tunduk di hadapan keagungan Sang Pencipta.",
+            "dialogues": []
+          },
+          {
+            "panel_no": 2,
+            "panel_title": "Abrahah's Anger",
+            "narration": "Yaman. Abrahah bangga dengan katedralnya, namun hatinya panas.",
+            "dialogues": [
+              "Abrahah: Mengapa mereka masih ke Makkah?!"
+            ]
+          },
+          {
+            "panel_no": 3,
+            "panel_title": "The Vow",
+            "narration": "Kabar penodaan Ka'bah menyulut amarahnya.",
+            "dialogues": [
+              "Abrahah: Aku bersumpah akan meratakan Ka'bah dengan tanah!"
+            ]
+          },
+          {
+            "panel_no": 4,
+            "panel_title": "The March",
+            "narration": "Pasukan gajah pimpinan Mahmud membelah padang pasir.",
+            "dialogues": []
+          },
+          {
+            "panel_no": 5,
+            "panel_title": "The Raid",
+            "narration": "Di pinggiran Makkah, harta penduduk dirampas.",
+            "dialogues": [
+              "Soldier: Ambil semua unta ini!"
+            ]
+          },
+          {
+            "panel_no": 6,
+            "panel_title": "Abdul Muttalib's Arrival",
+            "narration": "Abdul Muttalib, pemimpin Quraisy, datang dengan tenang.",
+            "dialogues": []
+          },
+          {
+            "panel_no": 7,
+            "panel_title": "The Meeting",
+            "narration": "Kewibawaannya membuat Abrahah terkesan.",
+            "dialogues": [
+              "Abrahah: Orang tua ini... berbeda."
+            ]
+          },
+          {
+            "panel_no": 8,
+            "panel_title": "The Request",
+            "narration": "",
+            "dialogues": [
+              "Abdul Muttalib: Aku hanya meminta unta-untaku kembali.",
+              "Abrahah: Hanya itu? Bukan memohon untuk Ka'bah?"
+            ]
+          },
+          {
+            "panel_no": 9,
+            "panel_title": "The Prayer",
+            "narration": "Abdul Muttalib berserah diri di depan Ka'bah.",
+            "dialogues": [
+              "Abdul Muttalib: Ya Tuhan, jagalah Rumah-Mu."
+            ]
+          }
+        ]
+      },
+      {
+        "part_no": 2,
+        "part_title": "Langit yang Menghitam",
+        "panels": [
+          {
+            "panel_no": 1,
+            "narration": "Pagi itu, kesombongan Abrahah memuncak.",
+            "dialogues": [
+              "MAJU! HANCURKAN KA'BAH!"
+            ]
+          },
+          {
+            "panel_no": 2,
+            "narration": "Namun, Mahmud sang gajah perkasa berlutut, menolak perintah.",
+            "dialogues": [
+              "BANGUN, MAHLUK BODOH! BANGUN!"
+            ]
+          },
+          {
+            "panel_no": 3,
+            "narration": "Dipukul dan dipaksa, ia tetap tak bergeming ke arah Makkah.",
+            "dialogues": [
+              "Dia tidak mau bergerak, Tuanku!"
+            ]
+          },
+          {
+            "panel_no": 4,
+            "narration": "Anehnya, saat diarahkan ke Yaman, ia langsung berdiri tegak.",
+            "dialogues": [
+              "Lihat! Ke arah sana dia mau!"
+            ]
+          },
+          {
+            "panel_no": 5,
+            "narration": "Tiba-tiba, langit pagi berubah menjadi gelap gulita.",
+            "dialogues": [
+              "Apa itu? Awan hitam?"
+            ]
+          },
+          {
+            "panel_no": 6,
+            "narration": "Ribuan burung Ababil datang, membawa batu-batu membara dari neraka.",
+            "dialogues": []
+          },
+          {
+            "panel_no": 7,
+            "narration": "Batu-batu itu dijatuhkan, menembus zirah dan daging.",
+            "dialogues": [
+              "AAARGH! PANAS!"
+            ]
+          },
+          {
+            "panel_no": 8,
+            "narration": "Pasukan gajah yang sombong itu hancur lebur, seperti daun dimakan ulat.",
+            "dialogues": [
+              "Lari! Kita celaka!"
+            ]
+          },
+          {
+            "panel_no": 9,
+            "narration": "Makkah kembali tenang. Ka'bah berdiri kokoh, terlindungi oleh Sang Pencipta.",
+            "dialogues": []
+          }
+        ]
+      }
+    ]
+  },
+  "read_plan": [
+    {
+      "page_index": 1,
+      "part_no": 1,
+      "part_title": "Ambisi Sang Penguasa Yaman",
+      "panel_no": 1,
+      "text": "TRAGEDI PASUKAN GAJAH: RUNTUHNYA KESOMBONGAN ABRAHAH\nKetika kekuatan duniawi tunduk di hadapan keagungan Sang Pencipta."
+    },
+    {
+      "page_index": 2,
+      "part_no": 1,
+      "part_title": "Ambisi Sang Penguasa Yaman",
+      "panel_no": 2,
+      "text": "Yaman. Abrahah bangga dengan katedralnya, namun hatinya panas. Abrahah: Mengapa mereka masih ke Makkah?!"
+    },
+    {
+      "page_index": 3,
+      "part_no": 1,
+      "part_title": "Ambisi Sang Penguasa Yaman",
+      "panel_no": 3,
+      "text": "Kabar penodaan Ka'bah menyulut amarahnya. Abrahah: Aku bersumpah akan meratakan Ka'bah dengan tanah!"
+    },
+    {
+      "page_index": 4,
+      "part_no": 1,
+      "part_title": "Ambisi Sang Penguasa Yaman",
+      "panel_no": 4,
+      "text": "Pasukan gajah pimpinan Mahmud membelah padang pasir."
+    },
+    {
+      "page_index": 5,
+      "part_no": 1,
+      "part_title": "Ambisi Sang Penguasa Yaman",
+      "panel_no": 5,
+      "text": "Di pinggiran Makkah, harta penduduk dirampas. Soldier: Ambil semua unta ini!"
+    },
+    {
+      "page_index": 6,
+      "part_no": 1,
+      "part_title": "Ambisi Sang Penguasa Yaman",
+      "panel_no": 6,
+      "text": "Abdul Muttalib, pemimpin Quraisy, datang dengan tenang."
+    },
+    {
+      "page_index": 7,
+      "part_no": 1,
+      "part_title": "Ambisi Sang Penguasa Yaman",
+      "panel_no": 7,
+      "text": "Kewibawaannya membuat Abrahah terkesan. Abrahah: Orang tua ini... berbeda."
+    },
+    {
+      "page_index": 8,
+      "part_no": 1,
+      "part_title": "Ambisi Sang Penguasa Yaman",
+      "panel_no": 8,
+      "text": "Abdul Muttalib: Aku hanya meminta unta-untaku kembali. Abrahah: Hanya itu? Bukan memohon untuk Ka'bah?"
+    },
+    {
+      "page_index": 9,
+      "part_no": 1,
+      "part_title": "Ambisi Sang Penguasa Yaman",
+      "panel_no": 9,
+      "text": "Abdul Muttalib berserah diri di depan Ka'bah. Abdul Muttalib: Ya Tuhan, jagalah Rumah-Mu."
+    },
+    {
+      "page_index": 10,
+      "part_no": 2,
+      "part_title": "Langit yang Menghitam",
+      "panel_no": 1,
+      "text": "Pagi itu, kesombongan Abrahah memuncak. MAJU! HANCURKAN KA'BAH!"
+    },
+    {
+      "page_index": 11,
+      "part_no": 2,
+      "part_title": "Langit yang Menghitam",
+      "panel_no": 2,
+      "text": "Namun, Mahmud sang gajah perkasa berlutut, menolak perintah. BANGUN, MAHLUK BODOH! BANGUN!"
+    },
+    {
+      "page_index": 12,
+      "part_no": 2,
+      "part_title": "Langit yang Menghitam",
+      "panel_no": 3,
+      "text": "Dipukul dan dipaksa, ia tetap tak bergeming ke arah Makkah. Dia tidak mau bergerak, Tuanku!"
+    },
+    {
+      "page_index": 13,
+      "part_no": 2,
+      "part_title": "Langit yang Menghitam",
+      "panel_no": 4,
+      "text": "Anehnya, saat diarahkan ke Yaman, ia langsung berdiri tegak. Lihat! Ke arah sana dia mau!"
+    },
+    {
+      "page_index": 14,
+      "part_no": 2,
+      "part_title": "Langit yang Menghitam",
+      "panel_no": 5,
+      "text": "Tiba-tiba, langit pagi berubah menjadi gelap gulita. Apa itu? Awan hitam?"
+    },
+    {
+      "page_index": 15,
+      "part_no": 2,
+      "part_title": "Langit yang Menghitam",
+      "panel_no": 6,
+      "text": "Ribuan burung Ababil datang, membawa batu-batu membara dari neraka."
+    },
+    {
+      "page_index": 16,
+      "part_no": 2,
+      "part_title": "Langit yang Menghitam",
+      "panel_no": 7,
+      "text": "Batu-batu itu dijatuhkan, menembus zirah dan daging. AAARGH! PANAS!"
+    },
+    {
+      "page_index": 17,
+      "part_no": 2,
+      "part_title": "Langit yang Menghitam",
+      "panel_no": 8,
+      "text": "Pasukan gajah yang sombong itu hancur lebur, seperti daun dimakan ulat. Lari! Kita celaka!"
+    },
+    {
+      "page_index": 18,
+      "part_no": 2,
+      "part_title": "Langit yang Menghitam",
+      "panel_no": 9,
+      "text": "Makkah kembali tenang. Ka'bah berdiri kokoh, terlindungi oleh Sang Pencipta."
+    }
+  ],
+  "meta": {
+    "pdf_pages": 18,
+    "style_id": "cinematic_modern",
+    "style_label": "Cinematic Modern (default)"
+  }
+}
