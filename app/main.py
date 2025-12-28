@@ -4,6 +4,9 @@ Converted from Laravel PHP to Python FastAPI
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from pathlib import Path
 from app.core.config import settings
 
 # Create FastAPI application
@@ -47,10 +50,12 @@ async def health_check():
     }
 
 
+
 # Import routers
-from app.api import auth, master_data, users, comics, comments, likes, history, subscriptions, notifications, analytics
+from app.api import auth, master_data, users, comics, comments, likes, history, subscriptions, notifications, analytics, comic_generator
 
 # Include routers
+app.include_router(comic_generator.router, tags=["Comic Generator"]) # Mixed paths (api + viewer)
 app.include_router(auth.router, prefix="/api/v1", tags=["Authentication"])
 app.include_router(users.router, prefix="/api/v1", tags=["Users"])
 app.include_router(master_data.router, prefix="/api/v1", tags=["Master Data"])
