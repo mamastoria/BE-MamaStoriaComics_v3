@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>NanoBanana Comic 🍌✨</title>
+
+  <style>
+    :root{
+      --bg1:#fff7ed; --bg2:#ecfeff;
+      --text:#0f172a; --muted:#475569;
+      --border:rgba(15,23,42,.10);
+      --shadow:0 18px 60px rgba(2,6,23,.12);
+
+      --brand:#ff7a18;
+      --brand2:#ff3d7f;
+      --brand3:#00c2ff;
+      --ok:#16a34a;
+      --bad:#ef4444;
+      --warn:#f59e0b;
+
+      --r:18px;
+      --r2:26px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:var(--sans);
+      color:var(--text);
+      background:
+        radial-gradient(1200px 700px at 10% 10%, #fff1f2 0%, transparent 55%),
+        radial-gradient(1000px 600px at 90% 30%, #e0f2fe 0%, transparent 55%),
+        radial-gradient(900px 600px at 40% 90%, #ecfccb 0%, transparent 55%),
+        linear-gradient(120deg, var(--bg1), var(--bg2));
+      padding: 18px;
+    }
+
+    .wrap{
+      max-width: 1120px;
+      margin: 0 auto;
+      display:grid;
+      grid-template-columns: 420px 1fr;
+      gap: 18px;
+      align-items:start;
+    }
+    @media (max-width: 980px){
+      .wrap{grid-template-columns: 1fr;}
+    }
+
+    .topbar{
+      grid-column: 1 / -1;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding: 14px 16px;
+      border:1px solid var(--border);
+      border-radius: var(--r2);
+      background: linear-gradient(90deg, #ffffffcc, #ffffffaa);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(8px);
+    }
+    .brand{ display:flex; gap:12px; align-items:center; }
+    .logo{
+      width:44px;height:44px;border-radius: 16px;
+      background:
+        radial-gradient(circle at 30% 30%, #fff 0 25%, transparent 26%),
+        conic-gradient(from 210deg, var(--brand), var(--brand2), var(--brand3), var(--brand));
+      box-shadow: 0 10px 24px rgba(255, 61, 127, .20);
+      position:relative; overflow:hidden;
+    }
+    .logo:after{
+      content:"";
+      position:absolute; inset:-30%;
+      background: radial-gradient(circle at 20% 20%, rgba(255,255,255,.65), transparent 45%);
+      transform: rotate(15deg);
+    }
+    .brand h1{ margin:0; font-size: 18px; line-height: 1.1; letter-spacing: .2px; }
+    .brand p{ margin:2px 0 0 0; color:var(--muted); font-size: 12.5px; }
+
+    .chips{ display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; }
+    .chip{
+      display:inline-flex; align-items:center; gap:8px;
+      padding: 7px 10px;
+      border-radius: 999px;
+      border:1px solid var(--border);
+      background:#fff;
+      font-size: 12.5px;
+      color:var(--muted);
+      user-select:none;
+      box-shadow: 0 10px 20px rgba(2,6,23,.06);
+    }
+    .dot{width:8px;height:8px;border-radius:999px;background:var(--brand3)}
+    .dot.ok{background:var(--ok)}
+    .dot.bad{background:var(--bad)}
+    .dot.warn{background:var(--warn)}
+
+    .card{
+      border:1px solid var(--border);
+      border-radius: var(--r2);
+      background: rgba(255,255,255,.80);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+      overflow:hidden;
+    }
+    .card .head{
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:10px;
+      background: linear-gradient(180deg, #ffffff, #ffffffcc);
+    }
+    .card .head h2{ margin:0; font-size: 14.5px; letter-spacing:.2px; }
+    .card .head .sub{ margin:4px 0 0 0; font-size: 12.5px; color:var(--muted); line-height:1.35; }
+    .card .body{ padding: 14px 16px 16px 16px; }
+
+    label{ display:block; font-size: 12.5px; color: var(--muted); margin: 10px 0 6px 0; }
+    textarea{
+      width:100%;
+      min-height: 120px;
+      resize: vertical;
+      padding: 12px 12px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      outline:none;
+      font-size: 14px;
+      line-height:1.35;
+      background: #fff;
+      box-shadow: inset 0 1px 0 rgba(2,6,23,.05);
+    }
+    textarea:focus{
+      border-color: rgba(255,122,24,.55);
+      box-shadow: 0 0 0 4px rgba(255,122,24,.12);
+    }
+    select{
+      width:100%;
+      padding: 11px 12px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      outline:none;
+      background:#fff;
+      font-size: 14px;
+    }
+    select:focus{
+      border-color: rgba(0,194,255,.55);
+      box-shadow: 0 0 0 4px rgba(0,194,255,.12);
+    }
+
+    .nuWrap{
+      margin-top: 10px;
+      border: 1px solid rgba(2,6,23,.08);
+      background: rgba(255,255,255,.7);
+      border-radius: 18px;
+      padding: 10px;
+    }
+    .nuGrid{ display:flex; flex-wrap:wrap; gap:8px; margin-top: 8px; }
+
+    label.nuChip{
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      padding: 10px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(15,23,42,.10);
+      background: #fff;
+      cursor:pointer;
+      user-select:none;
+      transition: transform .05s ease, box-shadow .12s ease, border-color .12s ease;
+      box-shadow: 0 10px 20px rgba(2,6,23,.06);
+    }
+    label.nuChip:active{ transform: translateY(1px); }
+    label.nuChip:hover{ border-color: rgba(0,194,255,.35); box-shadow: 0 14px 30px rgba(2,6,23,.10); }
+    label.nuChip input{ width:16px;height:16px; margin:0; }
+    label.nuChip .t span{ font-size: 12.75px; font-weight: 900; color: var(--text); white-space:nowrap; }
+    label.nuChip.on{ border-color: rgba(255,61,127,.45); box-shadow: 0 18px 40px rgba(255,61,127,.14); }
+
+    .nuActions{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+
+    .btns{ display:flex; flex-wrap:wrap; gap:10px; margin-top: 12px; }
+    button{
+      appearance:none; border:0; cursor:pointer;
+      border-radius: 16px;
+      padding: 11px 14px;
+      font-weight: 700;
+      font-size: 14px;
+      transition: transform .05s ease, filter .12s ease, opacity .12s ease;
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      user-select:none;
+      box-shadow: 0 12px 26px rgba(2,6,23,.12);
+    }
+    button:active{ transform: translateY(1px); }
+    button[disabled]{ opacity:.6; cursor:not-allowed; filter: grayscale(.15); }
+    .primary{ background: linear-gradient(135deg, var(--brand), var(--brand2)); color:#fff; }
+    .secondary{
+      background: #fff;
+      color: var(--text);
+      border: 1px solid var(--border);
+      box-shadow: 0 12px 26px rgba(2,6,23,.08);
+    }
+    .ghost{
+      background: transparent;
+      color: var(--muted);
+      border: 1px dashed rgba(15,23,42,.18);
+      box-shadow:none;
+      font-weight: 650;
+    }
+    .mini{ padding: 9px 12px; border-radius: 14px; font-size: 13px; }
+
+    .alert{
+      margin-top:12px;
+      padding: 10px 12px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--muted);
+      font-size: 13px;
+      line-height:1.35;
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+    }
+    .alert.ok{ border-color: rgba(22,163,74,.25); background: rgba(22,163,74,.06); }
+    .alert.bad{ border-color: rgba(239,68,68,.25); background: rgba(239,68,68,.06); }
+    .alert.warn{ border-color: rgba(245,158,11,.25); background: rgba(245,158,11,.08); }
+
+    .kpi{ display:flex; flex-wrap:wrap; gap:8px; margin-top: 10px; }
+    .pill{
+      font-size: 12px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(2,6,23,.04);
+      border: 1px solid rgba(2,6,23,.08);
+      color: var(--muted);
+    }
+    .pill strong{color:var(--text)}
+
+    .jsonbox{
+      background: #0b1220;
+      color: #e8f0ff;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,.10);
+      overflow:hidden;
+    }
+    .jsonbox .bar{
+      display:flex; align-items:center; justify-content:space-between;
+      padding: 10px 12px;
+      background: rgba(255,255,255,.06);
+      border-bottom: 1px solid rgba(255,255,255,.10);
+      gap:10px;
+    }
+    .jsonbox .bar .title{ font-size: 12.5px; color: rgba(232,240,255,.85); }
+    .jsonbox .bar .actions{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;}
+    .jsonarea{
+      width:100%;
+      min-height: 300px;
+      resize: vertical;
+      padding: 12px 12px;
+      border:0; outline:none;
+      background: transparent;
+      color: #e8f0ff;
+      font-family: var(--mono);
+      font-size: 12.75px;
+      line-height:1.45;
+      white-space: pre;
+      tab-size: 2;
+    }
+
+    /* ✅ PREVIEW AREA */
+    .previewWrap{
+      border-radius: var(--r2);
+      border: 1px solid var(--border);
+      background:#fff;
+      box-shadow: 0 18px 50px rgba(2,6,23,.10);
+      overflow:hidden;
+      display:none;
+      margin-bottom: 18px;
+    }
+    .previewWrap.show{display:block}
+    .previewBody{
+      padding: 14px 16px 16px 16px;
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:12px;
+    }
+    @media (max-width: 980px){
+      .previewBody{grid-template-columns: 1fr;}
+    }
+    .previewImg{
+      width:100%;
+      display:block;
+      border-radius: 18px;
+      border: 1px solid rgba(15,23,42,.10);
+      box-shadow: 0 12px 30px rgba(2,6,23,.08);
+      background: #fff;
+      min-height: 220px;
+      object-fit: contain;
+    }
+    .previewCap{
+      margin-top: 8px;
+      font-size: 12.5px;
+      color: var(--muted);
+      text-align:center;
+    }
+
+    .pdfWrap{
+      border-radius: var(--r2);
+      border: 1px solid var(--border);
+      background:#fff;
+      box-shadow: 0 18px 50px rgba(2,6,23,.10);
+      overflow:hidden;
+      display:none;
+    }
+    .pdfWrap.show{display:block}
+    .pdfTop{
+      padding: 12px 12px;
+      border-bottom: 1px solid var(--border);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      background: linear-gradient(90deg, #fff, #fff7);
+    }
+    .pdfBadge{
+      font-size: 12px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(0,194,255,.10);
+      border: 1px solid rgba(0,194,255,.22);
+      color: #075985;
+      font-weight: 800;
+      display:inline-flex; align-items:center; gap:8px;
+    }
+    .pdfFrame{
+      width:100%;
+      height: min(74vh, 820px);
+      border:0;
+      display:block;
+      background:#fff;
+    }
+
+    /* Floating overlay */
+    .overlay{
+      position:fixed;
+      right: 18px;
+      bottom: 18px;
+      width: min(420px, calc(100vw - 36px));
+      display:none;
+      align-items:flex-end;
+      justify-content:flex-end;
+      z-index: 999999;
+      pointer-events: none;
+    }
+    .overlay.show{display:flex}
+    .loaderCard{
+      width:100%;
+      background:#fff;
+      border-radius: 26px;
+      border:1px solid rgba(15,23,42,.10);
+      box-shadow: 0 24px 70px rgba(2,6,23,.18);
+      padding: 16px;
+      overflow:hidden;
+      pointer-events: auto;
+    }
+    .loaderTop{ display:flex; align-items:center; gap:12px; }
+    .spinner{
+      width:36px;height:36px;border-radius:999px;
+      border:4px solid rgba(0,0,0,.10);
+      border-top-color: rgba(255,61,127,.85);
+      animation: spin 1s linear infinite;
+      flex: 0 0 auto;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loaderText h3{ margin:0; font-size: 14.5px; }
+    .loaderText p{ margin:3px 0 0 0; color: var(--muted); font-size: 12.75px; line-height:1.35; }
+    .hint{ margin-top: 8px; font-size: 12.25px; color: var(--muted); line-height: 1.35; }
+
+    .steps{ margin-top: 12px; display:grid; gap:10px; }
+    .step{
+      border: 1px solid rgba(15,23,42,.08);
+      border-radius: 16px;
+      padding: 10px 10px;
+      background: rgba(255,255,255,.75);
+    }
+    .sTop{ display:flex; align-items:center; justify-content:space-between; gap:10px; font-size: 12.75px; }
+    .sTag{
+      font-size: 11.75px;
+      color: #64748b;
+      border: 1px solid rgba(15,23,42,.10);
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #fff;
+    }
+    .sBar{ margin-top: 8px; height: 10px; border-radius: 999px; background: rgba(2,6,23,.08); overflow:hidden; }
+    .sFill{
+      height:100%;
+      width: 0%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--brand), var(--brand2), var(--brand3));
+    }
+
+    .step.done .sTag{ color:#166534; border-color: rgba(22,163,74,.25); background: rgba(22,163,74,.06); }
+    .step.done .sFill{ width:100%; animation:none; }
+
+    .step.running .sTag{ color:#075985; border-color: rgba(0,194,255,.25); background: rgba(0,194,255,.08); }
+    .step.running .sFill{
+      width: 35%;
+      animation: stepRun 1.1s ease-in-out infinite;
+    }
+    @keyframes stepRun{
+      0%{ transform: translateX(-30%); width: 25%; }
+      50%{ transform: translateX(140%); width: 45%; }
+      100%{ transform: translateX(-30%); width: 25%; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <div>
+          <h1>NanoBanana Comic 🍌✨</h1>
+          <p>2 bagian × 9 panel • portrait • PDF 18 halaman</p>
+        </div>
+      </div>
+      <div class="chips">
+        <div class="chip"><span class="dot warn" id="healthDot"></span><span id="healthText">cek server…</span></div>
+        <div class="chip"><span class="dot"></span><span id="styleChip">Style: —</span></div>
+        <div class="chip"><span class="dot" style="background:var(--brand2)"></span><span id="nuChip">Nuansa: —</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="head">
+        <div>
+          <h2>1) Tulis Cerita</h2>
+          <p class="sub">Pilih gaya + nuansa, lalu AI bikin naskah 2 bagian (18 panel).</p>
+        </div>
+      </div>
+      <div class="body">
+        <label for="story">Cerita kamu</label>
+        <textarea id="story" placeholder="Contoh: 'Ibu dan anak menemukan jam pasir ajaib…'"></textarea>
+
+        <label for="style">Gaya Komik</label>
+        <select id="style"></select>
+        <div class="hint" id="styleNotes">—</div>
+
+        <div class="nuWrap" id="nuWrap">
+          <div class="hint"><b>Nuansa Komik</b> (max 5)</div>
+
+          <!-- dropdown container akan dibuat JS, tapi grid ini wajib ada -->
+          <div class="nuGrid" id="nuGrid"></div>
+
+          <div class="nuActions">
+            <button class="secondary mini" id="btnNuDefault" type="button">🎯 Default</button>
+            <button class="ghost mini" id="btnNuClear" type="button">🧼 Clear</button>
+          </div>
+        </div>
+
+        <div class="btns">
+          <button class="primary" id="btnMakeScript" type="button">🧠 Buat Naskah 2 Bagian</button>
+          <button class="secondary" id="btnFormatJson" type="button">✨ Rapikan JSON</button>
+          <button class="ghost" id="btnReset" type="button">🧽 Reset</button>
+        </div>
+
+        <div class="alert warn" id="alertBox" style="display:none">
+          <div>💡</div>
+          <div id="alertText">—</div>
+        </div>
+
+        <div class="kpi">
+          <div class="pill"><strong>Step:</strong> <span id="stepText">siap</span></div>
+          <div class="pill"><strong>Job:</strong> <span id="jobText">—</span></div>
+          <div class="pill"><strong>PDF:</strong> <span id="pdfText">—</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card" style="margin-bottom:18px">
+        <div class="head">
+          <div>
+            <h2>2) Naskah (JSON)</h2>
+            <p class="sub">Bisa kamu edit sebelum render.</p>
+          </div>
+        </div>
+        <div class="body">
+          <div class="jsonbox">
+            <div class="bar">
+              <div class="title">📄 Script JSON</div>
+              <div class="actions">
+                <button class="secondary mini" id="btnCopyJson" type="button">📋 Copy</button>
+                <button class="secondary mini" id="btnDownloadJson" type="button">⬇️ Download .json</button>
+              </div>
+            </div>
+            <textarea class="jsonarea" id="scriptJson" placeholder="Klik “Buat Naskah 2 Bagian”…"></textarea>
+          </div>
+
+          <div class="btns" style="margin-top:12px">
+            <button class="primary" id="btnRenderAll" type="button">🎬 Render Part 1 & 2</button>
+          </div>
+
+          <div class="hint" style="margin-top:10px">
+            Setelah selesai, preview (2 halaman) & PDF otomatis muncul di bawah.
+          </div>
+        </div>
+      </div>
+
+      <!-- ✅ PREVIEW KOMIK (SEBELUM PDF) -->
+      <div class="previewWrap" id="previewWrap">
+        <div class="head">
+          <div>
+            <h2>3) Preview Komik (Sebelum PDF)</h2>
+            <p class="sub">Ini untuk memastikan part 1 & part 2 sudah benar sebelum dipotong jadi PDF.</p>
+          </div>
+          <div class="chips">
+            <div class="chip"><span class="dot" style="background:var(--brand3)"></span><span id="previewChip">preview: —</span></div>
+          </div>
+        </div>
+        <div class="previewBody">
+          <div>
+            <img id="imgPart1" class="previewImg" alt="Preview Part 1" />
+            <div class="previewCap">Part 1 (sebelum dipotong)</div>
+          </div>
+          <div>
+            <img id="imgPart2" class="previewImg" alt="Preview Part 2" />
+            <div class="previewCap">Part 2 (sebelum dipotong)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PDF -->
+      <div class="card">
+        <div class="head">
+          <div>
+            <h2>4) PDF Komik</h2>
+            <p class="sub">Muncul otomatis saat job <b>done</b> dan PDF sudah siap.</p>
+          </div>
+          <div class="chips">
+            <div class="chip"><span class="dot" style="background:var(--brand2)"></span><span id="renderChip">render: —</span></div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="pdfWrap" id="pdfWrap">
+            <div class="pdfTop">
+              <div class="pdfBadge">🧾 PDF Viewer</div>
+              <div class="btns" style="margin:0">
+                <button class="primary mini" id="btnGetPdf" type="button" disabled>📚 Download</button>
+                <button class="secondary mini" id="btnOpenPdf" type="button" disabled>🪟 Tab Baru</button>
+                <button class="ghost mini" id="btnReadAlong" type="button" disabled>🗣️ Read-Along</button>
+              </div>
+            </div>
+            <iframe id="pdfFrame" class="pdfFrame" title="NanoBanana PDF"></iframe>
+          </div>
+
+          <div class="hint" id="pdfHint">
+            Belum ada PDF. Render dulu ya 🙂
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating Overlay -->
+  <div class="overlay" id="overlay" aria-live="polite" aria-busy="true">
+    <div class="loaderCard">
+      <div class="loaderTop">
+        <div class="spinner" aria-hidden="true"></div>
+        <div class="loaderText">
+          <h3 id="loadingTitle">Sedang proses…</h3>
+          <p id="loadingDesc">Langkah demi langkah akan terlihat.</p>
+        </div>
+      </div>
+
+      <div class="steps">
+        <div class="step idle" data-step="script">
+          <div class="sTop"><b>🧠 Buat Naskah</b><span class="sTag">menunggu</span></div>
+          <div class="sBar"><div class="sFill"></div></div>
+        </div>
+        <div class="step idle" data-step="render1">
+          <div class="sTop"><b>🎬 Render Part 1</b><span class="sTag">menunggu</span></div>
+          <div class="sBar"><div class="sFill"></div></div>
+        </div>
+        <div class="step idle" data-step="render2">
+          <div class="sTop"><b>🎬 Render Part 2</b><span class="sTag">menunggu</span></div>
+          <div class="sBar"><div class="sFill"></div></div>
+        </div>
+        <div class="step idle" data-step="pdf">
+          <div class="sTop"><b>🧾 Build PDF</b><span class="sTag">menunggu</span></div>
+          <div class="sBar"><div class="sFill"></div></div>
+        </div>
+      </div>
+
+      <div class="hint" id="loadingHint" style="margin-top:10px">
+        Tip: kamu tetap bisa scroll. (Overlay kecil di pojok)
+      </div>
+    </div>
+  </div>
+
+  <!-- ✅ CACHE BUSTER -->
+  <script src="/static/app.js?v=9999"></script>
+</body>
+</html>

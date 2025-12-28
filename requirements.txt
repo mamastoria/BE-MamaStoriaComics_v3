@@ -1,7 +1,4 @@
-# FastAPI & Web Framework
-fastapi==0.115.0
-uvicorn[standard]==0.32.0
-python-multipart==0.0.9
+
 
 # Database
 sqlalchemy==2.0.36
@@ -34,3 +31,14 @@ email-validator==2.2.0
 # Utilities
 python-dateutil==2.9.0
 pytz==2024.2
+
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+Pillow==10.4.0
+
+google-cloud-aiplatform==1.71.1
+google-auth[requests]>=2.45.0,<3.0.0
+requests==2.32.3
+reportlab>=4.0.0
+
