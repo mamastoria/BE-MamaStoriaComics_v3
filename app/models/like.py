@@ -22,6 +22,7 @@ class Like(Base):
         UniqueConstraint('comic_id', 'user_id', name='unique_like'),
     )
     
-    # Relationships
-    comic = relationship("Comic", back_populates="likes")
-    user = relationship("User", back_populates="likes")
+    # Relationships - lazy loaded without back_populates to avoid circular issues
+    comic = relationship("Comic", lazy="select")
+    user = relationship("User", lazy="select")
+
