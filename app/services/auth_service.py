@@ -241,8 +241,8 @@ class AuthService:
         Returns:
             Dict with access_token, refresh_token, token_type, expires_in
         """
-        access_token = create_access_token(data={"sub": user.id_users})
-        refresh_token = create_refresh_token(data={"sub": user.id_users})
+        access_token = create_access_token(data={"sub": str(user.id_users)})
+        refresh_token = create_refresh_token(data={"sub": str(user.id_users)})
         
         return {
             "access_token": access_token,

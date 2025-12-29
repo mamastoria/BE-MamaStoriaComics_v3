@@ -28,6 +28,16 @@ async def get_current_user(
     # Decode token
     payload = decode_token(token)
     if not payload:
+        # Check if it was because of subject type
+        try:
+             # Try decoding without verification to see if sub is int
+             import jwt as pyjwt
+             # Note: We are using python-jose, but let's see.
+             # Actually, let's just modify the error handling in decode_token to be more permissive or fix the creation.
+             pass
+        except:
+             pass
+             
         print(f"Token validation failed: Payload is None for token: {token[:10]}...")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
