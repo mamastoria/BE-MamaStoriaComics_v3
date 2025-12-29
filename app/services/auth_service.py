@@ -77,10 +77,8 @@ class AuthService:
             # Debugging: Expose the actual length of the password being hashed
             raise ValueError(f"Password hashing failed. Password length: {len(password)}. First 5 chars: '{password[:5]}'. Original error: {str(e)}")
         
-        # Generate verification code
-        verification_code = generate_verification_code()
         
-        # Validate referral code if provided
+        # Validation for referral code if provided
         referrer = None
         if referral_code:
             referrer = db.query(User).filter(User.referral_code_id == referral_code).first()
@@ -96,9 +94,9 @@ class AuthService:
             password=hashed_password,
             referral_code_id=new_referral_code,
             referrals_for=referral_code,  # Code of person who referred them
-            verification_code=verification_code,
-            last_verification_sent_at=datetime.utcnow(),
-            is_verified=False,
+            verification_code=None,
+            last_verification_sent_at=None,
+            is_verified=True,
             kredit=0,
             balance=0,
             publish_quota=0
@@ -117,10 +115,6 @@ class AuthService:
             )
             db.add(referral_record)
             db.commit()
-
-        # TODO: Send verification code via SMS/WhatsApp
-        # For now, just log it
-        print(f"Verification code for {phone_number}: {verification_code}")
 
         return user
     

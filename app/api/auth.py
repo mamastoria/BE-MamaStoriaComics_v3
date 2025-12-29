@@ -69,11 +69,11 @@ async def register(
         
         return {
             "ok": True,
-            "message": "User registered successfully. Please verify your phone number.",
+            "message": "User registered successfully.",
             "data": {
                 "user_id": user.id_users,
                 "phone_number": user.phone_number,
-                "verification_code_sent": True
+                "verification_code_sent": False
             }
         }
     except Exception as e:
