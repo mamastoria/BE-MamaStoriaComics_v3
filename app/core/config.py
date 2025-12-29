@@ -52,7 +52,13 @@ class Settings(BaseSettings):
         """Convert CORS_ORIGINS string to list"""
         if self.CORS_ORIGINS == "*":
             return ["*"]
-        return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
+        origins = [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
+        # Ensure local development ports are allowed if DEBUG is True
+        if self.DEBUG:
+            for dev_origin in ["http://localhost:3000", "http://localhost:5000", "http://localhost:8080", "http://127.0.0.1:3000", "http://127.0.0.1:5000", "http://127.0.0.1:8080"]:
+                if dev_origin not in origins:
+                    origins.append(dev_origin)
+        return origins
     
     # File Upload
     MAX_UPLOAD_SIZE: int = 10485760  # 10MB

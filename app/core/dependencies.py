@@ -56,7 +56,26 @@ async def get_current_user(
         )
     
     # Query user from database
-    user = db.query(User).filter(User.id_users == user_id).first()
+    try:
+        # JWT subject should be a string, but DB ID is int. 
+        # Convert to int to be safe (handles "1" -> 1).
+        uid_int = int(user_id)
+        user = db.query(User).filter(User.id_users == uid_int).first()
+    except ValueError:
+         print(f"Token validation failed: User ID {user_id} is not a valid integer")
+         raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid user ID format",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except Exception as e:
+        print(f"Database error in get_current_user: {str(e)}")
+        # We don't want to expose DB errors to client, but we must log them
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal authentication error"
+        )
+
     if user is None:
         print(f"Token validation failed: User ID {user_id} not found in database")
         raise HTTPException(
