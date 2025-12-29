@@ -49,5 +49,10 @@ class MessageResponse(ResponseBase):
     pass
 
 
+class RefreshTokenRequest(BaseModel):
+    """Refresh token request schema"""
+    refresh_token: str = Field(..., description="Refresh token to generate new access token")
+
+
 # Config for all schemas
 ORMConfig = ConfigDict(from_attributes=True)

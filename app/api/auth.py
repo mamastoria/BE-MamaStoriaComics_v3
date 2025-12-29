@@ -18,7 +18,7 @@ from app.schemas.user import (
     UserResponse,
     GoogleTokenVerify
 )
-from app.schemas.common import TokenResponse, MessageResponse
+from app.schemas.common import TokenResponse, MessageResponse, RefreshTokenRequest
 from app.models.user import User
 from app.utils.responses import success_response, error_response
 
@@ -204,14 +204,14 @@ async def resend_verification(
 
 @router.post("/refresh", response_model=dict)
 async def refresh_token(
-    refresh_token: str
+    token_data: RefreshTokenRequest
 ):
     """
     Refresh access token using refresh token
     
     - **refresh_token**: Refresh token string
     """
-    new_access_token = AuthService.refresh_access_token(refresh_token)
+    new_access_token = AuthService.refresh_access_token(token_data.refresh_token)
     
     if not new_access_token:
         raise HTTPException(

@@ -97,7 +97,7 @@ class AuthService:
             verification_code=None,
             last_verification_sent_at=None,
             is_verified=True,
-            kredit=0,
+            kredit=1,
             balance=0,
             publish_quota=0
         )
