@@ -387,3 +387,386 @@ async def get_similar_comics(
         "ok": True,
         "data": similar_data
     }
+
+
+# ============================================================
+# Additional endpoints for frontend compatibility
+# ============================================================
+
+@router.get("/comics/{id}", response_model=dict)
+async def get_comic_by_id(
+    id: int,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user)
+):
+    """
+    Get comic detail by ID (alternative endpoint)
+    """
+    comic = db.query(Comic).filter(Comic.id == id).first()
+    
+    if not comic:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comic not found"
+        )
+    
+    return {
+        "ok": True,
+        "data": ComicWithPanels.model_validate(comic).model_dump()
+    }
+
+
+@router.get("/comics/{id}/draft/status", response_model=dict)
+async def get_draft_status(
+    id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get comic draft status
+    
+    Returns current generation status: pending, processing, completed, failed
+    """
+    comic = db.query(Comic).filter(
+        Comic.id == id,
+        Comic.user_id == current_user.id_users
+    ).first()
+    
+    if not comic:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comic not found"
+        )
+    
+    return {
+        "ok": True,
+        "data": {
+            "id": comic.id,
+            "status": comic.status or "pending",
+            "progress": comic.generation_progress or 0,
+            "stage": comic.generation_stage or None,
+            "error": comic.generation_error or None,
+            "created_at": comic.created_at.isoformat() if comic.created_at else None,
+            "updated_at": comic.updated_at.isoformat() if comic.updated_at else None
+        }
+    }
+
+
+@router.get("/comics/{id}/panels", response_model=dict)
+async def get_comic_panels(
+    id: int,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user)
+):
+    """
+    Get all panels for a comic
+    """
+    comic = db.query(Comic).filter(Comic.id == id).first()
+    
+    if not comic:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comic not found"
+        )
+    
+    # Get panels from relationship or generate from stored data
+    panels = []
+    if hasattr(comic, 'panels') and comic.panels:
+        panels = [{"panel_number": i+1, "image_url": p.image_url, "dialogue": p.dialogue} 
+                  for i, p in enumerate(comic.panels)]
+    elif comic.panel_images:
+        # panel_images is a JSON list of URLs
+        panels = [{"panel_number": i+1, "image_url": url} 
+                  for i, url in enumerate(comic.panel_images)]
+    
+    return {
+        "ok": True,
+        "data": {
+            "comic_id": comic.id,
+            "total_panels": len(panels),
+            "panels": panels
+        }
+    }
+
+
+@router.get("/comics/{id}/likes/status", response_model=dict)
+async def get_like_status(
+    id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Check if current user has liked this comic
+    """
+    comic = db.query(Comic).filter(Comic.id == id).first()
+    
+    if not comic:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comic not found"
+        )
+    
+    # Check if user has liked
+    from app.models.like import Like
+    like = db.query(Like).filter(
+        Like.comic_id == id,
+        Like.user_id == current_user.id_users
+    ).first()
+    
+    return {
+        "ok": True,
+        "data": {
+            "comic_id": id,
+            "is_liked": like is not None,
+            "total_likes": comic.total_likes or 0
+        }
+    }
+
+
+@router.post("/comics/{id}/likes", response_model=dict)
+async def like_comic(
+    id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Like a comic
+    """
+    comic = db.query(Comic).filter(Comic.id == id).first()
+    
+    if not comic:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comic not found"
+        )
+    
+    from app.models.like import Like
+    
+    # Check if already liked
+    existing = db.query(Like).filter(
+        Like.comic_id == id,
+        Like.user_id == current_user.id_users
+    ).first()
+    
+    if existing:
+        return {"ok": True, "message": "Already liked"}
+    
+    # Create like
+    like = Like(comic_id=id, user_id=current_user.id_users)
+    db.add(like)
+    
+    # Increment counter
+    comic.total_likes = (comic.total_likes or 0) + 1
+    db.commit()
+    
+    return {"ok": True, "message": "Comic liked successfully"}
+
+
+@router.delete("/comics/{id}/likes", response_model=dict)
+async def unlike_comic(
+    id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Unlike a comic
+    """
+    from app.models.like import Like
+    
+    like = db.query(Like).filter(
+        Like.comic_id == id,
+        Like.user_id == current_user.id_users
+    ).first()
+    
+    if not like:
+        return {"ok": True, "message": "Not liked"}
+    
+    db.delete(like)
+    
+    # Decrement counter
+    comic = db.query(Comic).filter(Comic.id == id).first()
+    if comic:
+        comic.total_likes = max(0, (comic.total_likes or 0) - 1)
+    
+    db.commit()
+    
+    return {"ok": True, "message": "Comic unliked successfully"}
+
+
+@router.get("/comics/{id}/preview-video", response_model=dict)
+async def get_preview_video(
+    id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Get preview video URL for a comic
+    """
+    comic = db.query(Comic).filter(Comic.id == id).first()
+    
+    if not comic:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comic not found"
+        )
+    
+    return {
+        "ok": True,
+        "data": {
+            "comic_id": id,
+            "video_url": comic.video_url or None,
+            "thumbnail_url": comic.cover_url or None
+        }
+    }
+
+
+@router.get("/comics/{id}/exported-media", response_model=dict)
+async def get_exported_media(
+    id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get exported media (PDF, video) for a comic
+    """
+    comic = db.query(Comic).filter(Comic.id == id).first()
+    
+    if not comic:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comic not found"
+        )
+    
+    return {
+        "ok": True,
+        "data": {
+            "comic_id": id,
+            "pdf_url": comic.pdf_url or None,
+            "video_url": comic.video_url or None,
+            "cover_url": comic.cover_url or None
+        }
+    }
+
+
+@router.post("/comics/{id}/generate", response_model=dict)
+async def generate_comic(
+    id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Start comic generation process
+    
+    This will queue the comic for AI generation
+    """
+    comic = db.query(Comic).filter(
+        Comic.id == id,
+        Comic.user_id == current_user.id_users
+    ).first()
+    
+    if not comic:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comic not found"
+        )
+    
+    # Queue for generation
+    try:
+        from app.services.task_queue_service import get_task_service
+        task_service = get_task_service()
+        
+        task_name = task_service.send_generate_comic_task(
+            job_id=str(comic.id),
+            story=comic.story_idea or "",
+            style_id=str(comic.style_id) if comic.style_id else None,
+            nuances=[],
+            pages=comic.page_count or 2
+        )
+        
+        # Update status
+        comic.status = "queued"
+        db.commit()
+        
+        return {
+            "ok": True,
+            "message": "Comic generation started",
+            "data": {
+                "comic_id": id,
+                "status": "queued",
+                "task_id": task_name
+            }
+        }
+    except Exception as e:
+        # Fallback: mark as pending for direct processing
+        comic.status = "pending"
+        db.commit()
+        
+        return {
+            "ok": True,
+            "message": "Comic queued for generation",
+            "data": {
+                "comic_id": id,
+                "status": "pending",
+                "error": str(e) if str(e) else None
+            }
+        }
+
+
+@router.put("/comics/{comic}/character", response_model=dict)
+async def update_comic_character_singular(
+    comic: int,
+    character_data: UpdateCharacter,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Update comic character selection (singular endpoint)
+    Alias for /comics/{comic}/characters
+    """
+    return await update_comic_character(comic, character_data, current_user, db)
+
+
+@router.put("/comics/{comic}/summary", response_model=dict)
+async def update_comic_summary_v2(
+    comic: int,
+    summary_data: UpdateSummary,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Update comic summary (v2 endpoint path)
+    """
+    return await update_comic_summary(comic, summary_data, current_user, db)
+
+
+@router.delete("/comics/drafts/{id}", response_model=dict)
+async def delete_draft(
+    id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Delete a draft comic
+    """
+    comic = db.query(Comic).filter(
+        Comic.id == id,
+        Comic.user_id == current_user.id_users
+    ).first()
+    
+    if not comic:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Draft not found"
+        )
+    
+    # Only delete if not published
+    if comic.title:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete published comic"
+        )
+    
+    db.delete(comic)
+    db.commit()
+    
+    return {"ok": True, "message": "Draft deleted successfully"}
+
