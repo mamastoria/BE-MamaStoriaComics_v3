@@ -28,7 +28,8 @@ class UserRegister(BaseModel):
 
 class UserLogin(BaseModel):
     """Schema for user login"""
-    identifier: str = Field(..., description="Email or phone number")
+    identifier: Optional[str] = Field(None, description="Email or phone number")
+    phone_number: Optional[str] = Field(None, description="Alternative to identifier")
     password: str = Field(..., min_length=6)
 
 

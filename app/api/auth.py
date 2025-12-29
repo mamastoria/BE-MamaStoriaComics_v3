@@ -96,10 +96,19 @@ async def login(
     
     Returns JWT access token and refresh token
     """
+    # Determine identifier
+    auth_id = credentials.identifier or credentials.phone_number
+    
+    if not auth_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Identifier or phone number is required"
+        )
+        
     # Authenticate user
     user = AuthService.authenticate_user(
         db=db,
-        identifier=credentials.identifier,
+        identifier=auth_id,
         password=credentials.password
     )
     
