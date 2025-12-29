@@ -28,6 +28,7 @@ async def get_current_user(
     # Decode token
     payload = decode_token(token)
     if not payload:
+        print(f"Token validation failed: Payload is None for token: {token[:10]}...")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
@@ -37,6 +38,7 @@ async def get_current_user(
     # Get user ID from payload
     user_id: Optional[int] = payload.get("sub")
     if user_id is None:
+        print(f"Token validation failed: User ID (sub) missing in payload: {payload}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
@@ -46,6 +48,7 @@ async def get_current_user(
     # Query user from database
     user = db.query(User).filter(User.id_users == user_id).first()
     if user is None:
+        print(f"Token validation failed: User ID {user_id} not found in database")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",

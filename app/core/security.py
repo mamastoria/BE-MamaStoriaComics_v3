@@ -91,7 +91,8 @@ def decode_token(token: str) -> Optional[Dict[str, Any]]:
             algorithms=[settings.JWT_ALGORITHM]
         )
         return payload
-    except JWTError:
+    except JWTError as e:
+        print(f"JWT Decode Error: {str(e)}")
         return None
 
 
