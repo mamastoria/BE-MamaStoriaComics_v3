@@ -19,6 +19,15 @@ router = APIRouter()
 
 
 # Schemas
+class NotificationCreate(BaseModel):
+    """Schema for creating a notification"""
+    user_id: int
+    type: str
+    title: str
+    message: str
+    data: Optional[str] = None
+
+
 class NotificationResponse(BaseModel):
     """Notification response"""
     id: int
@@ -28,9 +37,52 @@ class NotificationResponse(BaseModel):
     data: Optional[str]
     read_at: Optional[datetime]
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
+
+
+@router.post("/notifications", response_model=dict)
+async def create_notification(
+    notification_data: NotificationCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Create a new notification
+
+    - **user_id**: User ID to send notification to
+    - **type**: Notification type (comment, like, milestone, etc.)
+    - **title**: Notification title
+    - **message**: Notification message
+    - **data**: Optional JSON data
+    """
+    # Check if target user exists
+    user = db.query(User).filter(User.id_users == notification_data.user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    # Create notification
+    new_notification = Notification(
+        user_id=notification_data.user_id,
+        type=notification_data.type,
+        title=notification_data.title,
+        message=notification_data.message,
+        data=notification_data.data
+    )
+
+    db.add(new_notification)
+    db.commit()
+    db.refresh(new_notification)
+
+    return {
+        "ok": True,
+        "message": "Notification created successfully",
+        "data": NotificationResponse.model_validate(new_notification).model_dump()
+    }
 
 
 @router.get("/notifications", response_model=dict)

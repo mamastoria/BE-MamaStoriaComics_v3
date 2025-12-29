@@ -70,6 +70,10 @@ class User(Base):
     subscriptions = relationship("Subscription", back_populates="user", cascade="all, delete-orphan")
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
     commissions = relationship("Commission", back_populates="user", cascade="all, delete-orphan")
+
+    # Referral relationships
+    referrals_made = relationship("Referral", foreign_keys="Referral.referrer_id", back_populates="referrer", cascade="all, delete-orphan")
+    referrals_received = relationship("Referral", foreign_keys="Referral.referred_user_id", back_populates="referred_user", cascade="all, delete-orphan")
     
     # Many-to-Many relationships
     liked_comics = relationship(

@@ -10,6 +10,7 @@ import random
 import string
 
 from app.models.user import User
+from app.models.referral import Referral
 from app.core.security import (
     verify_password,
     get_password_hash,
@@ -75,6 +76,14 @@ class AuthService:
         # Generate verification code
         verification_code = generate_verification_code()
         
+        # Validate referral code if provided
+        referrer = None
+        if referral_code:
+            referrer = db.query(User).filter(User.referral_code_id == referral_code).first()
+            if not referrer:
+                # Invalid referral code - we'll still create the user but without referral
+                referral_code = None
+
         # Create user
         user = User(
             full_name=full_name,
@@ -90,15 +99,25 @@ class AuthService:
             balance=0,
             publish_quota=0
         )
-        
+
         db.add(user)
         db.commit()
         db.refresh(user)
-        
+
+        # Create referral record if valid referral code was provided
+        if referrer and referral_code:
+            referral_record = Referral(
+                referrer_id=referrer.id_users,
+                referred_user_id=user.id_users,
+                referral_code=referral_code
+            )
+            db.add(referral_record)
+            db.commit()
+
         # TODO: Send verification code via SMS/WhatsApp
         # For now, just log it
         print(f"Verification code for {phone_number}: {verification_code}")
-        
+
         return user
     
     @staticmethod

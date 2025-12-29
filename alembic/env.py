@@ -15,7 +15,7 @@ from app.models import (
     User, Comic, ComicUser, ComicView, ComicPanel, ComicPanelIdea,
     Comment, Style, Genre, Character, Background, AssetMusic,
     SubscriptionPackage, Subscription, PaymentTransaction, Transaction,
-    Notification, Banner, BannerComic, Commission
+    Notification, Banner, BannerComic, Commission, Referral
 )
 
 # this is the Alembic Config object
