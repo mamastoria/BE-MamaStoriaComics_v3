@@ -259,17 +259,21 @@ Semua endpoint harus mengembalikan:
 
 ## 📋 Action Items
 
-- [ ] Update `auth_repository.dart` - fix baseUrl ke `/api/v1/auth`
-- [ ] Update `comic_repository.dart` - fix baseUrl ke `/api/v1`
-- [ ] Update `master_repository.dart` - fix baseUrl ke `/api/v1`
-- [ ] Update `generate_comic_repository.dart` - fix paths
-- [ ] Update `draft_repository.dart` - fix paths
-- [ ] Tambah endpoint `draft/status` di backend
-- [ ] Tambah endpoint `likes/status` di backend
-- [ ] Tambah endpoint `review_comments` di backend
-- [ ] Tambah endpoint `transcribe` di backend
-- [ ] Test semua endpoint dengan Postman/curl
+## 📋 Action Items
+262: 
+263: - [x] Update `auth_repository.dart` - fix baseUrl ke `/api/v1/auth`
+264: - [x] Update `comic_repository.dart` - fix baseUrl ke `/api/v1`
+265: - [x] Update `master_repository.dart` - fix baseUrl ke `/api/v1`
+266: - [x] Update `generate_comic_repository.dart` - fix paths
+267: - [x] Update `draft_repository.dart` - fix paths
+268: - [x] Tambah endpoint `draft/status` di backend
+269: - [x] Tambah endpoint `likes/status` di backend
+270: - [x] Tambah endpoint `review_comments` di backend
+271: - [x] Tambah endpoint `transcribe` di backend
+272: - [x] Test semua endpoint dengan Postman/curl
+273: - [x] Fix Database Connection di Cloud Run (Cloud SQL Python Connector)
+274: 
+275: ---
+276: 
+277: *Last Updated: 2024-12-29 11:30*
 
----
-
-*Last Updated: 2024-12-29*
