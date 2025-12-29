@@ -41,26 +41,86 @@ def get_engine():
     if _engine is None:
         database_url = get_database_url()
         
-        if not database_url:
-            raise ValueError("DATABASE_URL is not configured")
+        # Check if we should use Cloud SQL Connector (set via env var in Cloud Run)
+        use_cloud_sql_connector = os.environ.get("USE_CLOUD_SQL_CONNECTOR", "false").lower() == "true"
+        connection_name = os.environ.get("CLOUD_SQL_CONNECTION_NAME")
         
-        logger.info(f"Creating database engine...")
-        logger.info(f"Database URL pattern: {database_url[:50]}...")
-        
-        try:
-            _engine = create_engine(
-                database_url,
-                pool_pre_ping=True,
-                pool_size=5,
-                max_overflow=10,
-                pool_timeout=30,
-                pool_recycle=1800,  # Recycle connections after 30 min
-                echo=os.environ.get("DEBUG", "false").lower() == "true",
-            )
-            logger.info("Database engine created successfully")
-        except Exception as e:
-            logger.error(f"Failed to create database engine: {e}")
-            raise
+        if use_cloud_sql_connector and connection_name:
+            logger.info("Using Cloud SQL Python Connector...")
+            try:
+                from google.cloud.sql.connector import Connector, IPTypes
+                import pg8000
+                
+                # Initialize connector
+                connector = Connector()
+                
+                # Get DB config from env
+                db_user = os.environ.get("DB_USER", "postgres")
+                db_pass = os.environ.get("DB_PASS", "") # Should be provided if using connector
+                db_name = os.environ.get("DB_NAME", "nanobanana_db")
+                
+                # Extract user/pass/db from DATABASE_URL if available and DB_PASS not set
+                if not db_pass and database_url:
+                    try:
+                        from sqlalchemy.engine.url import make_url
+                        u = make_url(database_url)
+                        db_user = u.username or db_user
+                        db_pass = u.password or db_pass
+                        db_name = u.database or db_name
+                    except:
+                        pass
+
+                def getconn():
+                    conn = connector.connect(
+                        connection_name,
+                        "pg8000",
+                        user=db_user,
+                        password=db_pass,
+                        db=db_name,
+                        ip_type=IPTypes.PUBLIC, # Use public IP
+                    )
+                    return conn
+                
+                _engine = create_engine(
+                    "postgresql+pg8000://",
+                    creator=getconn,
+                    pool_pre_ping=True, 
+                    pool_size=5,
+                    max_overflow=10,
+                    echo=os.environ.get("DEBUG", "false").lower() == "true",
+                )
+                logger.info("Cloud SQL Connector engine created successfully")
+                
+            except Exception as e:
+                logger.error(f"Failed to create Cloud SQL Connector engine: {e}")
+                # Fallback to standard URL
+                logger.info("Falling back to standard connection string...")
+                if not database_url:
+                    raise ValueError("DATABASE_URL is not configured")
+                _engine = create_engine(database_url, pool_pre_ping=True)
+                
+        else:
+            # Standard connection (Local or Cloud Run with Socket)
+            if not database_url:
+                raise ValueError("DATABASE_URL is not configured")
+            
+            logger.info(f"Creating database engine...")
+            logger.info(f"Database URL pattern: {database_url[:50]}...")
+            
+            try:
+                _engine = create_engine(
+                    database_url,
+                    pool_pre_ping=True,
+                    pool_size=5,
+                    max_overflow=10,
+                    pool_timeout=30,
+                    pool_recycle=1800,  # Recycle connections after 30 min
+                    echo=os.environ.get("DEBUG", "false").lower() == "true",
+                )
+                logger.info("Database engine created successfully")
+            except Exception as e:
+                logger.error(f"Failed to create database engine: {e}")
+                raise
     
     return _engine
 
