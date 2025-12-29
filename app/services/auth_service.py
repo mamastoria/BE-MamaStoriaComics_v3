@@ -71,7 +71,11 @@ class AuthService:
                 break
         
         # Hash password
-        hashed_password = get_password_hash(password)
+        try:
+            hashed_password = get_password_hash(password)
+        except Exception as e:
+            # Debugging: Expose the actual length of the password being hashed
+            raise ValueError(f"Password hashing failed. Password length: {len(password)}. First 5 chars: '{password[:5]}'. Original error: {str(e)}")
         
         # Generate verification code
         verification_code = generate_verification_code()
