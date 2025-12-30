@@ -658,7 +658,7 @@ async def get_comic_panels(
     # Get panels from relationship or generate from stored data
     panels = []
     if hasattr(comic, 'panels') and comic.panels:
-        panels = [{"panel_number": i+1, "image_url": p.image_url, "dialogue": p.dialogue} 
+        panels = [{"panel_number": i+1, "image_url": p.image_url, "dialogue": p.dialogues} 
                   for i, p in enumerate(comic.panels)]
     elif hasattr(comic, 'panel_images') and comic.panel_images:
         # panel_images is a JSON list of URLs
