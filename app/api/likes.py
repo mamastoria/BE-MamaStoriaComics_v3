@@ -62,7 +62,10 @@ async def list_likes(
         )
     
     # Query likes
-    query = db.query(ComicUser).filter(
+    # Query likes with User join for performance
+    query = db.query(ComicUser, User).join(
+        User, ComicUser.user_id == User.id_users
+    ).filter(
         ComicUser.comic_id == comic
     ).order_by(ComicUser.created_at.desc())
     
@@ -72,15 +75,17 @@ async def list_likes(
     
     # Get user info for each like
     likes_data = []
-    for like in items:
-        user = db.query(User).filter(User.id_users == like.user_id).first()
-        if user:
-            likes_data.append({
-                "user_id": like.user_id,
-                "comic_id": like.comic_id,
-                "created_at": like.created_at,
-                "user": UserPublic.model_validate(user).model_dump()
-            })
+    for like, user in items:
+        try:
+            if user:
+                likes_data.append({
+                    "user_id": like.user_id,
+                    "comic_id": like.comic_id,
+                    "created_at": like.created_at,
+                    "user": UserPublic.model_validate(user).model_dump()
+                })
+        except Exception:
+            continue
     
     return paginated_response(likes_data, page, per_page, total)
 

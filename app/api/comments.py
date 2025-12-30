@@ -3,7 +3,8 @@ Comments API endpoints
 Comic comments and reviews
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+import logging
 from typing import Optional
 
 from app.core.database import get_db
@@ -18,6 +19,7 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 # Schemas
@@ -68,7 +70,9 @@ async def list_comments(
         )
     
     # Query comments
-    query = db.query(Comment).filter(
+    query = db.query(Comment).options(
+        joinedload(Comment.user)
+    ).filter(
         Comment.comic_id == comic
     ).order_by(Comment.created_at.desc())
     
@@ -79,11 +83,15 @@ async def list_comments(
     # Convert to schema with user info
     comments_data = []
     for comment in items:
-        comment_dict = CommentResponse.model_validate(comment).model_dump()
-        # Add user info
-        if comment.user:
-            comment_dict['user'] = UserPublic.model_validate(comment.user).model_dump()
-        comments_data.append(comment_dict)
+        try:
+            comment_dict = CommentResponse.model_validate(comment).model_dump()
+            # Add user info if available (joinedload handles this safely)
+            if comment.user:
+                comment_dict['user'] = UserPublic.model_validate(comment.user).model_dump()
+            comments_data.append(comment_dict)
+        except Exception as e:
+            logger.error(f"Error processing comment {comment.id}: {e}")
+            continue
     
     return paginated_response(comments_data, page, per_page, total)
 
