@@ -17,7 +17,7 @@ logger = logging.getLogger("nanobanana_tasks")
 PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT", "nanobananacomic-482111")
 LOCATION = os.getenv("CLOUD_TASKS_LOCATION", "asia-southeast2")
 QUEUE_NAME = os.getenv("CLOUD_TASKS_QUEUE", "comic-generation-queue")
-WORKER_URL = os.getenv("WORKER_SERVICE_URL", "https://nanobanana-worker-1089713441636.asia-southeast2.run.app")
+WORKER_URL = os.getenv("WORKER_SERVICE_URL", "https://nanobanana-backend-1089713441636.asia-southeast2.run.app")
 
 
 class TaskQueueService:
