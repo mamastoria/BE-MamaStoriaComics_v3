@@ -3,7 +3,8 @@ Comics API endpoints
 Comic CRUD operations, draft generation, publishing
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+import logging
 from typing import Optional, List
 
 from app.core.database import get_db
@@ -26,6 +27,7 @@ from app.utils.pagination import paginate, get_pagination_params
 from app.utils.responses import paginated_response
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.get("/comics", response_model=dict)
@@ -92,7 +94,10 @@ async def get_comic_detail(
     
     Returns complete comic information including panels
     """
-    comic = db.query(Comic).filter(Comic.id == comic_id).first()
+    comic = db.query(Comic).options(
+        joinedload(Comic.user),
+        joinedload(Comic.panels)
+    ).filter(Comic.id == comic_id).first()
     
     if not comic:
         raise HTTPException(
@@ -402,7 +407,10 @@ async def get_comic_by_id(
     """
     Get comic detail by ID (alternative endpoint)
     """
-    comic = db.query(Comic).filter(Comic.id == id).first()
+    comic = db.query(Comic).options(
+        joinedload(Comic.user),
+        joinedload(Comic.panels)
+    ).filter(Comic.id == id).first()
     
     if not comic:
         raise HTTPException(
@@ -410,10 +418,18 @@ async def get_comic_by_id(
             detail="Comic not found"
         )
     
-    return {
-        "ok": True,
-        "data": ComicWithPanels.model_validate(comic).model_dump()
-    }
+    try:
+        data = ComicWithPanels.model_validate(comic).model_dump()
+        return {
+            "ok": True,
+            "data": data
+        }
+    except Exception as e:
+        logger.error(f"Error validating comic {id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error processing comic data: {str(e)}"
+        )
 
 
 @router.get("/comics/{id}/draft/status", response_model=dict)
