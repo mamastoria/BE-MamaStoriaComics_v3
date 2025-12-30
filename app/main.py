@@ -159,11 +159,49 @@ app.include_router(withdrawals.router, prefix="/api/v1", tags=["Withdrawals"])
 app.include_router(referrals.router, prefix="/api/v1", tags=["Referrals"])
 
 
+@app.on_event("startup")
+async def startup_event():
+    """Run startup tasks including DB schema patching"""
+    # 1. Initialize logic
+    print("Starting up MamaStoria API...")
+    
+    # 2. PATCH: Add missing columns to payment_transactions table
+    # This is a temporary fix for missing migrations
+    try:
+        from app.core.database import get_engine
+        from sqlalchemy import text
+        engine = get_engine()
+        with engine.connect() as conn:
+            # Add invoice_number if not exists
+            conn.execute(text("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS invoice_number VARCHAR(255)"))
+            # Add payment_url if not exists
+            conn.execute(text("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS payment_url TEXT"))
+            # Add doku fields if not exists
+            conn.execute(text("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS doku_order_id VARCHAR(255)"))
+            conn.execute(text("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS doku_response TEXT"))
+            
+            # Commit changes
+            try:
+                conn.commit()
+                print("Database schema patched successfully (added missing columns to payment_transactions)")
+            except Exception:
+                # In some configs commit might be auto
+                pass
+            
+    except Exception as e:
+        print(f"Database schema patch warning: {e}")
+        # Don't inhibit startup, maybe columns exist or DB connection failed
+
+
 if __name__ == "__main__":
     import uvicorn
+    import os
+    # Get port from env (default 8080 for Cloud Run)
+    port = int(os.environ.get("PORT", 8080))
+    
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
-        port=8000,
-        reload=settings.DEBUG
+        port=port,
+        reload=True
     )

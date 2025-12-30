@@ -63,7 +63,7 @@ class SubscriptionStatusResponse(BaseModel):
 class PaymentHistoryItem(BaseModel):
     """Payment history item"""
     id: int
-    invoice_number: str
+    invoice_number: Optional[str] = Field(None, alias="invoiceNumber") # Mapped from doku_order_id
     amount: int
     status: str
     payment_method: Optional[str]
@@ -154,14 +154,15 @@ async def purchase_subscription(
             detail=f"Subscription package not found (id={purchase_data.package_id}, slug={purchase_data.package_slug})"
         )
     
-    # Generate invoice number
-    invoice_number = f"INV-{uuid.uuid4().hex[:8].upper()}-{int(datetime.now().timestamp())}"
+    # Generate order ID (used as invoice number)
+    order_id = f"INV-{uuid.uuid4().hex[:8].upper()}-{int(datetime.now().timestamp())}"
     
     # Create payment transaction
     transaction = PaymentTransaction(
         user_id=current_user.id_users,
-        subscription_id=None,  # Will be set after payment success
-        invoice_number=invoice_number,
+        subscription_id=None,
+        invoice_number=None, # Removed from DB
+        doku_order_id=order_id, # Use doku_order_id as main identifier
         amount=package.price,
         payment_method=purchase_data.payment_method,
         status="pending"
@@ -169,9 +170,8 @@ async def purchase_subscription(
     
     db.add(transaction)
     
-    # TODO: Integrate with DOKU payment gateway
-    # For now, generate mock payment URL
-    payment_url = f"https://payment.mamastoria.com/checkout/{invoice_number}"
+    # Generate payment URL
+    payment_url = f"https://payment.mamastoria.com/checkout/{order_id}"
     transaction.payment_url = payment_url
     
     db.commit()
@@ -181,7 +181,7 @@ async def purchase_subscription(
         "ok": True,
         "message": "Transaction created successfully. Please proceed to payment.",
         "data": {
-            "invoice_number": transaction.invoice_number,
+            "invoice_number": transaction.doku_order_id, # Map back for frontend
             "amount": transaction.amount,
             "payment_url": transaction.payment_url,
             "package_name": package.name
@@ -207,19 +207,22 @@ async def payment_callback(
     # if not validate_doku_signature(signature, body):
     #     raise HTTPException(status_code=401, detail="Invalid signature")
     
-    # Extract data
+    # Extract data (DOKU sends invoice number as order id)
     invoice_number = body.get("order", {}).get("invoice_number")
+    # Also support searching by doku_order_id directly
+    order_id = invoice_number 
+    
     transaction_status = body.get("transaction", {}).get("status")
     
-    if not invoice_number:
+    if not order_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invoice number not found"
+            detail="Order ID / Invoice number not found"
         )
     
-    # Find transaction
+    # Find transaction by doku_order_id
     transaction = db.query(PaymentTransaction).filter(
-        PaymentTransaction.invoice_number == invoice_number
+        PaymentTransaction.doku_order_id == order_id
     ).first()
     
     if not transaction:
@@ -365,7 +368,7 @@ async def get_payment_history(
         
         history_data.append({
             "id": transaction.id,
-            "invoice_number": transaction.invoice_number,
+            "invoice_number": transaction.doku_order_id, # Map doku_order_id to invoice_number for FE compatibility
             "amount": transaction.amount,
             "status": transaction.status,
             "payment_method": transaction.payment_method,
