@@ -2,10 +2,10 @@
 MamaStoria Comics API - FastAPI Application
 Converted from Laravel PHP to Python FastAPI
 """
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pathlib import Path
 from app.core.config import settings
 
@@ -16,7 +16,30 @@ app = FastAPI(
     version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
+    redoc_url="/redoc"
 )
+
+# Global Exception Handler to ensure CORS headers are always present on 500 errors
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    import traceback
+    error_detail = f"Global Error: {str(exc)}"
+    print(error_detail) # Log to console/cloud logging
+    traceback.print_exc()
+    
+    # Get origin for safe CORS
+    origin = request.headers.get("origin", "*")
+    
+    return JSONResponse(
+        status_code=500,
+        content={"ok": False, "error": "Internal Server Error", "detail": error_detail},
+        headers={
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
 
 # Configure CORS
 app.add_middleware(
