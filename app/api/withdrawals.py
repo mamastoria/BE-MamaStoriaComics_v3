@@ -28,9 +28,14 @@ async def list_withdrawals(
     """
     withdrawals = db.query(Withdrawal).filter(Withdrawal.id_user == id_user).all()
 
+    # Calculate total withdrawal for the user
+    from sqlalchemy import func
+    total_withdrawal = db.query(func.sum(Withdrawal.amount)).filter(Withdrawal.id_user == id_user).scalar() or 0
+
     return {
         "ok": True,
-        "data": [WithdrawalResponse.model_validate(withdrawal).model_dump() for withdrawal in withdrawals]
+        "data": [WithdrawalResponse.model_validate(withdrawal).model_dump() for withdrawal in withdrawals],
+        "total_withdrawal": total_withdrawal
     }
 
 

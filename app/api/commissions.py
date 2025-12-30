@@ -28,9 +28,14 @@ async def list_commissions(
     """
     commissions = db.query(Commission).filter(Commission.id_user == id_user).all()
 
+    # Calculate total commission for the user
+    from sqlalchemy import func
+    total_commission = db.query(func.sum(Commission.kredit)).filter(Commission.id_user == id_user).scalar() or 0
+
     return {
         "ok": True,
-        "data": [CommissionResponse.model_validate(commission).model_dump() for commission in commissions]
+        "data": [CommissionResponse.model_validate(commission).model_dump() for commission in commissions],
+        "total_commission": total_commission
     }
 
 
