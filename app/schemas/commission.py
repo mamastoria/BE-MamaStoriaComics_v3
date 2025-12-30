@@ -24,8 +24,8 @@ class CommissionBase(BaseModel):
     id_user: int
     kredit: Optional[int]
     keterangan: Optional[str]
-    created_at: datetime
-    updated_at: datetime
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     model_config = ORMConfig
 
