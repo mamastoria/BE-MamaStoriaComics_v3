@@ -48,9 +48,19 @@ async def get_read_history(
         page, per_page = get_pagination_params(page, per_page)
         items, total = paginate(query, page, per_page)
         
-        # Convert to schema
-        comics_data = [ComicListItem.model_validate(comic).model_dump() for comic in items]
-        
+        # Convert to schema with error handling for individual items
+        comics_data = []
+        for comic in items:
+            try:
+                # Explicitly validate to catch model errors
+                item_data = ComicListItem.model_validate(comic).model_dump()
+                comics_data.append(item_data)
+            except Exception as validation_error:
+                logger.error(f"Failed to validate comic {comic.id}: {validation_error}")
+                # Continue with other items or add a fallback? 
+                # For now, we skip or add partial? Best to skip bad items to avoid breaking the whole list.
+                continue
+            
         return paginated_response(comics_data, page, per_page, total)
         
     except Exception as e:
