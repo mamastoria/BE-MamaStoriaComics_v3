@@ -77,7 +77,7 @@ class UpdateProfile(BaseModel):
 
 class UpdateKredit(BaseModel):
     """Schema for updating user credits"""
-    amount: int = Field(..., description="Amount to add/subtract")
+    amount: int = Field(..., description="Amount to add/subtract") # Credits amount
     operation: str = Field(..., pattern="^(add|subtract)$", alias="type")
     description: Optional[str] = None
     
