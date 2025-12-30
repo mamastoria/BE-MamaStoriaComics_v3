@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime, timedelta
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
@@ -36,8 +36,10 @@ class SubscriptionPackageResponse(BaseModel):
 
 class PurchaseSubscription(BaseModel):
     """Purchase subscription request"""
-    package_id: int = Field(..., description="Subscription package ID")
-    payment_method: Optional[str] = Field(None, description="Payment method code")
+    package_id: int = Field(..., description="Subscription package ID", alias="packageId")
+    payment_method: Optional[str] = Field(None, description="Payment method code", alias="paymentMethod")
+    
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class PaymentMethod(BaseModel):
