@@ -185,9 +185,10 @@ async def create_story_and_attributes(
                 """Background thread to process comic directly"""
                 try:
                     import core
-                    from app.core.database import SessionLocal
+                    from app.core.database import get_session_local
                     
                     # Create new DB session for this thread
+                    SessionLocal = get_session_local()
                     thread_db = SessionLocal()
                     try:
                         comic_record = thread_db.query(Comic).filter(Comic.id == comic_id).first()
