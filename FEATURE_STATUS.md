@@ -30,20 +30,21 @@ GenerateComicScreen → POST /comics/story-idea → TaskQueueService
 
 ## 2. 🎨 Creative Suite (Editing)
 
-### Status: ⚠️ PARTIALLY IMPLEMENTED
+### Status: ✅ MOSTLY COMPLETE
 
 | Feature | Backend Endpoint | Frontend Screen | Status |
 |---------|-----------------|-----------------|--------|
 | Edit Draft Text | `PUT /api/v1/comics/{id}/summary` | `EditDraftTextScreen` | ✅ Working |
-| Edit Character | `PUT /api/v1/comics/{id}/characters` | `EditComicCharacterScreen` | ⚠️ UI only, no save logic |
-| Edit Background | `PUT /api/v1/comics/{id}/backgrounds` | `EditComicBackgroundScreen` | ⚠️ UI only, no save logic |
-| Edit Dialog | N/A | `EditComicDialogScreen` | ❌ Not implemented |
+| Edit Character | `PUT /api/v1/comics/{id}/characters` | `EditComicCharacterScreen` | ✅ **FIXED** - Save on tap |
+| Edit Background | `PUT /api/v1/comics/{id}/backgrounds` | `EditComicBackgroundScreen` | ✅ **FIXED** - Multi-select & save |
+| Edit Panel Dialog | `PUT /api/v1/comics/{comic_id}/panels/{panel_id}` | `EditComicDialogScreen` | ⚠️ Backend ready, Frontend WIP |
+| Regenerate Panel | `POST /api/v1/comics/{id}/regenerate-panel/{panel_id}` | N/A | ⚠️ Backend stub ready |
 | Edit Music | N/A | `EditComicMusicScreen` | ❌ Not implemented |
 
 ### Notes:
-- Character and Background editing screens display master data but lack save functionality
-- Dialog editing needs backend support for per-panel dialog changes
-- Music feature requires additional media management
+- Character selection now saves immediately on tap
+- Background selection supports multi-select with save button
+- Panel dialog editing backend is ready, frontend needs implementation
 
 ---
 
