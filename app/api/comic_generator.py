@@ -242,6 +242,40 @@ def api_preview(job_id: str, part_no: int):
     return FileResponse(str(p), media_type="image/png")
 
 
+
+
+@router.get("/api/preview/{job_id}/panel/{part_no}/{panel_idx}")
+def api_preview_panel(job_id: str, part_no: int, panel_idx: int):
+    """
+    Return individual panel image from job state.
+    panel_idx is 0-based.
+    """
+    job = core.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="job_id not found")
+
+    try:
+        pno = int(part_no)
+        idx = int(panel_idx)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid numbers")
+
+    part = job.get("part1") if pno == 1 else job.get(f"part{pno}")
+    if not part:
+        raise HTTPException(status_code=404, detail="part not ready")
+
+    panels = part.get("panels") or []
+    if idx < 0 or idx >= len(panels):
+        raise HTTPException(status_code=404, detail="panel index out of range")
+
+    import base64
+    from io import BytesIO
+    from fastapi.responses import Response
+
+    b64 = panels[idx]
+    img_bytes = base64.b64decode(b64)
+    
+    return Response(content=img_bytes, media_type="image/png")
 @router.get("/viewer/{job_id}")
 def viewer(job_id: str):
     core.cleanup_jobs()
