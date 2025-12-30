@@ -1096,7 +1096,7 @@ def _render_job_worker(job_id: str, script: Dict[str, Any]) -> None:
         _job_set(job_id, {"status": "error", "error": str(e)})
 
 
-def start_render_all_job(script: Dict[str, Any]) -> str:
+def start_render_all_job(script: Dict[str, Any], job_id: Optional[str] = None) -> str:
     """
     Create a job, precompute read-along pages, then render part1+part2 in background thread.
     Returns job_id.
@@ -1106,7 +1106,9 @@ def start_render_all_job(script: Dict[str, Any]) -> str:
 
     read_pages = build_read_along_pages(script)
 
-    job_id = str(uuid.uuid4())
+    if not job_id:
+        job_id = str(uuid.uuid4())
+    
     with JOBS_LOCK:
         JOBS[job_id] = {
             "job_id": job_id,

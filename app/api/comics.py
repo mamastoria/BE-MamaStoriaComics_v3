@@ -128,7 +128,7 @@ async def create_story_and_attributes(
     - **genre_ids**: List of genre IDs
     - **style_id**: Style ID
     
-    Returns created comic with ID
+    Returns created comic with ID and auto-queues AI generation
     """
     try:
         comic = ComicService.create_comic_from_story_idea(
@@ -140,10 +140,144 @@ async def create_story_and_attributes(
             style_id=story_data.style_id
         )
         
+        # AUTO-QUEUE AI GENERATION
+        # This triggers the AI to start generating the draft immediately
+        task_error = None
+        try:
+            from app.services.task_queue_service import get_task_service
+            task_service = get_task_service()
+            
+            # Get style name from DB
+            from app.models.master_data import Style
+            style = db.query(Style).filter(Style.id == story_data.style_id).first()
+            style_name = style.name if style else "manga"
+            
+            task_name = task_service.send_generate_comic_task(
+                job_id=str(comic.id),
+                story=story_data.story_idea,
+                style_id=style_name,
+                nuances=[],  # TODO: map genre_ids to nuance names if needed
+                pages=story_data.page_count or 2
+            )
+            
+            # Update status to queued
+            comic.draft_job_status = "queued"
+            db.commit()
+            db.refresh(comic)
+            
+            logger.info(f"Comic {comic.id} queued for generation: {task_name}")
+            
+        except Exception as e:
+            # If task queue fails, run directly in background thread as fallback
+            logger.warning(f"Cloud Tasks failed for comic {comic.id}: {e}. Using direct processing fallback.")
+            task_error = str(e)
+            
+            # Start background thread for direct processing
+            import threading
+            import sys
+            from pathlib import Path
+            
+            ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+            if str(ROOT_DIR) not in sys.path:
+                sys.path.append(str(ROOT_DIR))
+            
+            def process_comic_directly(comic_id: int, story: str, style_name: str):
+                """Background thread to process comic directly"""
+                try:
+                    import core
+                    from app.core.database import get_session_local
+                    
+                    # Create new DB session for this thread
+                    SessionLocal = get_session_local()
+                    thread_db = SessionLocal()
+                    try:
+                        comic_record = thread_db.query(Comic).filter(Comic.id == comic_id).first()
+                        if not comic_record:
+                            logger.error(f"Direct processing: Comic {comic_id} not found")
+                            return
+                        
+                        # Update status to PROCESSING
+                        comic_record.draft_job_status = "PROCESSING"
+                        thread_db.commit()
+                        
+                        logger.info(f"Direct processing: Generating script for {comic_id}...")
+                        script = core.make_two_part_script(story, style_name, [])
+                        
+                        logger.info(f"Direct processing: Starting render for {comic_id}...")
+                        core.start_render_all_job(script, job_id=str(comic_id))
+                        
+                        # Wait for completion (max 15 mins)
+                        import time
+                        start_time = time.time()
+                        timeout = 900
+                        
+                        while True:
+                            if time.time() - start_time > timeout:
+                                raise TimeoutError("Rendering timed out")
+                            
+                            job_state = core.get_job(str(comic_id))
+                            if not job_state:
+                                time.sleep(1)
+                                continue
+                            
+                            status = job_state.get("status")
+                            if status == "done":
+                                logger.info(f"Direct processing: Job {comic_id} DONE.")
+                                break
+                            elif status == "error":
+                                raise RuntimeError(f"Render failed: {job_state.get('error')}")
+                            
+                            time.sleep(3)
+                        
+                        # Update to COMPLETED
+                        comic_record = thread_db.query(Comic).filter(Comic.id == comic_id).first()
+                        comic_record.draft_job_status = "COMPLETED"
+                        comic_record.pdf_url = f"/api/pdf/{comic_id}"
+                        comic_record.preview_video_url = f"/viewer/{comic_id}"
+                        thread_db.commit()
+                        
+                        try:
+                            core.ensure_job_pdf(str(comic_id))
+                        except Exception as pdf_err:
+                            logger.warning(f"Direct processing PDF warning: {pdf_err}")
+                        
+                        logger.info(f"Direct processing: Comic {comic_id} completed successfully!")
+                        
+                    except Exception as inner_e:
+                        logger.exception(f"Direct processing failed for comic {comic_id}: {inner_e}")
+                        comic_record = thread_db.query(Comic).filter(Comic.id == comic_id).first()
+                        if comic_record:
+                            comic_record.draft_job_status = "FAILED"
+                            thread_db.commit()
+                    finally:
+                        thread_db.close()
+                        
+                except Exception as outer_e:
+                    logger.exception(f"Direct processing thread error for comic {comic_id}: {outer_e}")
+            
+            # Start background thread
+            thread = threading.Thread(
+                target=process_comic_directly,
+                args=(comic.id, story_data.story_idea, style_name),
+                daemon=True
+            )
+            thread.start()
+            
+            # Update status to processing (background thread will update further)
+            comic.draft_job_status = "PROCESSING"
+            db.commit()
+            db.refresh(comic)
+            
+            logger.info(f"Comic {comic.id} started direct processing in background thread")
+        
+        response_data = ComicDetail.model_validate(comic).model_dump()
+        
         return {
             "ok": True,
-            "message": "Comic created successfully",
-            "data": ComicDetail.model_validate(comic).model_dump()
+            "message": "Comic created and queued for AI generation",
+            "data": response_data,
+            "generation_status": comic.draft_job_status,
+            "task_error": task_error
         }
     except ValueError as e:
         raise HTTPException(
