@@ -129,7 +129,8 @@ async def create_story_and_attributes(
     - **genre_ids**: List of genre IDs
     - **style_id**: Style ID
     
-    Returns created comic with ID and auto-queues AI generation
+    Returns created comic with ID and generates SCRIPT ONLY (no images yet).
+    User can review/edit the draft, then call /comics/{id}/generate to render images.
     """
     try:
         comic = ComicService.create_comic_from_story_idea(
@@ -141,40 +142,15 @@ async def create_story_and_attributes(
             style_id=story_data.style_id
         )
         
-        # AUTO-QUEUE AI GENERATION
-        # This triggers the AI to start generating the draft immediately
-        task_error = None
+        # Get style name from DB
+        from app.models.master_data import Style
+        style = db.query(Style).filter(Style.id == story_data.style_id).first()
+        style_name = style.name if style else "manga"
+        
+        # GENERATE SCRIPT ONLY (not rendering images)
+        # This is fast and can be done synchronously
+        script_error = None
         try:
-            from app.services.task_queue_service import get_task_service
-            task_service = get_task_service()
-            
-            # Get style name from DB
-            from app.models.master_data import Style
-            style = db.query(Style).filter(Style.id == story_data.style_id).first()
-            style_name = style.name if style else "manga"
-            
-            task_name = task_service.send_generate_comic_task(
-                job_id=str(comic.id),
-                story=story_data.story_idea,
-                style_id=style_name,
-                nuances=[],  # TODO: map genre_ids to nuance names if needed
-                pages=story_data.page_count or 2
-            )
-            
-            # Update status to queued
-            comic.draft_job_status = "queued"
-            db.commit()
-            db.refresh(comic)
-            
-            logger.info(f"Comic {comic.id} queued for generation: {task_name}")
-            
-        except Exception as e:
-            # If task queue fails, run directly in background thread as fallback
-            logger.warning(f"Cloud Tasks failed for comic {comic.id}: {e}. Using direct processing fallback.")
-            task_error = str(e)
-            
-            # Start background thread for direct processing
-            import threading
             import sys
             from pathlib import Path
             
@@ -182,139 +158,78 @@ async def create_story_and_attributes(
             if str(ROOT_DIR) not in sys.path:
                 sys.path.append(str(ROOT_DIR))
             
-            def process_comic_directly(comic_id: int, story: str, style_name: str):
-                """Background thread to process comic directly"""
-                try:
-                    import core
-                    from app.core.database import get_session_local
-                    
-                    # Create new DB session for this thread
-                    SessionLocal = get_session_local()
-                    thread_db = SessionLocal()
-                    try:
-                        comic_record = thread_db.query(Comic).filter(Comic.id == comic_id).first()
-                        if not comic_record:
-                            logger.error(f"Direct processing: Comic {comic_id} not found")
-                            return
-                        
-                        # Update status to PROCESSING
-                        comic_record.draft_job_status = "PROCESSING"
-                        thread_db.commit()
-                        
-                        logger.info(f"Direct processing: Generating script for {comic_id}...")
-                        script = core.make_two_part_script(story, style_name, [])
-                        
-                        logger.info(f"Direct processing: Starting render for {comic_id}...")
-                        core.start_render_all_job(script, job_id=str(comic_id))
-                        
-                        # Wait for completion (max 15 mins)
-                        import time
-                        start_time = time.time()
-                        timeout = 900
-                        
-                        while True:
-                            if time.time() - start_time > timeout:
-                                raise TimeoutError("Rendering timed out")
-                            
-                            job_state = core.get_job(str(comic_id))
-                            if not job_state:
-                                time.sleep(1)
-                                continue
-                            
-                            status = job_state.get("status")
-                            if status == "done":
-                                logger.info(f"Direct processing: Job {comic_id} DONE.")
-                                break
-                            elif status == "error":
-                                raise RuntimeError(f"Render failed: {job_state.get('error')}")
-                            
-                            time.sleep(3)
-                        
-                        # Populate ComicPanel table
-                        from app.models.comic_panel import ComicPanel
-                        
-                        # Clear existing panels for this comic
-                        thread_db.query(ComicPanel).filter(ComicPanel.comic_id == comic_id).delete()
-                        
-                        # Get job state
-                        job_state = core.get_job(str(comic_id))
-                        parts = [job_state.get("part1"), job_state.get("part2")]
-                        
-                        panel_counter = 0
-                        for p_idx, part in enumerate(parts):
-                            if not part: continue
-                            part_no = p_idx + 1
-                            
-                            # Get script data for panels (description, narration, etc)
-                            part_script = part.get("part", {})
-                            panels_script = part_script.get("panels", [])
-                            
-                            # Create records
-                            for i, panel_data in enumerate(panels_script):
-                                # Ensure we don't index out of bounds if images missing (should verify)
-                                panel = ComicPanel(
-                                    comic_id=comic_id,
-                                    page_number=part_no,
-                                    panel_number=i+1,
-                                    image_url=f"/api/preview/{comic_id}/panel/{part_no}/{i}",
-                                    description=panel_data.get("description"),
-                                    narration=panel_data.get("narration"),
-                                    dialogues=panel_data.get("dialogues")
-                                )
-                                thread_db.add(panel)
-                                panel_counter += 1
-                        
-                        logger.info(f"Direct processing: Added {panel_counter} panels to DB for {comic_id}")
-                        
-                        # Update to COMPLETED
-                        comic_record = thread_db.query(Comic).filter(Comic.id == comic_id).first()
-                        comic_record.draft_job_status = "COMPLETED"
-                        comic_record.pdf_url = f"/api/pdf/{comic_id}"
-                        comic_record.preview_video_url = f"/viewer/{comic_id}"
-                        thread_db.commit()
-                        
-                        try:
-                            core.ensure_job_pdf(str(comic_id))
-                        except Exception as pdf_err:
-                            logger.warning(f"Direct processing PDF warning: {pdf_err}")
-                        
-                        logger.info(f"Direct processing: Comic {comic_id} completed successfully!")
-                        
-                    except Exception as inner_e:
-                        logger.exception(f"Direct processing failed for comic {comic_id}: {inner_e}")
-                        comic_record = thread_db.query(Comic).filter(Comic.id == comic_id).first()
-                        if comic_record:
-                            comic_record.draft_job_status = "FAILED"
-                            thread_db.commit()
-                    finally:
-                        thread_db.close()
-                        
-                except Exception as outer_e:
-                    logger.exception(f"Direct processing thread error for comic {comic_id}: {outer_e}")
+            import core
+            from app.models.comic_panel import ComicPanel
             
-            # Start background thread
-            thread = threading.Thread(
-                target=process_comic_directly,
-                args=(comic.id, story_data.story_idea, style_name),
-                daemon=True
+            # Update status to generating script
+            comic.draft_job_status = "GENERATING_SCRIPT"
+            db.commit()
+            
+            logger.info(f"Generating script for comic {comic.id}...")
+            
+            # Generate script (text only, no images)
+            script = core.make_two_part_script(
+                story_data.story_idea, 
+                style_name, 
+                [],  # nuances
+                pages=story_data.page_count or 2
             )
-            thread.start()
             
-            # Update status to processing (background thread will update further)
-            comic.draft_job_status = "PROCESSING"
+            logger.info(f"Script generated for comic {comic.id}, creating draft panels...")
+            
+            # Clear existing panels
+            db.query(ComicPanel).filter(ComicPanel.comic_id == comic.id).delete()
+            
+            # Save script as draft panels (no image_url yet)
+            panel_counter = 0
+            parts = [script.get("part1"), script.get("part2")]
+            
+            for p_idx, part in enumerate(parts):
+                if not part:
+                    continue
+                part_no = p_idx + 1
+                panels_script = part.get("panels", [])
+                
+                for i, panel_data in enumerate(panels_script):
+                    panel = ComicPanel(
+                        comic_id=comic.id,
+                        page_number=part_no,
+                        panel_number=i + 1,
+                        image_url=None,  # No image yet - will be generated on approve
+                        description=panel_data.get("description"),
+                        page_description=panel_data.get("panel_context") or panel_data.get("description"),
+                        narration=panel_data.get("narration"),
+                        page_narration=panel_data.get("narration"),
+                        dialogues=panel_data.get("dialogues", []),
+                        instruksi_visual=panel_data.get("instruksi_visual"),
+                        instruksi_render_teks=panel_data.get("instruksi_render_teks"),
+                        main_characters_on_page=panel_data.get("main_characters_in_panel")
+                    )
+                    db.add(panel)
+                    panel_counter += 1
+            
+            # Update status to SCRIPT_READY (user can now review/edit)
+            comic.draft_job_status = "SCRIPT_READY"
+            comic.summary = script.get("suggested_title") or script.get("title") or story_data.story_idea[:100]
             db.commit()
             db.refresh(comic)
             
-            logger.info(f"Comic {comic.id} started direct processing in background thread")
+            logger.info(f"Comic {comic.id}: Script ready with {panel_counter} panels. Awaiting user approval.")
+            
+        except Exception as e:
+            logger.exception(f"Script generation failed for comic {comic.id}: {e}")
+            script_error = str(e)
+            comic.draft_job_status = "SCRIPT_FAILED"
+            db.commit()
         
         response_data = ComicDetail.model_validate(comic).model_dump()
         
         return {
             "ok": True,
-            "message": "Comic created and queued for AI generation",
+            "message": "Comic draft created. Review panels and call /comics/{id}/generate when ready.",
             "data": response_data,
             "generation_status": comic.draft_job_status,
-            "task_error": task_error
+            "script_error": script_error
         }
     except ValueError as e:
         raise HTTPException(
@@ -867,10 +782,13 @@ async def generate_comic(
     db: Session = Depends(get_db)
 ):
     """
-    Start comic generation process
+    Start comic IMAGE generation from approved draft
     
-    This will queue the comic for AI generation
+    This takes the user-edited draft panels and renders actual images.
+    Should only be called after user has reviewed and approved the draft.
     """
+    from app.models.comic_panel import ComicPanel
+    
     comic = db.query(Comic).filter(
         Comic.id == id,
         Comic.user_id == current_user.id_users
@@ -882,46 +800,169 @@ async def generate_comic(
             detail="Comic not found"
         )
     
-    # Queue for generation
-    try:
-        from app.services.task_queue_service import get_task_service
-        task_service = get_task_service()
-        
-        task_name = task_service.send_generate_comic_task(
-            job_id=str(comic.id),
-            story=comic.story_idea or "",
-            style_id=str(comic.style_id) if comic.style_id else None,
-            nuances=[],
-            pages=comic.page_count or 2
+    # Check if already processing
+    if comic.draft_job_status in ["PROCESSING", "RENDERING"]:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Comic is already being processed"
         )
-        
-        # Update status
-        comic.draft_job_status = "queued"
-        db.commit()
-        
-        return {
-            "ok": True,
-            "message": "Comic generation started",
-            "data": {
-                "comic_id": id,
-                "status": "queued",
-                "task_id": task_name
-            }
+    
+    # Get draft panels from DB
+    panels = db.query(ComicPanel).filter(
+        ComicPanel.comic_id == id
+    ).order_by(ComicPanel.page_number, ComicPanel.panel_number).all()
+    
+    if not panels:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No draft panels found. Create a story idea first."
+        )
+    
+    # Reconstruct script from DB panels for rendering
+    # Group panels by page_number (part)
+    from collections import defaultdict
+    parts_dict = defaultdict(list)
+    for panel in panels:
+        parts_dict[panel.page_number].append({
+            "panel_idx": panel.panel_number - 1,
+            "description": panel.description or panel.page_description,
+            "narration": panel.narration or panel.page_narration,
+            "dialogues": panel.dialogues or [],
+            "instruksi_visual": panel.instruksi_visual,
+            "instruksi_render_teks": panel.instruksi_render_teks,
+            "main_characters_in_panel": panel.main_characters_on_page
+        })
+    
+    # Build script structure expected by core.start_render_all_job
+    script = {}
+    for part_no in sorted(parts_dict.keys()):
+        script[f"part{part_no}"] = {
+            "panels": parts_dict[part_no]
         }
-    except Exception as e:
-        # Fallback: mark as pending for direct processing
-        comic.draft_job_status = "pending"
-        db.commit()
-        
-        return {
-            "ok": True,
-            "message": "Comic queued for generation",
-            "data": {
-                "comic_id": id,
-                "status": "pending",
-                "error": str(e) if str(e) else None
-            }
+    
+    # Get style name
+    from app.models.master_data import Style
+    style = db.query(Style).filter(Style.id == comic.style_id).first() if comic.style_id else None
+    style_name = style.name if style else "manga"
+    
+    # Update status to RENDERING
+    comic.draft_job_status = "RENDERING"
+    db.commit()
+    
+    # Start rendering in background thread
+    import threading
+    import sys
+    from pathlib import Path
+    
+    ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+    if str(ROOT_DIR) not in sys.path:
+        sys.path.append(str(ROOT_DIR))
+    
+    def render_comic_images(comic_id: int, script_data: dict, style: str):
+        """Background thread to render comic images from approved draft"""
+        try:
+            import core
+            from app.core.database import get_session_local
+            import time
+            
+            SessionLocal = get_session_local()
+            thread_db = SessionLocal()
+            
+            try:
+                logger.info(f"Rendering images for comic {comic_id}...")
+                
+                # Start render job
+                core.start_render_all_job(script_data, job_id=str(comic_id), style=style)
+                
+                # Wait for completion (max 15 mins)
+                start_time = time.time()
+                timeout = 900
+                
+                while True:
+                    if time.time() - start_time > timeout:
+                        raise TimeoutError("Rendering timed out")
+                    
+                    job_state = core.get_job(str(comic_id))
+                    if not job_state:
+                        time.sleep(1)
+                        continue
+                    
+                    job_status = job_state.get("status")
+                    if job_status == "done":
+                        logger.info(f"Rendering complete for comic {comic_id}")
+                        break
+                    elif job_status == "error":
+                        raise RuntimeError(f"Render failed: {job_state.get('error')}")
+                    
+                    time.sleep(3)
+                
+                # Update panel image URLs
+                job_state = core.get_job(str(comic_id))
+                for part_no in [1, 2]:
+                    part_key = f"part{part_no}"
+                    if part_key not in job_state:
+                        continue
+                    
+                    part_data = job_state[part_key]
+                    panels_count = len(part_data.get("part", {}).get("panels", []))
+                    
+                    for panel_idx in range(panels_count):
+                        # Update DB panel with image URL
+                        db_panel = thread_db.query(ComicPanel).filter(
+                            ComicPanel.comic_id == comic_id,
+                            ComicPanel.page_number == part_no,
+                            ComicPanel.panel_number == panel_idx + 1
+                        ).first()
+                        
+                        if db_panel:
+                            db_panel.image_url = f"/api/preview/{comic_id}/panel/{part_no}/{panel_idx}"
+                
+                # Update comic status to COMPLETED
+                comic_record = thread_db.query(Comic).filter(Comic.id == comic_id).first()
+                if comic_record:
+                    comic_record.draft_job_status = "COMPLETED"
+                    comic_record.pdf_url = f"/api/pdf/{comic_id}"
+                    comic_record.preview_video_url = f"/viewer/{comic_id}"
+                
+                thread_db.commit()
+                
+                # Generate PDF
+                try:
+                    core.ensure_job_pdf(str(comic_id))
+                except Exception as pdf_err:
+                    logger.warning(f"PDF generation warning: {pdf_err}")
+                
+                logger.info(f"Comic {comic_id} rendering completed successfully!")
+                
+            except Exception as e:
+                logger.exception(f"Rendering failed for comic {comic_id}: {e}")
+                comic_record = thread_db.query(Comic).filter(Comic.id == comic_id).first()
+                if comic_record:
+                    comic_record.draft_job_status = "RENDER_FAILED"
+                thread_db.commit()
+            finally:
+                thread_db.close()
+                
+        except Exception as outer_e:
+            logger.exception(f"Render thread error for comic {comic_id}: {outer_e}")
+    
+    # Start background thread
+    thread = threading.Thread(
+        target=render_comic_images,
+        args=(comic.id, script, style_name),
+        daemon=True
+    )
+    thread.start()
+    
+    return {
+        "ok": True,
+        "message": "Comic image generation started",
+        "data": {
+            "comic_id": id,
+            "status": "RENDERING",
+            "panels_count": len(panels)
         }
+    }
 
 
 @router.put("/comics/{comic}/character", response_model=dict)
