@@ -2,7 +2,7 @@
 Comics API endpoints
 Comic CRUD operations, draft generation, publishing
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from sqlalchemy.orm import Session, joinedload
 import logging
 from typing import Optional, List
@@ -658,21 +658,47 @@ async def get_comic_panels(
     # Get panels from relationship or generate from stored data
     panels = []
     if hasattr(comic, 'panels') and comic.panels:
-        panels = [{"panel_number": i+1, "image_url": p.image_url, "dialogue": p.dialogues} 
-                  for i, p in enumerate(comic.panels)]
+        panels = [{
+            "panel_id": p.id,
+            "page_number": p.page_number,
+            "panel_number": p.panel_number or (i+1),
+            "image_url": p.image_url,
+            "description": p.description,
+            "narration": p.narration,
+            "dialogue": p.dialogues
+        } for i, p in enumerate(comic.panels)]
     elif hasattr(comic, 'panel_images') and comic.panel_images:
         # panel_images is a JSON list of URLs
-        panels = [{"panel_number": i+1, "image_url": url} 
-                  for i, url in enumerate(comic.panel_images)]
+        panels = [{
+            "panel_id": i+1,
+            "page_number": 1,
+            "panel_number": i+1,
+            "image_url": url,
+            "description": None,
+            "narration": None,
+            "dialogue": None
+        } for i, url in enumerate(comic.panel_images)]
+    
+    # Determine status based on draft_job_status
+    status_str = comic.draft_job_status or "pending"
+    if status_str.upper() == "COMPLETED":
+        status_str = "completed"
+    elif status_str.upper() == "PROCESSING":
+        status_str = "processing"
+    elif status_str.upper() == "FAILED":
+        status_str = "failed"
     
     return {
         "ok": True,
         "data": {
             "comic_id": comic.id,
+            "title": comic.title or comic.story_idea[:50] if comic.story_idea else "Untitled",
+            "status": status_str,
             "total_panels": len(panels),
             "panels": panels
         }
     }
+
 
 
 @router.get("/comics/{id}/likes/status", response_model=dict)
@@ -922,6 +948,116 @@ async def update_comic_summary_v2(
     Update comic summary (v2 endpoint path)
     """
     return await update_comic_summary(comic, summary_data, current_user, db)
+
+
+@router.post("/comics/story-idea/transcribe", response_model=dict)
+async def transcribe_story_idea(
+    audio: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Transcribe audio file to text for story idea
+    
+    - **audio**: Audio file (ogg, wav, mp3, webm, or m4a format)
+    
+    Returns transcribed text
+    """
+    import tempfile
+    import os
+    
+    # Validate file type
+    allowed_types = ["audio/ogg", "audio/wav", "audio/mpeg", "audio/mp3", "audio/webm", "audio/m4a", "audio/x-m4a", "audio/mp4"]
+    content_type = audio.content_type or ""
+    
+    # Also check by extension for flexibility
+    filename = audio.filename or ""
+    allowed_extensions = [".ogg", ".wav", ".mp3", ".webm", ".m4a", ".opus"]
+    file_ext = os.path.splitext(filename)[1].lower() if filename else ""
+    
+    if content_type not in allowed_types and file_ext not in allowed_extensions:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported audio format: {content_type or file_ext}. Allowed: ogg, wav, mp3, webm, m4a"
+        )
+    
+    try:
+        from google.cloud import speech
+        
+        # Read file content
+        audio_content = await audio.read()
+        
+        if len(audio_content) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Audio file is empty"
+            )
+        
+        # Determine encoding based on file type
+        encoding = speech.RecognitionConfig.AudioEncoding.OGG_OPUS
+        if file_ext in [".wav"]:
+            encoding = speech.RecognitionConfig.AudioEncoding.LINEAR16
+        elif file_ext in [".mp3", ".mpeg"]:
+            encoding = speech.RecognitionConfig.AudioEncoding.MP3
+        elif file_ext in [".webm"]:
+            encoding = speech.RecognitionConfig.AudioEncoding.WEBM_OPUS
+        elif file_ext in [".m4a"]:
+            encoding = speech.RecognitionConfig.AudioEncoding.ENCODING_UNSPECIFIED
+        
+        # Create Speech-to-Text client
+        client = speech.SpeechClient()
+        
+        # Configure recognition
+        config = speech.RecognitionConfig(
+            encoding=encoding,
+            sample_rate_hertz=48000,  # Common for mobile recordings
+            language_code="id-ID",  # Indonesian
+            alternative_language_codes=["en-US"],  # Also detect English
+            enable_automatic_punctuation=True,
+            model="default",
+        )
+        
+        audio_data = speech.RecognitionAudio(content=audio_content)
+        
+        # Perform recognition
+        response = client.recognize(config=config, audio=audio_data)
+        
+        # Extract transcription
+        transcript = ""
+        for result in response.results:
+            transcript += result.alternatives[0].transcript + " "
+        
+        transcript = transcript.strip()
+        
+        if not transcript:
+            # Fallback: try with different sample rate
+            config = speech.RecognitionConfig(
+                encoding=speech.RecognitionConfig.AudioEncoding.ENCODING_UNSPECIFIED,
+                language_code="id-ID",
+                enable_automatic_punctuation=True,
+            )
+            response = client.recognize(config=config, audio=audio_data)
+            for result in response.results:
+                transcript += result.alternatives[0].transcript + " "
+            transcript = transcript.strip()
+        
+        if not transcript:
+            transcript = "(Tidak dapat mendeteksi suara. Silakan coba lagi dengan rekaman yang lebih jelas.)"
+        
+        logger.info(f"Transcribed audio for user {current_user.id_users}: {transcript[:50]}...")
+        
+        return {
+            "ok": True,
+            "data": {
+                "storyIdeaText": transcript
+            }
+        }
+        
+    except Exception as e:
+        logger.exception(f"Audio transcription failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Transcription failed: {str(e)}"
+        )
 
 
 @router.delete("/comics/drafts/{id}", response_model=dict)
