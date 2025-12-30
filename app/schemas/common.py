@@ -50,8 +50,18 @@ class MessageResponse(ResponseBase):
 
 
 class RefreshTokenRequest(BaseModel):
-    """Refresh token request schema"""
-    refresh_token: str = Field(..., description="Refresh token to generate new access token")
+    """Refresh token request schema
+    
+    Accepts both 'refresh_token' and 'refreshToken' field names for compatibility
+    """
+    refresh_token: str = Field(
+        ..., 
+        min_length=1,
+        description="Refresh token to generate new access token",
+        alias="refreshToken",  # Also accept camelCase
+    )
+    
+    model_config = ConfigDict(populate_by_name=True)  # Accept both field name and alias
 
 
 # Config for all schemas

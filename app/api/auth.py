@@ -210,7 +210,19 @@ async def refresh_token(
     Refresh access token using refresh token
     
     - **refresh_token**: Refresh token string
+    
+    Request body should be JSON:
+    {
+        "refresh_token": "your_refresh_token_here"
+    }
     """
+    # Validate that refresh_token is not empty
+    if not token_data.refresh_token or not token_data.refresh_token.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="refresh_token cannot be empty"
+        )
+    
     new_access_token = AuthService.refresh_access_token(token_data.refresh_token)
     
     if not new_access_token:
