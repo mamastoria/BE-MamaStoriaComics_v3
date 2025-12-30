@@ -140,7 +140,7 @@ async def db_health_check():
 
 
 # Import routers
-from app.api import auth, master_data, users, comics, comments, likes, history, subscriptions, notifications, analytics, comic_generator, commissions, withdrawals
+from app.api import auth, master_data, users, comics, comments, likes, history, subscriptions, notifications, analytics, comic_generator, commissions, withdrawals, referrals
 
 # Include routers
 app.include_router(comic_generator.router, tags=["Comic Generator"]) # Mixed paths (api + viewer)
@@ -156,6 +156,7 @@ app.include_router(notifications.router, prefix="/api/v1", tags=["Notifications"
 app.include_router(analytics.router, prefix="/api/v1", tags=["Analytics"])
 app.include_router(commissions.router, prefix="/api/v1", tags=["Commissions"])
 app.include_router(withdrawals.router, prefix="/api/v1", tags=["Withdrawals"])
+app.include_router(referrals.router, prefix="/api/v1", tags=["Referrals"])
 
 
 if __name__ == "__main__":

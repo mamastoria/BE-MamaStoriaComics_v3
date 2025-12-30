@@ -36,7 +36,8 @@ class SubscriptionPackageResponse(BaseModel):
 
 class PurchaseSubscription(BaseModel):
     """Purchase subscription request"""
-    package_id: int = Field(..., description="Subscription package ID", alias="packageId")
+    package_id: Optional[int] = Field(None, description="Subscription package ID", alias="packageId")
+    package_slug: Optional[str] = Field(None, description="Package slug/name (e.g. credits-20)", alias="packageSlug")
     payment_method: Optional[str] = Field(None, description="Payment method code", alias="paymentMethod")
     
     model_config = ConfigDict(populate_by_name=True)
@@ -131,15 +132,26 @@ async def purchase_subscription(
     
     Returns payment URL for checkout
     """
-    # Get package
-    package = db.query(SubscriptionPackage).filter(
-        SubscriptionPackage.id == purchase_data.package_id
-    ).first()
+    # Get package by ID or Slug
+    package = None
+    if purchase_data.package_id:
+        package = db.query(SubscriptionPackage).filter(
+            SubscriptionPackage.id == purchase_data.package_id
+        ).first()
+    elif purchase_data.package_slug:
+         # Try finding by name (slug)
+         slug = purchase_data.package_slug
+         # Try exact match
+         package = db.query(SubscriptionPackage).filter(SubscriptionPackage.name == slug).first()
+         if not package:
+             # Try robust match (credits-20 -> Credits 20)
+             name_guess = slug.replace("-", " ").title()
+             package = db.query(SubscriptionPackage).filter(SubscriptionPackage.name == name_guess).first()
     
     if not package:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Subscription package not found"
+            detail=f"Subscription package not found (id={purchase_data.package_id}, slug={purchase_data.package_slug})"
         )
     
     # Generate invoice number

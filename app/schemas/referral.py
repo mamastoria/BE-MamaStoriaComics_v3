@@ -21,3 +21,10 @@ class ReferralResponse(ReferralBase):
     """Full referral response schema"""
     id: int
     pass
+
+
+class ReferralWithUser(ReferralBase):
+    """Referral response with referred user details"""
+    id: int
+    referred_user: dict  # User details
+    pass
