@@ -8,6 +8,7 @@ from app.models.comment import Comment
 from app.models.master_data import Style, Genre, Character, Background, AssetMusic
 from app.models.subscription import SubscriptionPackage, Subscription, PaymentTransaction, Transaction
 from app.models.notification import Notification, Banner, BannerComic
+from app.models.comic_request import ComicRequest
 
 __all__ = [
     # User
@@ -40,5 +41,8 @@ __all__ = [
     "Notification",
     "Banner",
     "BannerComic",
+    
+    # Request
+    "ComicRequest",
 ]
 
