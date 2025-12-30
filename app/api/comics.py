@@ -657,10 +657,10 @@ async def get_like_status(
         )
     
     # Check if user has liked
-    from app.models.like import Like
-    like = db.query(Like).filter(
-        Like.comic_id == id,
-        Like.user_id == current_user.id_users
+    from app.models.comic import ComicUser
+    like = db.query(ComicUser).filter(
+        ComicUser.comic_id == id,
+        ComicUser.user_id == current_user.id_users
     ).first()
     
     return {
@@ -690,19 +690,19 @@ async def like_comic(
             detail="Comic not found"
         )
     
-    from app.models.like import Like
+    from app.models.comic import ComicUser
     
     # Check if already liked
-    existing = db.query(Like).filter(
-        Like.comic_id == id,
-        Like.user_id == current_user.id_users
+    existing = db.query(ComicUser).filter(
+        ComicUser.comic_id == id,
+        ComicUser.user_id == current_user.id_users
     ).first()
     
     if existing:
         return {"ok": True, "message": "Already liked"}
     
     # Create like
-    like = Like(comic_id=id, user_id=current_user.id_users)
+    like = ComicUser(comic_id=id, user_id=current_user.id_users)
     db.add(like)
     
     # Increment counter
@@ -721,11 +721,11 @@ async def unlike_comic(
     """
     Unlike a comic
     """
-    from app.models.like import Like
+    from app.models.comic import ComicUser
     
-    like = db.query(Like).filter(
-        Like.comic_id == id,
-        Like.user_id == current_user.id_users
+    like = db.query(ComicUser).filter(
+        ComicUser.comic_id == id,
+        ComicUser.user_id == current_user.id_users
     ).first()
     
     if not like:
