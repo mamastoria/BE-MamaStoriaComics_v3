@@ -20,37 +20,37 @@ class GoogleOAuthService:
     @staticmethod
     async def verify_google_token(token: str) -> Optional[Dict[str, Any]]:
         """
-        Verify Google ID token
-        
-        Args:
-            token: Google ID token from client
-            
-        Returns:
-            User info dict if valid, None otherwise
+        Verify Google ID token or Access Token
         """
+        # 1. Try as JWT ID Token
         try:
-            # Verify the token
             idinfo = id_token.verify_oauth2_token(
                 token, 
                 requests.Request(), 
                 settings.GOOGLE_CLIENT_ID
             )
             
-            # Verify the issuer
-            if idinfo['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
-                return None
-            
-            # Return user info
-            return {
-                'email': idinfo.get('email'),
-                'email_verified': idinfo.get('email_verified', False),
-                'name': idinfo.get('name'),
-                'picture': idinfo.get('picture'),
-                'google_id': idinfo.get('sub')
-            }
+            if idinfo['iss'] in ['accounts.google.com', 'https://accounts.google.com']:
+                return {
+                    'email': idinfo.get('email'),
+                    'email_verified': idinfo.get('email_verified', False),
+                    'name': idinfo.get('name'),
+                    'picture': idinfo.get('picture'),
+                    'google_id': idinfo.get('sub')
+                }
+        except Exception:
+            pass
+
+        # 2. Try as Access Token (fallback)
+        try:
+            # Use the existing method to fetch profile via UserInfo endpoint
+            user_info = await GoogleOAuthService.get_user_info_from_token(token)
+            if user_info:
+                return user_info
         except Exception as e:
-            print(f"Error verifying Google token: {str(e)}")
-            return None
+            print(f"Error checking token as Access Token: {str(e)}")
+
+        return None
     
     @staticmethod
     def get_or_create_user_from_google(

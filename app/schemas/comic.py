@@ -127,12 +127,18 @@ class ComicWithPanels(ComicDetail):
 
 # ============ Master Data Schemas ============
 
+from pydantic import computed_field
+
 class StyleResponse(BaseModel):
     """Style response schema"""
     id: int
     name: str
     description: Optional[str]
     image_url: Optional[str]
+    
+    @computed_field
+    def key(self) -> str:
+        return str(self.id)
     
     model_config = ORMConfig
 
@@ -142,6 +148,10 @@ class GenreResponse(BaseModel):
     id: int
     name: str
     description: Optional[str]
+    
+    @computed_field
+    def key(self) -> str:
+        return str(self.id)
     
     model_config = ORMConfig
 
@@ -153,6 +163,10 @@ class CharacterResponse(BaseModel):
     image_url: Optional[str]
     description_prompt: Optional[str]
     
+    @computed_field
+    def key(self) -> str:
+        return str(self.id)
+    
     model_config = ORMConfig
 
 
@@ -162,5 +176,9 @@ class BackgroundResponse(BaseModel):
     name: str
     image_url: Optional[str]
     description_prompt: Optional[str]
+    
+    @computed_field
+    def key(self) -> str:
+        return str(self.id)
     
     model_config = ORMConfig
