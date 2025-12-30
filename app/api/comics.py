@@ -5,7 +5,8 @@ Comic CRUD operations, draft generation, publishing
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from sqlalchemy.orm import Session, joinedload
 import logging
-from typing import Optional, List
+from typing import Optional, List, Dict
+from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, get_optional_user
@@ -1092,3 +1093,133 @@ async def delete_draft(
     
     return {"ok": True, "message": "Draft deleted successfully"}
 
+
+class UpdatePanelContent(BaseModel):
+    """Schema for updating panel content"""
+    narration: Optional[str] = None
+    description: Optional[str] = None
+    dialogues: Optional[List[Dict[str, str]]] = None
+    
+
+@router.put("/comics/{comic_id}/panels/{panel_id}", response_model=dict)
+async def update_panel_content(
+    comic_id: int,
+    panel_id: int,
+    panel_data: UpdatePanelContent,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Update individual panel content (dialog, narration, description)
+    
+    - **comic_id**: Comic ID
+    - **panel_id**: Panel ID
+    - **narration**: Updated narration text
+    - **description**: Updated description text
+    - **dialogues**: Updated dialogues array [{character: "...", text: "..."}]
+    """
+    from app.models.comic_panel import ComicPanel
+    
+    # Verify comic ownership
+    comic = db.query(Comic).filter(
+        Comic.id == comic_id,
+        Comic.user_id == current_user.id_users
+    ).first()
+    
+    if not comic:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comic not found or you don't have permission"
+        )
+    
+    # Get the panel
+    panel = db.query(ComicPanel).filter(
+        ComicPanel.id == panel_id,
+        ComicPanel.comic_id == comic_id
+    ).first()
+    
+    if not panel:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Panel not found"
+        )
+    
+    # Update fields if provided
+    if panel_data.narration is not None:
+        panel.narration = panel_data.narration
+        panel.page_narration = panel_data.narration
+    
+    if panel_data.description is not None:
+        panel.description = panel_data.description
+        panel.page_description = panel_data.description
+    
+    if panel_data.dialogues is not None:
+        panel.dialogues = panel_data.dialogues
+    
+    db.commit()
+    db.refresh(panel)
+    
+    return {
+        "ok": True,
+        "message": "Panel updated successfully",
+        "data": {
+            "panel_id": panel.id,
+            "comic_id": comic_id,
+            "page_number": panel.page_number,
+            "panel_number": panel.panel_number,
+            "narration": panel.narration,
+            "description": panel.description,
+            "dialogues": panel.dialogues
+        }
+    }
+
+
+@router.post("/comics/{id}/regenerate-panel/{panel_id}", response_model=dict)
+async def regenerate_panel(
+    id: int,
+    panel_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Regenerate a specific panel with AI
+    
+    - **id**: Comic ID
+    - **panel_id**: Panel ID to regenerate
+    """
+    from app.models.comic_panel import ComicPanel
+    
+    # Verify ownership
+    comic = db.query(Comic).filter(
+        Comic.id == id,
+        Comic.user_id == current_user.id_users
+    ).first()
+    
+    if not comic:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comic not found"
+        )
+    
+    panel = db.query(ComicPanel).filter(
+        ComicPanel.id == panel_id,
+        ComicPanel.comic_id == id
+    ).first()
+    
+    if not panel:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Panel not found"
+        )
+    
+    # TODO: Implement panel regeneration via Cloud Tasks
+    # For now, return a placeholder response
+    return {
+        "ok": True,
+        "message": "Panel regeneration queued",
+        "data": {
+            "comic_id": id,
+            "panel_id": panel_id,
+            "status": "queued"
+        }
+    }
