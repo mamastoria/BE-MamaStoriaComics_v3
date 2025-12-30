@@ -3,6 +3,8 @@ Comic Service
 Business logic for comic creation, management, and publishing
 """
 from sqlalchemy.orm import Session
+from sqlalchemy import or_, cast
+from sqlalchemy.dialects.postgresql import JSONB
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
@@ -226,16 +228,33 @@ class ComicService:
         Returns:
             List of similar Comic objects
         """
-        # Find comics with same genre or style
-        similar = db.query(Comic).filter(
+        # Base query for published comics excluding current one
+        query = db.query(Comic).filter(
             Comic.id != comic.id,
             Comic.title.isnot(None),  # Only published comics
             Comic.cover_url.isnot(None)
-        ).filter(
-            # Same style or overlapping genres
-            (Comic.style == comic.style) | 
-            (Comic.genre.overlap(comic.genre) if comic.genre else False)
-        ).order_by(
+        )
+        
+        criteria = []
+        
+        # 1. Match style
+        if comic.style:
+            criteria.append(Comic.style == comic.style)
+            
+        # 2. Overlapping genres (Any genre match)
+        # Note: genre is a JSON array of strings
+        if comic.genre and isinstance(comic.genre, list):
+            # Using cast to JSONB ensures @> operator works on Postgres
+            # We match if target comic contains ANY of the source comic's genres
+            for g in comic.genre:
+                criteria.append(cast(Comic.genre, JSONB).contains([g]))
+        
+        # If no criteria (no style, no genre), return empty or fallback?
+        # Returning empty to avoid full table scan matches
+        if not criteria:
+            return []
+            
+        similar = query.filter(or_(*criteria)).order_by(
             Comic.total_views.desc()
         ).limit(limit).all()
         
