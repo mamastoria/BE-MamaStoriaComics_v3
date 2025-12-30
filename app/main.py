@@ -16,7 +16,6 @@ app = FastAPI(
     version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
-    redoc_url="/redoc"
 )
 
 # Global Exception Handler to ensure CORS headers are always present on 500 errors
