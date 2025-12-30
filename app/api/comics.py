@@ -624,7 +624,7 @@ async def get_comic_panels(
     if hasattr(comic, 'panels') and comic.panels:
         panels = [{"panel_number": i+1, "image_url": p.image_url, "dialogue": p.dialogue} 
                   for i, p in enumerate(comic.panels)]
-    elif comic.panel_images:
+    elif hasattr(comic, 'panel_images') and comic.panel_images:
         # panel_images is a JSON list of URLs
         panels = [{"panel_number": i+1, "image_url": url} 
                   for i, url in enumerate(comic.panel_images)]
@@ -763,7 +763,7 @@ async def get_preview_video(
         "ok": True,
         "data": {
             "comic_id": id,
-            "video_url": comic.video_url or None,
+            "video_url": comic.preview_video_url or None,
             "thumbnail_url": comic.cover_url or None
         }
     }
@@ -791,7 +791,7 @@ async def get_exported_media(
         "data": {
             "comic_id": id,
             "pdf_url": comic.pdf_url or None,
-            "video_url": comic.video_url or None,
+            "video_url": comic.preview_video_url or None,
             "cover_url": comic.cover_url or None
         }
     }
