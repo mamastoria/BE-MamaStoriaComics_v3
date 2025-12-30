@@ -19,12 +19,32 @@
 | Panel Rendering | `core.start_render_all_job()` | N/A (backend) | ✅ Working |
 | PDF Compilation | `core.ensure_job_pdf()` | N/A (backend) | ✅ Working |
 
-### Generation Flow:
+### Generation Flow (NEW - Draft Review Workflow):
 ```
-GenerateComicScreen → POST /comics/story-idea → TaskQueueService 
-→ Worker handles /tasks/generate-comic → core.py AI engine
-→ Panels saved to DB → Status updated to COMPLETED
+1. USER: Submit Story Idea
+   └─> POST /comics/story-idea
+   └─> Backend generates SCRIPT ONLY (text, no images)
+   └─> Status: SCRIPT_READY
+
+2. USER: Review Draft ← NEW STEP
+   └─> EditDraftTextScreen (Tabs: Summary | Panels)
+   └─> User can see all panels with:
+       - Deskripsi (description)
+       - Narasi (narration)  
+       - Dialog (dialogues)
+   └─> User can EDIT before confirming
+
+3. USER: Approve & Generate
+   └─> Click "Generate Komik"
+   └─> POST /comics/{id}/generate
+   └─> Status: RENDERING
+   └─> Backend renders IMAGES from approved draft
+
+4. USER: View Result
+   └─> Status: COMPLETED
+   └─> Review final comic panels
 ```
+
 
 ---
 
