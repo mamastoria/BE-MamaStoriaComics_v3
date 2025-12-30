@@ -458,10 +458,10 @@ async def get_draft_status(
         "ok": True,
         "data": {
             "id": comic.id,
-            "status": comic.status or "pending",
-            "progress": comic.generation_progress or 0,
-            "stage": comic.generation_stage or None,
-            "error": comic.generation_error or None,
+            "status": comic.draft_job_status or "pending",
+            "progress": 0,
+            "stage": None,
+            "error": None,
             "created_at": comic.created_at.isoformat() if comic.created_at else None,
             "updated_at": comic.updated_at.isoformat() if comic.updated_at else None
         }
@@ -699,7 +699,7 @@ async def generate_comic(
         )
         
         # Update status
-        comic.status = "queued"
+        comic.draft_job_status = "queued"
         db.commit()
         
         return {
@@ -713,7 +713,7 @@ async def generate_comic(
         }
     except Exception as e:
         # Fallback: mark as pending for direct processing
-        comic.status = "pending"
+        comic.draft_job_status = "pending"
         db.commit()
         
         return {

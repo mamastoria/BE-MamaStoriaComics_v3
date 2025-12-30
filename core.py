@@ -66,7 +66,7 @@ def _project_id() -> str:
 PROJECT_ID = _project_id()
 
 # ✅ Vertex should be regional (global often fails / causes weird permission errors)
-VERTEX_LOCATION = _env("VERTEX_LOCATION", "asia-southeast1")
+VERTEX_LOCATION = _env("VERTEX_LOCATION", "global")
 
 TEXT_MODEL = _env("TEXT_MODEL", "gemini-3-flash-preview")
 IMAGE_MODEL = _env("IMAGE_MODEL", "gemini-3-pro-image-preview")
