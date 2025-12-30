@@ -104,6 +104,42 @@ async def handle_generate_comic_task(
         db.expunge_all()
         comic = db.query(Comic).filter(Comic.id == comic_id_int).first()
         
+        # Populate ComicPanel table
+        from app.models.comic_panel import ComicPanel
+        
+        # Clear existing panels for this comic
+        db.query(ComicPanel).filter(ComicPanel.comic_id == comic_id_int).delete()
+        
+        # Get job state
+        job_state = core.get_job(job_id)
+        if job_state:
+            parts = [job_state.get("part1"), job_state.get("part2")]
+            
+            panel_counter = 0
+            for p_idx, part in enumerate(parts):
+                if not part: continue
+                part_no = p_idx + 1
+                
+                # Get script data for panels (description, narration, etc)
+                part_script = part.get("part", {})
+                panels_script = part_script.get("panels", [])
+                
+                # Create records
+                for i, panel_data in enumerate(panels_script):
+                    panel = ComicPanel(
+                        comic_id=comic_id_int,
+                        page_number=part_no,
+                        panel_number=i+1,
+                        image_url=f"/api/preview/{job_id}/panel/{part_no}/{i}",
+                        description=panel_data.get("description"),
+                        narration=panel_data.get("narration"),
+                        dialogues=panel_data.get("dialogues")
+                    )
+                    db.add(panel)
+                    panel_counter += 1
+            
+            logger.info(f"WORKER: Added {panel_counter} panels to DB for {job_id}")
+        
         comic.draft_job_status = "COMPLETED"
         comic.pdf_url = f"/api/pdf/{job_id}" 
         comic.preview_video_url = f"/viewer/{job_id}"

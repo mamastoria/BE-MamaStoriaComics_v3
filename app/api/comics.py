@@ -229,6 +229,42 @@ async def create_story_and_attributes(
                             
                             time.sleep(3)
                         
+                        # Populate ComicPanel table
+                        from app.models.comic_panel import ComicPanel
+                        
+                        # Clear existing panels for this comic
+                        thread_db.query(ComicPanel).filter(ComicPanel.comic_id == comic_id).delete()
+                        
+                        # Get job state
+                        job_state = core.get_job(str(comic_id))
+                        parts = [job_state.get("part1"), job_state.get("part2")]
+                        
+                        panel_counter = 0
+                        for p_idx, part in enumerate(parts):
+                            if not part: continue
+                            part_no = p_idx + 1
+                            
+                            # Get script data for panels (description, narration, etc)
+                            part_script = part.get("part", {})
+                            panels_script = part_script.get("panels", [])
+                            
+                            # Create records
+                            for i, panel_data in enumerate(panels_script):
+                                # Ensure we don't index out of bounds if images missing (should verify)
+                                panel = ComicPanel(
+                                    comic_id=comic_id,
+                                    page_number=part_no,
+                                    panel_number=i+1,
+                                    image_url=f"/api/preview/{comic_id}/panel/{part_no}/{i}",
+                                    description=panel_data.get("description"),
+                                    narration=panel_data.get("narration"),
+                                    dialogues=panel_data.get("dialogues")
+                                )
+                                thread_db.add(panel)
+                                panel_counter += 1
+                        
+                        logger.info(f"Direct processing: Added {panel_counter} panels to DB for {comic_id}")
+                        
                         # Update to COMPLETED
                         comic_record = thread_db.query(Comic).filter(Comic.id == comic_id).first()
                         comic_record.draft_job_status = "COMPLETED"
