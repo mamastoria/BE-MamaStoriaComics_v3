@@ -1,7 +1,7 @@
 """
 User Pydantic schemas for request/response validation
 """
-from pydantic import BaseModel, EmailStr, Field, validator
+from pydantic import BaseModel, EmailStr, Field, validator, ConfigDict
 from typing import Optional
 from datetime import datetime
 from app.schemas.common import ORMConfig
@@ -78,7 +78,10 @@ class UpdateProfile(BaseModel):
 class UpdateKredit(BaseModel):
     """Schema for updating user credits"""
     amount: int = Field(..., description="Amount to add/subtract")
-    operation: str = Field(..., pattern="^(add|subtract)$")
+    operation: str = Field(..., pattern="^(add|subtract)$", alias="type")
+    description: Optional[str] = None
+    
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class UpdateFCMToken(BaseModel):
