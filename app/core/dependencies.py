@@ -125,5 +125,14 @@ def get_optional_user(
     if user_id is None:
         return None
     
-    user = db.query(User).filter(User.id_users == user_id).first()
-    return user
+    try:
+        # Cast to int to ensure correct type for DB query (Postgres strict typing)
+        uid_int = int(user_id)
+        user = db.query(User).filter(User.id_users == uid_int).first()
+        return user
+    except ValueError:
+        # Invalid ID format
+        return None
+    except Exception as e:
+        print(f"Error in get_optional_user: {e}")
+        return None
