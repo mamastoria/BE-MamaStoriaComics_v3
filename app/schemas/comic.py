@@ -2,7 +2,7 @@
 Comic Pydantic schemas for request/response validation
 """
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
 from app.schemas.common import ORMConfig
 from app.schemas.user import UserPublic
@@ -88,7 +88,7 @@ class ComicDetail(ComicListItem):
     pdf_url: Optional[str]
     narration_audio_url: Optional[str]
     selected_character_key: Optional[str]
-    selected_backgrounds: Optional[List[int]]
+    selected_backgrounds: Optional[List[Union[int, str]]]
     layout: Optional[str]
     
     model_config = ORMConfig
