@@ -132,6 +132,7 @@ async def purchase_subscription(
     
     Returns payment URL for checkout
     """
+    print(f"Purchase request data: {purchase_data.dict(exclude_none=True)}")
     # Get package by ID or Slug
     package = None
     if purchase_data.package_id:
