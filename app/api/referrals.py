@@ -47,7 +47,7 @@ async def list_referrals_by_user(
             "id_users": referral.referred_user.id_users,
             "username": referral.referred_user.username,
             "full_name": referral.referred_user.full_name,
-            "email": referral.referred_user.email,
+            "phone_number": referral.referred_user.phone_number,
             "profile_photo_path": referral.referred_user.profile_photo_path,
             "created_at": referral.referred_user.created_at.isoformat() if referral.referred_user.created_at else None
         }
