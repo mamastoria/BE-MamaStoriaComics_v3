@@ -15,9 +15,15 @@ from app.schemas.withdrawal import WithdrawalCreate, WithdrawalResponse
 router = APIRouter()
 
 
+from app.utils.pagination import paginate, get_pagination_params
+from app.utils.responses import paginated_response
+from fastapi import Query
+
 @router.get("/withdrawals", response_model=dict)
 async def list_withdrawals(
     id_user: int,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -25,18 +31,24 @@ async def list_withdrawals(
     List withdrawals for a specific user
 
     - **id_user**: User ID (required)
+    - **page**: Page number
+    - **per_page**: Items per page
     """
-    withdrawals = db.query(Withdrawal).filter(Withdrawal.id_user == id_user).all()
+    query = db.query(Withdrawal).filter(Withdrawal.id_user == id_user)
 
-    # Calculate total withdrawal for the user
+    # Calculate total withdrawal for the user (before pagination)
     from sqlalchemy import func
     total_withdrawal = db.query(func.sum(Withdrawal.amount)).filter(Withdrawal.id_user == id_user).scalar() or 0
 
-    return {
-        "ok": True,
-        "data": [WithdrawalResponse.model_validate(withdrawal).model_dump() for withdrawal in withdrawals],
-        "total_withdrawal": total_withdrawal
-    }
+    # Paginate
+    page, per_page = get_pagination_params(page, per_page)
+    items, total = paginate(query, page, per_page)
+
+    data = [WithdrawalResponse.model_validate(withdrawal).model_dump() for withdrawal in items]
+
+    response = paginated_response(data, page, per_page, total)
+    response["total_withdrawal"] = total_withdrawal
+    return response
 
 
 @router.post("/withdrawals", response_model=dict)

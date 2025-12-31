@@ -14,9 +14,14 @@ from app.schemas.referral import ReferralWithUser
 router = APIRouter()
 
 
+from app.utils.pagination import paginate, get_pagination_params
+from app.utils.responses import paginated_response
+
 @router.get("/referrals", response_model=dict)
 async def list_referrals_by_user(
     user_id: int = Query(..., description="User ID to get referrals for"),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -24,6 +29,8 @@ async def list_referrals_by_user(
     List referrals made by a specific user
 
     - **user_id**: User ID of the referrer
+    - **page**: Page number
+    - **per_page**: Items per page
     """
     # Check if user exists
     user = db.query(User).filter(User.id_users == user_id).first()
@@ -33,14 +40,18 @@ async def list_referrals_by_user(
             detail="User not found"
         )
 
-    # Get referrals with referred user details
-    referrals = db.query(Referral).options(
+    # Get referrals query
+    query = db.query(Referral).options(
         joinedload(Referral.referred_user)
-    ).filter(Referral.referrer_id == user_id).all()
+    ).filter(Referral.referrer_id == user_id)
+
+    # Paginate
+    page, per_page = get_pagination_params(page, per_page)
+    items, total = paginate(query, page, per_page)
 
     # Format response data
     referrals_data = []
-    for referral in referrals:
+    for referral in items:
         referral_dict = ReferralWithUser.model_validate(referral).model_dump()
         # Add referred user details
         referral_dict["referred_user"] = {
@@ -53,11 +64,7 @@ async def list_referrals_by_user(
         }
         referrals_data.append(referral_dict)
 
-    return {
-        "ok": True,
-        "data": referrals_data,
-        "total": len(referrals_data)
-    }
+    return paginated_response(referrals_data, page, per_page, total)
 
 @router.get("/referrals/check-parent", response_model=dict)
 async def check_parent_referral(

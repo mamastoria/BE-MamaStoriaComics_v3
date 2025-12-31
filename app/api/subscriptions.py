@@ -487,20 +487,29 @@ async def get_subscription_status(
 
 @router.get("/subscriptions/payment-history", response_model=dict)
 async def get_payment_history(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Get user's payment history
     
-    Returns list of all payment transactions ordered by most recent
+    - **page**: Page number
+    - **per_page**: Items per page
+    
+    Returns paginated list of payment transactions ordered by most recent
     """
-    transactions = db.query(PaymentTransaction).filter(
+    query = db.query(PaymentTransaction).filter(
         PaymentTransaction.user_id == current_user.id_users
-    ).order_by(PaymentTransaction.created_at.desc()).all()
+    ).order_by(PaymentTransaction.created_at.desc())
+    
+    # Paginate
+    page, per_page = get_pagination_params(page, per_page)
+    items, total = paginate(query, page, per_page)
     
     history_data = []
-    for transaction in transactions:
+    for transaction in items:
         # Get package name if subscription exists
         package_name = None
         if transaction.subscription_id:
@@ -524,10 +533,7 @@ async def get_payment_history(
             "package_name": package_name
         })
     
-    return {
-        "ok": True,
-        "data": history_data
-    }
+    return paginated_response(history_data, page, per_page, total)
 @router.get("/transactions/check-status", response_model=dict)
 async def check_transaction_status(
     user_id: int,

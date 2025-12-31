@@ -15,9 +15,15 @@ from app.schemas.commission import CommissionCreate, CommissionResponse
 router = APIRouter()
 
 
+from app.utils.pagination import paginate, get_pagination_params
+from app.utils.responses import paginated_response
+from fastapi import Query
+
 @router.get("/commissions", response_model=dict)
 async def list_commissions(
     id_user: int,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -25,18 +31,24 @@ async def list_commissions(
     List commissions for a specific user
 
     - **id_user**: User ID (required)
+    - **page**: Page number
+    - **per_page**: Items per page
     """
-    commissions = db.query(Commission).filter(Commission.id_user == id_user).all()
+    query = db.query(Commission).filter(Commission.id_user == id_user)
 
-    # Calculate total commission for the user
+    # Calculate total commission for the user (before pagination)
     from sqlalchemy import func
     total_commission = db.query(func.sum(Commission.kredit)).filter(Commission.id_user == id_user).scalar() or 0
+    
+    # Paginate
+    page, per_page = get_pagination_params(page, per_page)
+    items, total = paginate(query, page, per_page)
 
-    return {
-        "ok": True,
-        "data": [CommissionResponse.model_validate(commission).model_dump() for commission in commissions],
-        "total_commission": total_commission
-    }
+    data = [CommissionResponse.model_validate(commission).model_dump() for commission in items]
+    
+    response = paginated_response(data, page, per_page, total)
+    response["total_commission"] = total_commission
+    return response
 
 
 @router.post("/commissions", response_model=dict)
