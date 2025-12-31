@@ -2,7 +2,7 @@
 Comics API endpoints
 Comic CRUD operations, draft generation, publishing
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, BackgroundTasks
 from sqlalchemy.orm import Session, joinedload
 import logging
 from typing import Optional, List, Dict
@@ -1027,6 +1027,155 @@ async def generate_comic(
             "comic_id": id,
             "status": "RENDERING",
             "panels_count": len(panels)
+        }
+    }
+
+
+@router.post("/comics/{id}/generate-video", response_model=dict)
+async def generate_comic_video(
+    id: int,
+    background: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Generate cinematic video from comic panels with narration.
+    
+    Features:
+    - Ken Burns effect (zoom/pan animation)
+    - Fade transitions between panels
+    - TTS narration in Indonesian
+    - 9:16 vertical format for mobile
+    - Cinematic letterbox bars
+    
+    The video URL will be stored in comic.preview_video_url when complete.
+    """
+    from app.models.comic_panel import ComicPanel
+    
+    comic = db.query(Comic).filter(
+        Comic.id == id,
+        Comic.user_id == current_user.id_users
+    ).first()
+    
+    if not comic:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comic not found"
+        )
+    
+    # Get panels
+    panels = db.query(ComicPanel).filter(
+        ComicPanel.comic_id == id
+    ).order_by(ComicPanel.page_number, ComicPanel.panel_number).all()
+    
+    if not panels:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No panels found. Generate comic images first."
+        )
+    
+    # Check if panels have images
+    panels_with_images = [p for p in panels if p.image_url]
+    if not panels_with_images:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Panels don't have images yet. Wait for image generation to complete."
+        )
+    
+    # Prepare panel data for video generator
+    panel_data = []
+    for p in panels_with_images:
+        panel_data.append({
+            "image_url": p.image_url,
+            "narration": p.narration or p.page_narration or "",
+            "dialogue": p.dialogues or [],
+            "description": p.description or p.page_description or ""
+        })
+    
+    # Start video generation in background
+    def generate_video_task(comic_id: int, panels_data: list):
+        """Background task to generate video"""
+        try:
+            import sys
+            from pathlib import Path
+            
+            ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+            if str(ROOT_DIR) not in sys.path:
+                sys.path.append(str(ROOT_DIR))
+            
+            from app.core.database import get_session_local
+            import video_generator
+            
+            SessionLocal = get_session_local()
+            thread_db = SessionLocal()
+            
+            try:
+                logger.info(f"Starting cinematic video generation for comic {comic_id}...")
+                
+                # Generate video
+                output_path = video_generator.generate_video_for_comic(
+                    comic_id=comic_id,
+                    panels=panels_data
+                )
+                
+                if output_path:
+                    # Upload to GCS
+                    try:
+                        from app.services.google_storage_service import GoogleStorageService
+                        storage = GoogleStorageService()
+                        
+                        with open(output_path, "rb") as f:
+                            video_url = storage.upload_file(
+                                file_content=f.read(),
+                                destination_path=f"comics/videos/{comic_id}_cinematic.mp4",
+                                content_type="video/mp4"
+                            )
+                        
+                        logger.info(f"Video uploaded to GCS: {video_url}")
+                        
+                        # Update comic with video URL
+                        comic_record = thread_db.query(Comic).filter(Comic.id == comic_id).first()
+                        if comic_record:
+                            comic_record.preview_video_url = video_url
+                            thread_db.commit()
+                        
+                        logger.info(f"Comic {comic_id}: Cinematic video generated successfully!")
+                        
+                    except Exception as upload_err:
+                        logger.warning(f"GCS upload failed, using local path: {upload_err}")
+                        # Store local path as fallback
+                        comic_record = thread_db.query(Comic).filter(Comic.id == comic_id).first()
+                        if comic_record:
+                            comic_record.preview_video_url = f"/api/video/{comic_id}"
+                            thread_db.commit()
+                else:
+                    logger.error(f"Video generation failed for comic {comic_id}")
+                    
+            except Exception as e:
+                logger.exception(f"Video generation task failed for comic {comic_id}: {e}")
+            finally:
+                thread_db.close()
+                
+        except Exception as outer_e:
+            logger.exception(f"Video generation outer error for comic {comic_id}: {outer_e}")
+    
+    # Run in background
+    background.add_task(generate_video_task, comic.id, panel_data)
+    
+    return {
+        "ok": True,
+        "message": "Cinematic video generation started",
+        "data": {
+            "comic_id": id,
+            "status": "VIDEO_GENERATING",
+            "panels_count": len(panel_data),
+            "features": [
+                "Ken Burns effect (zoom/pan)",
+                "Fade transitions",
+                "TTS narration (Indonesian)",
+                "9:16 vertical format",
+                "Cinematic letterbox"
+            ]
         }
     }
 
