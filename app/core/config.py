@@ -2,7 +2,7 @@
 Core configuration settings for MamaStoria API
 """
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import List, Optional
 import os
 
 
