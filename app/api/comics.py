@@ -1111,8 +1111,7 @@ async def generate_comic(
                         logger.info(f"Starting video generation for comic {comic_id}...")
                         output_path = video_generator.generate_video_for_comic(
                             comic_id=comic_id,
-                            panels=panel_data,
-                            title=comic_record.title if comic_record else "Untitled"
+                            panels=panel_data
                         )
                         
                         if output_path:
