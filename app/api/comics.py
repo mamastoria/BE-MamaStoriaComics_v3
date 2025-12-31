@@ -1070,13 +1070,18 @@ async def generate_comic(
                 # Update comic status to COMPLETED
                 comic_record = thread_db.query(Comic).filter(Comic.id == comic_id).first()
                 if comic_record:
+                    logger.info(f"Updating comic {comic_id} status from {comic_record.draft_job_status} to COMPLETED")
                     comic_record.draft_job_status = "COMPLETED"
                     comic_record.pdf_url = f"/api/pdf/{comic_id}"
                     comic_record.preview_video_url = f"/viewer/{comic_id}"
                     if cover_url:
                         comic_record.cover_url = cover_url
+                    thread_db.flush()  # Ensure changes are sent to DB
+                else:
+                    logger.error(f"Comic record {comic_id} not found for status update!")
                 
                 thread_db.commit()
+                logger.info(f"Comic {comic_id} status committed to DB")
                 
                 # Generate PDF
                 try:
