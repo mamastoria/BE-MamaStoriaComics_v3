@@ -626,12 +626,47 @@ async def get_draft_status(
                 "dialogue": p.dialogues
             })
     
+    # Build detailed summary from panels (title + all narrations + dialogues)
+    summary_parts = []
+    if comic.title:
+        summary_parts.append(f"**{comic.title}**\n")
+    if comic.synopsis:
+        summary_parts.append(comic.synopsis + "\n")
+    
+    # Add narration/dialogue from each panel
+    if comic.panels:
+        for p in comic.panels:
+            panel_text = []
+            if p.narration:
+                panel_text.append(f"[Panel {p.page_number}-{p.panel_number}] {p.narration}")
+            if p.dialogues:
+                for dlg in p.dialogues:
+                    if isinstance(dlg, str):
+                        panel_text.append(f"  💬 {dlg}")
+                    elif isinstance(dlg, dict):
+                        char = dlg.get("character", dlg.get("name", ""))
+                        text = dlg.get("text", dlg.get("dialog", ""))
+                        panel_text.append(f"  💬 {char}: {text}")
+            if panel_text:
+                summary_parts.append("\n".join(panel_text))
+    
+    detailed_summary = "\n\n".join(summary_parts) if summary_parts else (comic.story_idea[:500] if comic.story_idea else "")
+    
+    # Build genre list with proper structure
+    genres_data = []
+    if comic.genre and isinstance(comic.genre, list):
+        for i, g in enumerate(comic.genre):
+            if isinstance(g, str):
+                genres_data.append({"id": i + 1, "name": g})
+            elif isinstance(g, dict):
+                genres_data.append({"id": g.get("id", i + 1), "name": g.get("name", str(g))})
+    
     return {
         "ok": True,
         "data": {
             "id": comic.id,
             "status": raw_status.upper(),  # Return actual status like SCRIPT_READY
-            "summary": comic.summary or comic.title or (comic.story_idea[:200] if comic.story_idea else None),
+            "summary": detailed_summary,
             "title": comic.title,
             "page_count": comic.page_count,  # snake_case for frontend
             "draft_job_id": comic.draft_job_id,  # snake_case for frontend
@@ -639,7 +674,7 @@ async def get_draft_status(
             "panels": panels_data,
             "style": {"id": 1, "name": comic.style} if comic.style else None,
             "character": None,  # TODO: Add character data
-            "genres": [{"id": i+1, "name": g} for i, g in enumerate(comic.genre or [])],
+            "genres": genres_data,
             "backgrounds": [],  # TODO: Add backgrounds data
             "progress": 0,
             "stage": raw_status,
@@ -936,10 +971,8 @@ async def generate_comic(
             "panels": parts_dict[part_no]
         }
     
-    # Get style name
-    from app.models.master_data import Style
-    style = db.query(Style).filter(Style.id == comic.style_id).first() if comic.style_id else None
-    style_name = style.name if style else "manga"
+    # Get style name - Comic stores style as string directly, not as FK
+    style_name = comic.style or "manga"
     
     # Update status to RENDERING
     comic.draft_job_status = "RENDERING"
