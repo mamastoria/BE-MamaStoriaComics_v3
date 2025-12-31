@@ -208,13 +208,66 @@ async def create_story_and_attributes(
                     db.add(panel)
                     panel_counter += 1
             
-            # Update status to SCRIPT_READY (user can now review/edit)
+            # Extract metadata from AI script to fill comic columns
+            global_data = script.get("global", {})
+            parts_data = script.get("parts", [])
+            
+            # Title from AI
+            ai_title = (
+                global_data.get("comic_title") or 
+                script.get("suggested_title") or 
+                script.get("title") or 
+                ""
+            ).strip()
+            
+            # Tagline/Theme
+            ai_tagline = (global_data.get("tagline") or "").strip()
+            
+            # Characters info for keywords
+            characters = global_data.get("characters", [])
+            character_names = [c.get("name", "") for c in characters if isinstance(c, dict)]
+            
+            # Extract keywords from character names and story
+            keywords_list = []
+            if character_names:
+                keywords_list.extend([n for n in character_names if n])
+            # Add style and nuance as keywords too
+            if style_name:
+                keywords_list.append(style_name)
+            
+            # Get mood from style
+            style_data = global_data.get("style", {})
+            ai_mood = style_data.get("color_mood", "")
+            
+            # Build synopsis from part summaries
+            synopsis_parts = []
+            for part in parts_data:
+                if isinstance(part, dict):
+                    ps = (part.get("part_summary") or "").strip()
+                    if ps:
+                        synopsis_parts.append(ps)
+            ai_synopsis = " ".join(synopsis_parts) if synopsis_parts else story_data.story_idea[:500]
+            
+            # Update comic with all extracted data
             comic.draft_job_status = "SCRIPT_READY"
-            comic.summary = script.get("suggested_title") or script.get("title") or story_data.story_idea[:100]
+            comic.draft_job_id = str(comic.id)  # Job ID = Comic ID
+            comic.title = ai_title or story_data.story_idea[:100]  # Use title or fallback
+            comic.summary = ai_title or story_data.story_idea[:100]
+            comic.synopsis = ai_synopsis
+            comic.theme = ai_tagline or None
+            comic.keywords = keywords_list if keywords_list else None
+            comic.mood = ai_mood or None
+            comic.layout = "portrait"  # Default to portrait for 9-panel grid
+            comic.publisher = None  # Will be set on publish
+            
+            # Tags from keywords (for search)
+            if keywords_list:
+                comic.tags = " ".join([f"#{k.lower().replace(' ', '')}" for k in keywords_list[:5]])
+            
             db.commit()
             db.refresh(comic)
             
-            logger.info(f"Comic {comic.id}: Script ready with {panel_counter} panels. Awaiting user approval.")
+            logger.info(f"Comic {comic.id}: Script ready with {panel_counter} panels. Title: '{ai_title}'")
             
         except Exception as e:
             logger.exception(f"Script generation failed for comic {comic.id}: {e}")
