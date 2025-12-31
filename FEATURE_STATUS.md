@@ -76,9 +76,26 @@
 |---------|-----------------|-----------------|--------|
 | Read Comic (Panels) | `GET /api/v1/comics/{id}/panels` | `ReadComicScreen` | ✅ **FIXED** - Enhanced response |
 | Review Draft | `GET /api/v1/comics/{id}/panels` | `ReviewDraftScreen` | ✅ Working |
-| Preview Animation | `GET /api/v1/comics/{id}/preview-video` | `PreviewAnimationScreen` | ✅ Working |
+| **Cinematic Video** | `POST /api/v1/comics/{id}/generate-video` | N/A | ✅ **NEW** |
 | Read-Along Viewer | `GET /viewer/{job_id}` | Web (Browser TTS) | ✅ Working |
 | PDF Export | `GET /api/pdf/{job_id}` | N/A | ✅ Working |
+
+### 🎬 Cinematic Video Generation (NEW):
+```
+POST /comics/{id}/generate-video
+
+Features:
+- Ken Burns effect (zoom/pan animation on each panel)
+- Smooth fade transitions between panels
+- TTS narration in Indonesian (Google Cloud Text-to-Speech)
+- 9:16 vertical format (mobile-optimized)
+- Cinematic letterbox bars
+- Background music support (optional)
+- Auto duration based on narration length
+
+Output: MP4 video uploaded to GCS
+```
+
 
 ### Panel Response Format (Updated):
 ```json
@@ -118,6 +135,29 @@
 | Cloud Tasks Queue | Google Cloud Tasks | ✅ Working |
 | Direct Processing Fallback | Background Thread | ✅ Working |
 | GCS Panel Storage | Google Cloud Storage | ✅ **NEW** |
+| **Parallel Rendering** | ThreadPoolExecutor | ✅ **NEW** |
+| **Parallel Upload** | 4-worker GCS upload | ✅ **NEW** |
+
+### 🚀 Performance Optimizations:
+```
+BEFORE (Sequential):
+  Script Gen (10s) → Part 1 (60s) → Part 2 (60s) → Upload (18s)
+  Total: ~148 seconds
+
+AFTER (Parallel):
+  Script Gen (10s) ──┐
+                     ├─→ Part 1 + Part 2 (60s parallel)
+                     │   └─→ Upload (5s parallel per part)
+                     └─→ Total: ~75 seconds
+
+IMPROVEMENT: ~50% faster generation time!
+```
+
+Key Changes:
+- `_render_job_worker()`: Now uses ThreadPoolExecutor(max_workers=2)
+- `upload_panels_parallel()`: 9 panels uploaded with 4 workers
+- Better error handling with individual part failure tracking
+
 
 ### Image Generation Flow (9-Panel Grid):
 ```

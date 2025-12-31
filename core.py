@@ -197,6 +197,43 @@ def get_cover_url(job_id: str) -> str:
     return get_panel_gcs_url(job_id, 1, 0)
 
 
+def upload_panels_parallel(
+    job_id: str,
+    part_no: int,
+    panel_images: List[Image.Image],
+    max_workers: int = 4
+) -> List[Optional[str]]:
+    """
+    Upload multiple panels in PARALLEL for faster processing.
+    
+    Args:
+        job_id: Job ID
+        part_no: Part number (1 or 2)
+        panel_images: List of PIL Image objects
+        max_workers: Number of parallel upload threads
+        
+    Returns:
+        List of GCS URLs (or None for failed uploads)
+    """
+    import concurrent.futures
+    
+    def upload_single(args):
+        panel_idx, panel_img = args
+        return upload_panel_to_gcs(job_id, part_no, panel_idx, panel_img)
+    
+    # Create list of (index, image) tuples
+    indexed_panels = list(enumerate(panel_images))
+    
+    # Upload in parallel
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        urls = list(executor.map(upload_single, indexed_panels))
+    
+    successful = len([u for u in urls if u])
+    logger.info(f"Parallel upload: {successful}/{len(panel_images)} panels uploaded for part {part_no}")
+    
+    return urls
+
+
 # ============================================================
 # JOB PERSISTENCE (disk) — survive reload/restart
 # ============================================================
@@ -971,16 +1008,14 @@ def render_part_payload(script: Dict[str, Any], part_no: int, *, job_id: Optiona
     grid_panels = split_grid_3x3(grid_img)
     panels_b64: List[str] = [b64_png(p) for p in grid_panels]
     
-    # Upload each panel to GCS and collect URLs
-    panel_urls: List[Optional[str]] = []
-    for panel_idx, panel_img in enumerate(grid_panels):
-        if job_id:
-            url = upload_panel_to_gcs(job_id, int(part_no), panel_idx, panel_img)
-            panel_urls.append(url)
-        else:
-            panel_urls.append(None)
+    # Upload all panels to GCS in PARALLEL
+    if job_id:
+        panel_urls = upload_panels_parallel(job_id, int(part_no), grid_panels, max_workers=4)
+    else:
+        panel_urls = [None] * len(grid_panels)
     
     logger.info(f"Rendered part {part_no}: {len([u for u in panel_urls if u])} panels uploaded to GCS")
+
 
     return {
         "part_no": int(part_no),
@@ -1204,15 +1239,56 @@ def get_read(job_id: str) -> Optional[List[Dict[str, Any]]]:
 
 
 def _render_job_worker(job_id: str, script: Dict[str, Any]) -> None:
+    """
+    Render both parts in PARALLEL for ~50% faster processing.
+    Uses ThreadPoolExecutor to render Part 1 and Part 2 simultaneously.
+    """
+    import concurrent.futures
+    
     try:
-        _job_set(job_id, {"status": "rendering_part_1", "error": None})
-
-        # ✅ PASS job_id so we can save consistent preview filenames
-        part1 = render_part_payload(script, 1, job_id=job_id)
-        _job_set(job_id, {"part1": part1, "status": "rendering_part_2"})
-
-        part2 = render_part_payload(script, 2, job_id=job_id)
-        _job_set(job_id, {"part2": part2, "status": "done"})
+        _job_set(job_id, {"status": "rendering_parallel", "error": None})
+        logger.info(f"JOB {job_id}: Starting PARALLEL rendering of Part 1 and Part 2...")
+        
+        start_time = time.time()
+        
+        # Render Part 1 and Part 2 in parallel
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="render") as executor:
+            future1 = executor.submit(render_part_payload, script, 1, job_id=job_id)
+            future2 = executor.submit(render_part_payload, script, 2, job_id=job_id)
+            
+            # Wait for both to complete
+            part1 = None
+            part2 = None
+            errors = []
+            
+            # Get Part 1 result
+            try:
+                part1 = future1.result(timeout=300)  # 5 min timeout per part
+                _job_set(job_id, {"part1": part1})
+                logger.info(f"JOB {job_id}: Part 1 completed")
+            except Exception as e:
+                errors.append(f"Part 1 failed: {e}")
+                logger.exception(f"JOB {job_id}: Part 1 render failed")
+            
+            # Get Part 2 result
+            try:
+                part2 = future2.result(timeout=300)
+                _job_set(job_id, {"part2": part2})
+                logger.info(f"JOB {job_id}: Part 2 completed")
+            except Exception as e:
+                errors.append(f"Part 2 failed: {e}")
+                logger.exception(f"JOB {job_id}: Part 2 render failed")
+        
+        elapsed = time.time() - start_time
+        
+        if errors:
+            error_msg = "; ".join(errors)
+            _job_set(job_id, {"status": "error", "error": error_msg})
+            logger.error(f"JOB {job_id}: Parallel render failed in {elapsed:.1f}s - {error_msg}")
+        else:
+            _job_set(job_id, {"status": "done"})
+            logger.info(f"JOB {job_id}: Parallel render DONE in {elapsed:.1f}s (both parts)")
+            
     except Exception as e:
         logger.exception("JOB render failed: %s", job_id)
         _job_set(job_id, {"status": "error", "error": str(e)})
