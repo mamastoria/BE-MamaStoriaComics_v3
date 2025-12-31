@@ -171,8 +171,7 @@ async def create_story_and_attributes(
             script = core.make_two_part_script(
                 story_data.story_idea, 
                 style_name, 
-                [],  # nuances
-                pages=story_data.page_count or 2
+                []  # nuances
             )
             
             logger.info(f"Script generated for comic {comic.id}, creating draft panels...")
@@ -578,11 +577,13 @@ async def get_draft_status(
     db: Session = Depends(get_db)
 ):
     """
-    Get comic draft status
+    Get comic draft status with full draft data
     
-    Returns current generation status: pending, processing, completed, failed
+    Returns current generation status AND full draft content for editing
     """
-    comic = db.query(Comic).filter(
+    comic = db.query(Comic).options(
+        joinedload(Comic.panels)
+    ).filter(
         Comic.id == id,
         Comic.user_id == current_user.id_users
     ).first()
@@ -593,13 +594,52 @@ async def get_draft_status(
             detail="Comic not found"
         )
     
+    # Map draft_job_status to frontend JobStatus enum
+    status_map = {
+        "QUEUED": "idle",
+        "PENDING": "idle", 
+        "GENERATING_SCRIPT": "processing",
+        "SCRIPT_READY": "idle",  # Script done, waiting for user to approve
+        "PROCESSING": "processing",
+        "RENDERING": "processing",
+        "COMPLETED": "completed",
+        "FAILED": "failed",
+        "SCRIPT_FAILED": "failed",
+    }
+    raw_status = comic.draft_job_status or "pending"
+    frontend_status = status_map.get(raw_status.upper(), raw_status.lower())
+    
+    # Build panels list for frontend
+    panels_data = []
+    if comic.panels:
+        for i, p in enumerate(comic.panels):
+            panels_data.append({
+                "panel_id": p.id,
+                "page_number": p.page_number,
+                "panel_number": p.panel_number or (i + 1),
+                "image_url": p.image_url,
+                "description": p.description,
+                "narration": p.narration,
+                "dialogue": p.dialogues
+            })
+    
     return {
         "ok": True,
         "data": {
             "id": comic.id,
-            "status": comic.draft_job_status or "pending",
+            "status": frontend_status,
+            "summary": comic.summary or comic.title or comic.story_idea[:200] if comic.story_idea else None,
+            "title": comic.title,
+            "pageCount": comic.page_count,
+            "draftJobId": comic.draft_job_id,
+            "isReadyToGenerate": raw_status.upper() == "SCRIPT_READY",
+            "panels": panels_data,
+            "style": {"id": 1, "name": comic.style} if comic.style else None,
+            "character": None,  # TODO: Add character data
+            "genres": [{"id": i+1, "name": g} for i, g in enumerate(comic.genre or [])],
+            "backgrounds": [],  # TODO: Add backgrounds data
             "progress": 0,
-            "stage": None,
+            "stage": raw_status,
             "error": None,
             "created_at": comic.created_at.isoformat() if comic.created_at else None,
             "updated_at": comic.updated_at.isoformat() if comic.updated_at else None
