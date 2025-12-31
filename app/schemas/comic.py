@@ -112,7 +112,7 @@ class ComicPanel(BaseModel):
     image_url: Optional[str]
     description: Optional[str]
     page_narration: Optional[str]
-    dialogues: Optional[List[Dict[str, str]]]
+    dialogues: Optional[List[Union[str, Dict[str, str]]]]
     narration_audio_url: Optional[str]
     
     model_config = ORMConfig
