@@ -62,7 +62,7 @@ def generate_tts_audio(
     text: str,
     output_path: str,
     language_code: str = "id-ID",
-    voice_name: str = "id-ID-Wavenet-A"
+    voice_name: str = "id-ID-Wavenet-D",  # MALE, Deep & Dramatic
 ) -> Optional[float]:
     """
     Generate TTS audio using Google Cloud Text-to-Speech.
@@ -73,18 +73,21 @@ def generate_tts_audio(
         
         client = texttospeech.TextToSpeechClient()
         
-        synthesis_input = texttospeech.SynthesisInput(text=text)
+        # Use SSML for better intonation control
+        ssml_text = f"<speak><p>{text}</p></speak>"
+        synthesis_input = texttospeech.SynthesisInput(ssml=ssml_text)
         
         voice = texttospeech.VoiceSelectionParams(
             language_code=language_code,
             name=voice_name,
-            ssml_gender=texttospeech.SsmlVoiceGender.FEMALE
+            ssml_gender=texttospeech.SsmlVoiceGender.MALE
         )
         
         audio_config = texttospeech.AudioConfig(
             audio_encoding=texttospeech.AudioEncoding.MP3,
-            speaking_rate=0.9,  # Slightly slower for storytelling
-            pitch=0.0
+            speaking_rate=0.85,  # Slower pace for storytelling
+            pitch=-2.0,          # Deeper voice for dramatic effect
+            volume_gain_db=0.0
         )
         
         response = client.synthesize_speech(
@@ -546,9 +549,13 @@ def generate_video_for_comic(
     
     output_path = os.path.join(output_dir, f"comic_{comic_id}_cinematic.mp4")
     
+    # Default background music
+    bg_music_path = Path(__file__).parent / "assets" / "music" / "dramatic.mp3"
+    
     success = generate_cinematic_video(
         panels=panels,
         output_path=output_path,
+        background_music_path=str(bg_music_path) if bg_music_path.exists() else None,
         with_narration=True,
         with_letterbox=True
     )
