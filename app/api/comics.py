@@ -899,6 +899,7 @@ async def get_exported_media(
         "ok": True,
         "data": {
             "comic_id": id,
+            "title": comic.title or "Untitled",
             "pdf_url": comic.pdf_url or None,
             "video_url": comic.preview_video_url or None,
             "cover_url": comic.cover_url or None
@@ -1088,6 +1089,40 @@ async def generate_comic(
                     core.ensure_job_pdf(str(comic_id))
                 except Exception as pdf_err:
                     logger.warning(f"PDF generation warning: {pdf_err}")
+                
+                # Generate Video automatically after images are ready
+                try:
+                    import video_generator
+                    
+                    # Get panels with images for video
+                    panels_for_video = thread_db.query(ComicPanel).filter(
+                        ComicPanel.comic_id == comic_id,
+                        ComicPanel.image_url.isnot(None)
+                    ).order_by(ComicPanel.page_number, ComicPanel.panel_number).all()
+                    
+                    if panels_for_video:
+                        panel_data = [{
+                            "image_url": p.image_url,
+                            "narration": p.narration or p.page_narration or "",
+                            "dialogue": p.dialogues or [],
+                            "description": p.description or p.page_description or ""
+                        } for p in panels_for_video]
+                        
+                        logger.info(f"Starting video generation for comic {comic_id}...")
+                        output_path = video_generator.generate_video_for_comic(
+                            comic_id=comic_id,
+                            panels=panel_data,
+                            title=comic_record.title if comic_record else "Untitled"
+                        )
+                        
+                        if output_path:
+                            # Update video URL in database
+                            if comic_record:
+                                comic_record.preview_video_url = output_path
+                                thread_db.commit()
+                            logger.info(f"Video generated for comic {comic_id}: {output_path}")
+                except Exception as video_err:
+                    logger.warning(f"Video generation warning for comic {comic_id}: {video_err}")
                 
                 logger.info(f"Comic {comic_id} rendering completed successfully!")
                 
