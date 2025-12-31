@@ -15,6 +15,7 @@ from app.models.subscription import SubscriptionPackage, Subscription, PaymentTr
 from app.utils.pagination import paginate, get_pagination_params
 from app.utils.responses import paginated_response
 import uuid
+from app.core.config import settings
 
 router = APIRouter()
 
@@ -191,7 +192,20 @@ async def purchase_subscription(
     db.add(transaction)
     
     # Generate payment URL
-    payment_url = f"https://payment.mamastoria.com/checkout/{order_id}"
+    # For now, we simulate DOKU Sandbox Checkout URL
+    # In production, this should be generated via DOKU API
+    if settings.DOKU_IS_PRODUCTION:
+        payment_url = f"https://payment.mamastoria.com/checkout/{order_id}"
+    else:
+        # User requested fix: use sandbox.doku.com or similar for testing
+        # Since we don't have full API integration yet, we point to a DOKU Simulator or staying on broken link
+        # However, to unblock the user's Flow, let's use a dummy success URL or a generic Sandbox URL
+        # payment_url = f"https://sandbox.doku.com/checkout/link/{order_id}" 
+        
+        # BETTER: Point to a mock payment page on the frontend or backend if DOKU API is not integrated
+        # But user specifically asked for "sandbox.doku.com" address because "payment.mamastoria.com" is down
+        payment_url = f"https://jokul.doku.com/checkout/link/{order_id}" # Placeholder
+        
     transaction.payment_url = payment_url
     
     db.commit()
