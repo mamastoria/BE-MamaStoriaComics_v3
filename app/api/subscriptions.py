@@ -3,6 +3,7 @@ Subscriptions API endpoints
 Subscription packages, purchase, payment, and status
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime, timedelta
@@ -122,6 +123,7 @@ async def get_payment_methods():
 @router.post("/subscriptions/purchase", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def purchase_subscription(
     purchase_data: PurchaseSubscription,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -182,7 +184,7 @@ async def purchase_subscription(
     transaction = PaymentTransaction(
         user_id=current_user.id_users,
         subscription_id=None,
-        invoice_number=None, # Removed from DB
+        invoice_number=order_id, # FIX: Set this instead of None
         doku_order_id=order_id, # Use doku_order_id as main identifier
         amount=package.price,
         payment_method=purchase_data.payment_method,
@@ -197,10 +199,9 @@ async def purchase_subscription(
     if settings.DOKU_IS_PRODUCTION:
         payment_url = f"https://payment.mamastoria.com/checkout/{order_id}"
     else:
-        # User requested fix: use sandbox.doku.com or similar for testing
-        # Since we don't have full API integration yet, we point to a DOKU Simulator or staying on broken link
-        # However, to unblock the user's Flow, let's use a dummy success URL or a generic Sandbox URL
-        payment_url = f"https://jokul.doku.com/checkout/link/{order_id}" # Placeholder
+        # Use local Mock Payment Page for development
+        base_url = str(request.base_url).rstrip("/")
+        payment_url = f"{base_url}/api/v1/mock-payment/{order_id}"
         
     transaction.payment_url = payment_url
     
@@ -217,6 +218,84 @@ async def purchase_subscription(
             "package_name": package.name
         }
     }
+
+
+
+@router.get("/mock-payment/{order_id}", response_class=HTMLResponse)
+async def mock_payment_page(order_id: str, db: Session = Depends(get_db)):
+    """
+    Mock Payment Page for Development
+    """
+    # Find transaction
+    transaction = db.query(PaymentTransaction).filter(
+        PaymentTransaction.doku_order_id == order_id
+    ).first()
+    
+    if not transaction:
+        return HTMLResponse(content="<h1>Transaction not found</h1>", status_code=404)
+        
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Mock Payment Gateway</title>
+        <style>
+            body {{ font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f5f5f5; }}
+            .card {{ background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 400px; width: 100%; text-align: center; }}
+            h1 {{ color: #333; }}
+            .amount {{ font-size: 2rem; font-weight: bold; color: #2ecc71; margin: 1rem 0; }}
+            .details {{ text-align: left; margin-bottom: 2rem; color: #666; }}
+            .btn {{ display: block; width: 100%; padding: 10px; margin: 10px 0; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; }}
+            .btn-success {{ background-color: #2ecc71; color: white; }}
+            .btn-fail {{ background-color: #e74c3c; color: white; }}
+            .btn:hover {{ opacity: 0.9; }}
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <h1>MamaStoria Mock Payment</h1>
+            <p>Order ID: {order_id}</p>
+            <div class="amount">Rp {transaction.amount:,}</div>
+            <div class="details">
+                <p>Status: {transaction.status}</p>
+                <p>Date: {transaction.created_at}</p>
+            </div>
+            
+            <button class="btn btn-success" onclick="completePayment('SUCCESS')">Simulate Success</button>
+            <button class="btn btn-fail" onclick="completePayment('FAILED')">Simulate Failure</button>
+        </div>
+
+        <script>
+            async function completePayment(status) {{
+                const payload = {{
+                    order: {{ invoice_number: '{order_id}' }},
+                    transaction: {{ status: status }}
+                }};
+                
+                try {{
+                    const response = await fetch('/api/v1/subscriptions/payment-callback', {{
+                        method: 'POST',
+                        headers: {{ 'Content-Type': 'application/json' }},
+                        body: JSON.stringify(payload)
+                    }});
+                    
+                    const result = await response.json();
+                    
+                    if (status === 'SUCCESS') {{
+                        alert('Payment Successful! You can close this tab.');
+                    }} else {{
+                        alert('Payment Failed.');
+                    }}
+                    window.close();
+                }} catch (error) {{
+                    alert('Error processing callback: ' + error);
+                }}
+            }}
+        </script>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
 
 
 @router.post("/subscriptions/payment-callback", response_model=dict)
