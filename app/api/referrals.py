@@ -53,8 +53,32 @@ async def list_referrals_by_user(
         }
         referrals_data.append(referral_dict)
 
+@router.get("/referrals/check-parent", response_model=dict)
+async def check_parent_referral(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Check if the current user has a parent referrer (was referred by someone)
+    
+    Returns details of the referrer if exists, otherwise null
+    """
+    if not current_user.referrals_for:
+        return {
+            "ok": True,
+            "data": False
+        }
+        
+    # Find the referrer user using the referral code
+    referrer = db.query(User).filter(User.referral_code_id == current_user.referrals_for).first()
+    
+    if not referrer:
+        return {
+            "ok": True,
+            "data": False
+        }
+        
     return {
         "ok": True,
-        "data": referrals_data,
-        "total": len(referrals_data)
+        "data": True
     }

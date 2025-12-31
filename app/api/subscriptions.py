@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.models.user import User
-from app.models.subscription import SubscriptionPackage, Subscription, PaymentTransaction
+from app.models.subscription import SubscriptionPackage, Subscription, PaymentTransaction, Transaction
 from app.utils.pagination import paginate, get_pagination_params
 from app.utils.responses import paginated_response
 import uuid
@@ -379,4 +379,28 @@ async def get_payment_history(
     return {
         "ok": True,
         "data": history_data
+    }
+@router.get("/transactions/check-status", response_model=dict)
+async def check_transaction_status(
+    user_id: int,
+    type_transaction: str = "topup",
+    db: Session = Depends(get_db)
+):
+    """
+    Check if a transaction exists for a user with specific type
+    
+    - **user_id**: User ID to check
+    - **type_transaction**: Transaction type (default: "topup")
+    
+    Returns true/false in data field
+    """
+    # Query Transaction table
+    exists = db.query(Transaction).filter(
+        Transaction.user_id == user_id,
+        Transaction.type == type_transaction
+    ).first() is not None
+    
+    return {
+        "ok": True,
+        "data": exists
     }

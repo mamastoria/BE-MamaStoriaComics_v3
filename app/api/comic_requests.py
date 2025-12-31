@@ -16,7 +16,7 @@ from app.utils.responses import paginated_response
 
 router = APIRouter()
 
-REQUEST_COST = 20000
+REQUEST_COST = 20
 
 
 @router.post("/comic-requests", response_model=dict, status_code=status.HTTP_201_CREATED)
