@@ -726,14 +726,18 @@ async def get_comic_panels(
             "dialogue": None
         } for i, url in enumerate(comic.panel_images)]
     
-    # Determine status based on draft_job_status
-    status_str = comic.draft_job_status or "pending"
-    if status_str.upper() == "COMPLETED":
-        status_str = "completed"
-    elif status_str.upper() == "PROCESSING":
-        status_str = "processing"
-    elif status_str.upper() == "FAILED":
-        status_str = "failed"
+    # Determine status based on draft_job_status - must be UPPERCASE for Flutter
+    status_str = (comic.draft_job_status or "PENDING").upper()
+    # Map to standard statuses
+    status_mapping = {
+        "COMPLETED": "COMPLETED",
+        "PROCESSING": "PROCESSING",
+        "RENDERING": "RENDERING",
+        "FAILED": "FAILED",
+        "SCRIPT_READY": "SCRIPT_READY",
+        "GENERATING_SCRIPT": "GENERATING_SCRIPT",
+    }
+    status_str = status_mapping.get(status_str, status_str)
     
     return {
         "ok": True,
