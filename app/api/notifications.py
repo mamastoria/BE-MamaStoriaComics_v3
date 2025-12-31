@@ -289,3 +289,64 @@ async def mark_all_as_read(
         "ok": True,
         "message": f"All {len(notifications)} notification(s) marked as read"
     }
+
+# Email Configuration
+RESEND_KEY = "re_hsvmU2Zv_EjdhcaWUC7aRuUgfjfinhfVq"
+RESEND_URL = "https://api.resend.com/emails"
+RESEND_EMAIL_FROM = "noreply@mamastoria.com"
+RESEND_EMAIL_TO = "yapri177@gmail.com"
+
+
+class SendEmailRequest(BaseModel):
+    """Schema for sending email"""
+    title: str
+    message: str
+
+
+@router.post("/notifications/send-email", response_model=dict)
+async def send_email_notification(
+    email_data: SendEmailRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)  # Kept for consistency if needed later
+):
+    """
+    Send email notification via Resend
+    
+    - **title**: Email subject
+    - **message**: Email HTML body
+    """
+    import requests
+    
+    headers = {
+        "Authorization": f"Bearer {RESEND_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "from": RESEND_EMAIL_FROM,
+        "to": [RESEND_EMAIL_TO],
+        "subject": email_data.title,
+        "html": f"<p>{email_data.message}</p>"
+    }
+    
+    try:
+        response = requests.post(RESEND_URL, json=payload, headers=headers)
+        response.raise_for_status()
+        
+        return {
+            "ok": True,
+            "message": "Email sent successfully",
+            "data": response.json()
+        }
+    except requests.exceptions.RequestException as e:
+        error_detail = str(e)
+        if response is not None:
+             try:
+                 error_detail = response.json()
+             except:
+                 error_detail = response.text
+                 
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to send email: {error_detail}"
+        )

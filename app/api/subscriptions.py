@@ -144,9 +144,21 @@ async def purchase_subscription(
          # Try exact match
          package = db.query(SubscriptionPackage).filter(SubscriptionPackage.name == slug).first()
          if not package:
-             # Try robust match (credits-20 -> Credits 20)
+         # Try robust match (credits-20 -> Credits 20)
              name_guess = slug.replace("-", " ").title()
-             package = db.query(SubscriptionPackage).filter(SubscriptionPackage.name == name_guess).first()
+             package = db.query(SubscriptionPackage).filter(
+                 (SubscriptionPackage.name == slug) | 
+                 (SubscriptionPackage.name == name_guess) |
+                 (SubscriptionPackage.name.ilike(f"%{name_guess}%"))
+             ).first()
+             
+             # Fallback: if slug is like "package-1", try to find by ID 1
+             if not package and slug.startswith("package-") and slug.split("-")[-1].isdigit():
+                 try:
+                     pkg_id = int(slug.split("-")[-1])
+                     package = db.query(SubscriptionPackage).filter(SubscriptionPackage.id == pkg_id).first()
+                 except:
+                     pass
     
     if not package:
         raise HTTPException(
