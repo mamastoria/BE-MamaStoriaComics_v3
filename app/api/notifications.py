@@ -293,7 +293,7 @@ async def mark_all_as_read(
 # Email Configuration
 RESEND_KEY = "re_hsvmU2Zv_EjdhcaWUC7aRuUgfjfinhfVq"
 RESEND_URL = "https://api.resend.com/emails"
-RESEND_EMAIL_FROM = "noreply@mamastoria.com"
+RESEND_EMAIL_FROM = "onboarding@resend.dev"
 RESEND_EMAIL_TO = "yapri177@gmail.com"
 
 
