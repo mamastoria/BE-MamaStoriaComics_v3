@@ -2,7 +2,7 @@
 Subscriptions API endpoints
 Subscription packages, purchase, payment, and status
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 from typing import Optional
