@@ -159,6 +159,9 @@ async def purchase_subscription(
                      package = db.query(SubscriptionPackage).filter(SubscriptionPackage.id == pkg_id).first()
                  except:
                      pass
+             
+             # Debugging log (visible in cloud logs)
+             print(f"Package lookup for slug '{slug}': found={package}")
     
     if not package:
         raise HTTPException(
