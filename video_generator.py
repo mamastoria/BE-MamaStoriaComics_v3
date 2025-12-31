@@ -530,7 +530,8 @@ def generate_cinematic_video(
 def generate_video_for_comic(
     comic_id: int,
     panels: List[Dict[str, Any]],
-    output_dir: str = None
+    output_dir: str = None,
+    upload_to_gcs: bool = True
 ) -> Optional[str]:
     """
     High-level function to generate video for a comic.
@@ -538,29 +539,72 @@ def generate_video_for_comic(
     Args:
         comic_id: Comic ID
         panels: List of panel data
-        output_dir: Output directory (default: exports/)
+        output_dir: Output directory (default: temp dir)
+        upload_to_gcs: Whether to upload to Google Cloud Storage
         
     Returns:
-        Path to generated video, or None if failed
+        GCS URL of video if upload_to_gcs=True, else local path. None if failed.
     """
-    if output_dir is None:
-        output_dir = Path(__file__).parent / "exports"
-        output_dir.mkdir(exist_ok=True)
-    
-    output_path = os.path.join(output_dir, f"comic_{comic_id}_cinematic.mp4")
+    # Use temp directory to avoid disk space issues on Cloud Run
+    work_dir = tempfile.mkdtemp(prefix=f"comic_video_{comic_id}_")
+    output_path = os.path.join(work_dir, f"comic_{comic_id}_cinematic.mp4")
     
     # Default background music
     bg_music_path = Path(__file__).parent / "assets" / "music" / "dramatic.mp3"
     
-    success = generate_cinematic_video(
-        panels=panels,
-        output_path=output_path,
-        background_music_path=str(bg_music_path) if bg_music_path.exists() else None,
-        with_narration=True,
-        with_letterbox=True
-    )
-    
-    return output_path if success else None
+    try:
+        success = generate_cinematic_video(
+            panels=panels,
+            output_path=output_path,
+            background_music_path=str(bg_music_path) if bg_music_path.exists() else None,
+            with_narration=True,
+            with_letterbox=True
+        )
+        
+        if not success or not os.path.exists(output_path):
+            logger.error(f"Video generation failed for comic {comic_id}")
+            return None
+        
+        if upload_to_gcs:
+            # Upload to Google Cloud Storage
+            try:
+                from app.services.google_storage_service import GoogleStorageService
+                
+                gcs_service = GoogleStorageService()
+                gcs_path = f"comics/videos/{comic_id}/cinematic.mp4"
+                
+                # Read video file and upload
+                with open(output_path, "rb") as f:
+                    video_content = f.read()
+                
+                video_url = gcs_service.upload_file(
+                    file_content=video_content,
+                    destination_path=gcs_path,
+                    content_type="video/mp4",
+                    make_public=True
+                )
+                
+                logger.info(f"Video uploaded to GCS: {video_url}")
+                return video_url
+                
+            except Exception as upload_err:
+                logger.exception(f"Failed to upload video to GCS: {upload_err}")
+                # Return local path as fallback
+                return output_path
+        else:
+            return output_path
+            
+    except Exception as e:
+        logger.exception(f"Video generation error for comic {comic_id}: {e}")
+        return None
+        
+    finally:
+        # Cleanup temp directory
+        try:
+            if upload_to_gcs and os.path.exists(work_dir):
+                shutil.rmtree(work_dir)
+        except Exception:
+            pass
 
 
 # CLI for testing
