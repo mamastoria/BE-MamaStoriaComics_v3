@@ -186,17 +186,17 @@ async def send_reset_token(
     db: Session = Depends(get_db)
 ):
     """
-    Send password reset token via SMS
+    Send password reset token via Email
     
-    - **phone_number**: User's phone number
+    - **email**: User's email address
     """
-    user = db.query(User).filter(User.phone_number == reset_data.phone_number).first()
+    user = db.query(User).filter(User.email == reset_data.email).first()
     
     if not user:
         # Don't reveal if user exists or not (security)
         return {
             "ok": True,
-            "message": "If the phone number is registered, a reset code will be sent."
+            "message": "If the email is registered, a reset code will be sent."
         }
     
     # Generate reset token (6 digits)
@@ -207,12 +207,12 @@ async def send_reset_token(
     user.last_verification_sent_at = datetime.utcnow()
     db.commit()
     
-    # TODO: Send via SMS/WhatsApp
-    print(f"Password reset code for {reset_data.phone_number}: {reset_token}")
+    # TODO: Send via Email Service
+    print(f"Password reset code for {reset_data.email}: {reset_token}")
     
     return {
         "ok": True,
-        "message": "Reset code sent successfully"
+        "message": "Reset code sent successfully to your email"
     }
 
 
@@ -224,10 +224,10 @@ async def verify_reset_token(
     """
     Verify password reset token
     
-    - **phone_number**: User's phone number
+    - **email**: User's email address
     - **reset_token**: 6-digit reset code
     """
-    user = db.query(User).filter(User.phone_number == verify_data.phone_number).first()
+    user = db.query(User).filter(User.email == verify_data.email).first()
     
     if not user or user.verification_code != verify_data.reset_token:
         raise HTTPException(
@@ -258,11 +258,11 @@ async def reset_password(
     """
     Reset password with verified token
     
-    - **phone_number**: User's phone number
+    - **email**: User's email address
     - **reset_token**: Verified reset code
     - **new_password**: New password (min 6 characters)
     """
-    user = db.query(User).filter(User.phone_number == reset_data.phone_number).first()
+    user = db.query(User).filter(User.email == reset_data.email).first()
     
     if not user or user.verification_code != reset_data.reset_token:
         raise HTTPException(

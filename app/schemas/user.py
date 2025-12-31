@@ -13,7 +13,7 @@ class UserRegister(BaseModel):
     """Schema for user registration"""
     full_name: str = Field(..., min_length=2, max_length=100)
     phone_number: str = Field(..., min_length=10, max_length=20)
-    email: Optional[EmailStr] = None
+    email: EmailStr = Field(..., description="User email address")
     password: str = Field(..., min_length=6)
     referral_code: Optional[str] = None  # Code of person who referred them
     
@@ -52,18 +52,18 @@ class ChangePassword(BaseModel):
 
 class SendResetToken(BaseModel):
     """Schema for sending password reset token"""
-    phone_number: str
+    email: EmailStr
 
 
 class VerifyResetToken(BaseModel):
     """Schema for verifying reset token"""
-    phone_number: str
+    email: EmailStr
     reset_token: str
 
 
 class ResetPassword(BaseModel):
     """Schema for resetting password"""
-    phone_number: str
+    email: EmailStr
     reset_token: str
     new_password: str = Field(..., min_length=6)
 

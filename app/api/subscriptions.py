@@ -193,15 +193,39 @@ async def purchase_subscription(
     
     db.add(transaction)
     
-    # Generate payment URL
-    # For now, we simulate DOKU Sandbox Checkout URL
-    # In production, this should be generated via DOKU API
-    if settings.DOKU_IS_PRODUCTION:
-        payment_url = f"https://payment.mamastoria.com/checkout/{order_id}"
-    else:
-        # Use local Mock Payment Page for development
-        base_url = str(request.base_url).rstrip("/")
-        payment_url = f"{base_url}/api/v1/mock-payment/{order_id}"
+    # Generate payment URL via Doku API (Sandbox or Production)
+    try:
+        from app.utils.doku import doku_client
+        
+        customer_data = {
+            "id": current_user.id_users,
+            "name": current_user.full_name,
+            "email": current_user.email,
+            "phone": current_user.phone_number or ""
+        }
+        
+        # Real Doku API call
+        payment_url = doku_client.generate_payment_url(
+            order_id=order_id,
+            amount=package.price,
+            customer_data=customer_data,
+            package_name=package.name
+        )
+        print(f"Generated Doku Payment URL: {payment_url}")
+        
+    except Exception as e:
+        print(f"Failed to generate Doku Payment URL: {str(e)}")
+        # Fallback to Mock Payment if Doku fails (e.g. invalid keys or network issue)
+        # This ensures the user can still test the flow even if gateway is down
+        if settings.DEBUG:
+            base_url = str(request.base_url).rstrip("/")
+            payment_url = f"{base_url}/api/v1/mock-payment/{order_id}"
+            print(f"Fallback to Mock URL: {payment_url}")
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE, 
+                detail=f"Payment gateway error: {str(e)}"
+            )
         
     transaction.payment_url = payment_url
     
