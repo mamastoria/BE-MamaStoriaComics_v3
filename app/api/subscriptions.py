@@ -332,13 +332,35 @@ async def payment_callback(
     
     This endpoint receives payment notifications from DOKU
     """
-    # Get request body
-    body = await request.json()
+    # Get request body (raw bytes for signature validation)
+    raw_body = await request.body()
+    try:
+        import json
+        body = json.loads(raw_body)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
     
-    # TODO: Validate DOKU signature
-    # signature = request.headers.get("Signature")
-    # if not validate_doku_signature(signature, body):
-    #     raise HTTPException(status_code=401, detail="Invalid signature")
+    # Validate Doku Signature
+    signature = request.headers.get("Signature")
+    if signature:
+        # Real Doku Callback (Sandbox or Production)
+        request_id = request.headers.get("Request-Id", "")
+        timestamp = request.headers.get("Request-Timestamp", "")
+        # Construct target path (path + query)
+        target_path = request.url.path
+        if request.url.query:
+            target_path += "?" + request.url.query
+            
+        from app.utils.doku import doku_client
+        if not doku_client.validate_signature(signature, raw_body, request_id, timestamp, target_path):
+            print(f"Invalid Doku Signature! Headers: {request.headers}")
+            raise HTTPException(status_code=401, detail="Invalid signature")
+    elif settings.DOKU_IS_PRODUCTION:
+        # In Production, signature is mandatory
+        raise HTTPException(status_code=401, detail="Missing signature")
+    else:
+        # In Development, allow missing signature (Mock Page)
+        pass
     
     # Extract data (DOKU sends invoice number as order id)
     invoice_number = body.get("order", {}).get("invoice_number")

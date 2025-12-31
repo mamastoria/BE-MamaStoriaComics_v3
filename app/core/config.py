@@ -25,23 +25,23 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     
     # Google Cloud
-    GOOGLE_PROJECT_ID: str = ""
-    GOOGLE_BUCKET_NAME: str = ""
-    GOOGLE_APPLICATION_CREDENTIALS: str = ""  # Make optional
+    GOOGLE_PROJECT_ID: str
+    GOOGLE_BUCKET_NAME: Optional[str] = None
+    GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = None
     VERTEX_LOCATION: str = "us-central1"
     
     # Firebase
-    FIREBASE_CREDENTIALS: str = ""
+    FIREBASE_CREDENTIALS: Optional[str] = None
     
     # Google OAuth
-    GOOGLE_CLIENT_ID: str = ""
-    GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_CLIENT_ID: Optional[str] = None
+    GOOGLE_CLIENT_SECRET: Optional[str] = None
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/google/callback"
     
     # DOKU Payment
-    DOKU_CLIENT_ID: str = ""
-    DOKU_SECRET_KEY: str = ""
-    DOKU_NOTIFICATION_SECRET: str = ""
+    DOKU_CLIENT_ID: str
+    DOKU_SECRET_KEY: str
+    DOKU_NOTIFICATION_SECRET: str
     DOKU_IS_PRODUCTION: bool = False
     
     # CORS

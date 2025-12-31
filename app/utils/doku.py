@@ -32,6 +32,34 @@ class DokuClient:
         
         return f"HMACSHA256={base64.b64encode(signature).decode('utf-8')}"
 
+    def validate_signature(self, signature: str, raw_body: bytes, request_id: str, timestamp: str, target_path: str) -> bool:
+        """
+        Validate Signature from Doku Notification
+        Uses DOKU_NOTIFICATION_SECRET if defined, otherwise falls back to DOKU_SECRET_KEY
+        """
+        # Determine which secret to use for notifications
+        secret = settings.DOKU_NOTIFICATION_SECRET if settings.DOKU_NOTIFICATION_SECRET else self.secret_key
+        
+        # Calculate digest of the raw body
+        digest = hashlib.sha256(raw_body).digest()
+        digest_str = base64.b64encode(digest).decode('utf-8')
+        
+        # Construct raw signature string
+        # Format: Client-Id:{client_id}\nRequest-Id:{request_id}...
+        # Note: Ensure target_path includes query params if any, Doku usually sends path without host
+        raw_signature_str = f"Client-Id:{self.client_id}\nRequest-Id:{request_id}\nRequest-Timestamp:{timestamp}\nRequest-Target:{target_path}\nDigest:{digest_str}"
+        
+        calculated_signature_bytes = hmac.new(
+            secret.encode('utf-8'),
+            raw_signature_str.encode('utf-8'),
+            hashlib.sha256
+        ).digest()
+        
+        calculated_signature = f"HMACSHA256={base64.b64encode(calculated_signature_bytes).decode('utf-8')}"
+        
+        # Safe comparison
+        return hmac.compare_digest(signature, calculated_signature)
+
     def generate_payment_url(self, order_id: str, amount: int, customer_data: dict, package_name: str) -> str:
         """
         Generate Doku Checkout Payment URL
