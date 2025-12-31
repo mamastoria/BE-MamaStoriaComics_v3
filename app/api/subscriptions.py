@@ -162,6 +162,10 @@ async def purchase_subscription(
              
              # Debugging log (visible in cloud logs)
              print(f"Package lookup for slug '{slug}': found={package}")
+             
+             if not package:
+                 all_packages = db.query(SubscriptionPackage).all()
+                 print(f"Available packages: {[{'id': p.id, 'name': p.name} for p in all_packages]}")
     
     if not package:
         raise HTTPException(
