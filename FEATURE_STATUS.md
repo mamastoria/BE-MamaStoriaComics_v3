@@ -117,6 +117,26 @@
 | Multi-Platform | FastAPI + Flutter | ✅ Working |
 | Cloud Tasks Queue | Google Cloud Tasks | ✅ Working |
 | Direct Processing Fallback | Background Thread | ✅ Working |
+| GCS Panel Storage | Google Cloud Storage | ✅ **NEW** |
+
+### Image Generation Flow (9-Panel Grid):
+```
+1. AI generates 1 image with 3x3 grid (9 panels)
+   └─> Portrait aspect ratio (2:3) for phone-friendly viewing
+   └─> Panel 1 = Cover/Poster with comic title
+   └─> Panels 2-9 = Story content
+
+2. Grid is split into 9 individual panels
+   └─> Edge-to-edge, no borders, same size
+
+3. Each panel uploaded to GCS:
+   └─> Path: comics/panels/{job_id}/part{part_no}_panel{panel_idx}.png
+   └─> Full grid: comics/grids/{job_id}/part{part_no}_grid.png
+
+4. URLs stored in database:
+   └─> comic_panels.image_url = GCS public URL
+   └─> comics.cover_url = Panel 1 of Part 1
+```
 
 ---
 
