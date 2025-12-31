@@ -1,6 +1,7 @@
 """
 Referral Pydantic schemas for request/response validation
 """
+from typing import Any
 from pydantic import BaseModel, Field
 from datetime import datetime
 from app.schemas.common import ORMConfig
@@ -26,5 +27,5 @@ class ReferralResponse(ReferralBase):
 class ReferralWithUser(ReferralBase):
     """Referral response with referred user details"""
     id: int
-    referred_user: dict  # User details
+    referred_user: Any  # User details
     pass
