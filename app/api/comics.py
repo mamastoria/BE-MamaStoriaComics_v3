@@ -1001,7 +1001,7 @@ async def generate_comic(
                 logger.info(f"Rendering images for comic {comic_id}...")
                 
                 # Start render job
-                core.start_render_all_job(script_data, job_id=str(comic_id), style=style)
+                core.start_render_all_job(script_data, job_id=str(comic_id))
                 
                 # Wait for completion (max 15 mins)
                 start_time = time.time()
