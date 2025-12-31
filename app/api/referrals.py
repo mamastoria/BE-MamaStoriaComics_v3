@@ -53,6 +53,12 @@ async def list_referrals_by_user(
         }
         referrals_data.append(referral_dict)
 
+    return {
+        "ok": True,
+        "data": referrals_data,
+        "total": len(referrals_data)
+    }
+
 @router.get("/referrals/check-parent", response_model=dict)
 async def check_parent_referral(
     current_user: User = Depends(get_current_user),
