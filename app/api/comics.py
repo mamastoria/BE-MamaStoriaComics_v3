@@ -630,12 +630,12 @@ async def get_draft_status(
         "ok": True,
         "data": {
             "id": comic.id,
-            "status": frontend_status,
-            "summary": comic.summary or comic.title or comic.story_idea[:200] if comic.story_idea else None,
+            "status": raw_status.upper(),  # Return actual status like SCRIPT_READY
+            "summary": comic.summary or comic.title or (comic.story_idea[:200] if comic.story_idea else None),
             "title": comic.title,
-            "pageCount": comic.page_count,
-            "draftJobId": comic.draft_job_id,
-            "isReadyToGenerate": raw_status.upper() == "SCRIPT_READY",
+            "page_count": comic.page_count,  # snake_case for frontend
+            "draft_job_id": comic.draft_job_id,  # snake_case for frontend
+            "is_ready_to_generate": raw_status.upper() == "SCRIPT_READY",  # snake_case
             "panels": panels_data,
             "style": {"id": 1, "name": comic.style} if comic.style else None,
             "character": None,  # TODO: Add character data
