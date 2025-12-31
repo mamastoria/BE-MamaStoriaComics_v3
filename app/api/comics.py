@@ -896,17 +896,28 @@ async def generate_comic(
                     
                     time.sleep(3)
                 
-                # Update panel image URLs
+                # Update panel image URLs from GCS
                 job_state = core.get_job(str(comic_id))
+                cover_url = None
+                
                 for part_no in [1, 2]:
                     part_key = f"part{part_no}"
                     if part_key not in job_state:
                         continue
                     
                     part_data = job_state[part_key]
-                    panels_count = len(part_data.get("part", {}).get("panels", []))
+                    panel_urls = part_data.get("panel_urls") or []
+                    panels_count = len(panel_urls)
                     
                     for panel_idx in range(panels_count):
+                        # Get GCS URL (or fallback to API preview)
+                        gcs_url = panel_urls[panel_idx] if panel_idx < len(panel_urls) else None
+                        image_url = gcs_url or f"/api/preview/{comic_id}/panel/{part_no}/{panel_idx}"
+                        
+                        # Panel 1 of Part 1 = Cover
+                        if part_no == 1 and panel_idx == 0:
+                            cover_url = gcs_url
+                        
                         # Update DB panel with image URL
                         db_panel = thread_db.query(ComicPanel).filter(
                             ComicPanel.comic_id == comic_id,
@@ -915,7 +926,7 @@ async def generate_comic(
                         ).first()
                         
                         if db_panel:
-                            db_panel.image_url = f"/api/preview/{comic_id}/panel/{part_no}/{panel_idx}"
+                            db_panel.image_url = image_url
                 
                 # Update comic status to COMPLETED
                 comic_record = thread_db.query(Comic).filter(Comic.id == comic_id).first()
@@ -923,6 +934,8 @@ async def generate_comic(
                     comic_record.draft_job_status = "COMPLETED"
                     comic_record.pdf_url = f"/api/pdf/{comic_id}"
                     comic_record.preview_video_url = f"/viewer/{comic_id}"
+                    if cover_url:
+                        comic_record.cover_url = cover_url
                 
                 thread_db.commit()
                 

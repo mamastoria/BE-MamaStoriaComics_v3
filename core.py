@@ -94,9 +94,107 @@ logger.info(
     IMAGE_MODEL,
 )
 
+# GCS Storage Configuration
+GCS_BUCKET_NAME = _env("GOOGLE_BUCKET_NAME", "nanobanana-storage")
+GCS_PANEL_PREFIX = "comics/panels"  # panels stored at: comics/panels/{job_id}/...
+GCS_PDF_PREFIX = "comics/pdfs"
+GCS_GRID_PREFIX = "comics/grids"
+
 BASE_DIR = Path(__file__).resolve().parent
 EXPORT_DIR = BASE_DIR / "exports"
 EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+
+
+# ============================================================
+# GCS UPLOAD HELPERS
+# ============================================================
+def _get_gcs_client():
+    """Get GCS client using ADC or service account."""
+    try:
+        from google.cloud import storage as gcs_storage
+        return gcs_storage.Client(project=PROJECT_ID)
+    except Exception as e:
+        logger.warning(f"Failed to create GCS client: {e}")
+        return None
+
+
+def upload_image_to_gcs(
+    image_bytes: bytes,
+    gcs_path: str,
+    content_type: str = "image/png"
+) -> Optional[str]:
+    """
+    Upload image bytes to GCS bucket.
+    Returns public URL or None if failed.
+    
+    Path format: comics/panels/{job_id}/part{part_no}_panel{panel_idx}.png
+    """
+    client = _get_gcs_client()
+    if not client:
+        logger.warning("GCS client not available, skipping upload")
+        return None
+    
+    try:
+        bucket = client.bucket(GCS_BUCKET_NAME)
+        blob = bucket.blob(gcs_path)
+        blob.upload_from_string(image_bytes, content_type=content_type)
+        blob.make_public()
+        
+        public_url = f"https://storage.googleapis.com/{GCS_BUCKET_NAME}/{gcs_path}"
+        logger.info(f"Uploaded to GCS: {public_url}")
+        return public_url
+    except Exception as e:
+        logger.warning(f"GCS upload failed for {gcs_path}: {e}")
+        return None
+
+
+def upload_panel_to_gcs(
+    job_id: str,
+    part_no: int,
+    panel_idx: int,
+    panel_img: Image.Image
+) -> Optional[str]:
+    """
+    Upload a single panel image to GCS.
+    Returns the public URL.
+    
+    Storage path: comics/panels/{job_id}/part{part_no}_panel{panel_idx}.png
+    """
+    buf = BytesIO()
+    panel_img.save(buf, format="PNG")
+    img_bytes = buf.getvalue()
+    
+    gcs_path = f"{GCS_PANEL_PREFIX}/{job_id}/part{part_no}_panel{panel_idx}.png"
+    return upload_image_to_gcs(img_bytes, gcs_path)
+
+
+def upload_grid_to_gcs(
+    job_id: str,
+    part_no: int,
+    grid_img: Image.Image
+) -> Optional[str]:
+    """
+    Upload full grid page image to GCS.
+    Returns the public URL.
+    
+    Storage path: comics/grids/{job_id}/part{part_no}_grid.png
+    """
+    buf = BytesIO()
+    grid_img.save(buf, format="PNG")
+    img_bytes = buf.getvalue()
+    
+    gcs_path = f"{GCS_GRID_PREFIX}/{job_id}/part{part_no}_grid.png"
+    return upload_image_to_gcs(img_bytes, gcs_path)
+
+
+def get_panel_gcs_url(job_id: str, part_no: int, panel_idx: int) -> str:
+    """Get the expected GCS URL for a panel (for database storage)."""
+    return f"https://storage.googleapis.com/{GCS_BUCKET_NAME}/{GCS_PANEL_PREFIX}/{job_id}/part{part_no}_panel{panel_idx}.png"
+
+
+def get_cover_url(job_id: str) -> str:
+    """Get the cover URL (Panel 1 from Part 1)."""
+    return get_panel_gcs_url(job_id, 1, 0)
 
 
 # ============================================================
@@ -823,11 +921,17 @@ def generate_3x3_grid_image(prompt: str) -> Image.Image:
 # ============================================================
 # RENDER A PART
 # ============================================================
-def render_part_payload(script: Dict[str, Any], part_no: int, *, job_id: Optional[str] = None) -> Dict[str, Any]:
+def render_part_payload(script: Dict[str, Any], part_no: int, *, job_id: Optional[str] = None, style: Optional[str] = None) -> Dict[str, Any]:
     """
-    ✅ FIX:
-    - simpan full grid page (sebelum split) sebagai PNG ke disk, jika job_id ada
-    - return grid_path agar bisa di-serve via /api/preview/{job_id}/{part_no}
+    Render a single part (9 panels in 3x3 grid).
+    
+    FLOW:
+    1. Generate full 3x3 grid image from AI
+    2. Split into 9 individual panels
+    3. Upload each panel to GCS
+    4. Return panel URLs for database storage
+    
+    Panel 1 (index 0) of Part 1 = Cover image
     """
     validate_script_shape(script)
 
@@ -849,8 +953,9 @@ def render_part_payload(script: Dict[str, Any], part_no: int, *, job_id: Optiona
     img_prompt = build_image_prompt_3x3(global_data, part, prev_part_summary)
     grid_img = generate_3x3_grid_image(img_prompt)
 
-    # ✅ SAVE full page BEFORE split
+    # Save full grid to local disk (for preview/debug)
     grid_path: Optional[Path] = None
+    grid_gcs_url: Optional[str] = None
     if job_id:
         grid_path = _grid_png_path(job_id, int(part_no))
         try:
@@ -858,16 +963,33 @@ def render_part_payload(script: Dict[str, Any], part_no: int, *, job_id: Optiona
         except Exception:
             logger.exception("Failed to save grid preview png: %s", str(grid_path))
             grid_path = None
+        
+        # Also upload full grid to GCS
+        grid_gcs_url = upload_grid_to_gcs(job_id, int(part_no), grid_img)
 
+    # Split grid into 9 panels
     grid_panels = split_grid_3x3(grid_img)
     panels_b64: List[str] = [b64_png(p) for p in grid_panels]
+    
+    # Upload each panel to GCS and collect URLs
+    panel_urls: List[Optional[str]] = []
+    for panel_idx, panel_img in enumerate(grid_panels):
+        if job_id:
+            url = upload_panel_to_gcs(job_id, int(part_no), panel_idx, panel_img)
+            panel_urls.append(url)
+        else:
+            panel_urls.append(None)
+    
+    logger.info(f"Rendered part {part_no}: {len([u for u in panel_urls if u])} panels uploaded to GCS")
 
     return {
         "part_no": int(part_no),
         "part": part,
-        "grid": b64_png(grid_img),  # fallback/debug (tetap ada)
-        "grid_path": str(grid_path) if grid_path else None,  # ✅ NEW
-        "panels": panels_b64,
+        "grid": b64_png(grid_img),  # base64 for fallback/debug
+        "grid_path": str(grid_path) if grid_path else None,
+        "grid_gcs_url": grid_gcs_url,  # Full page GCS URL
+        "panels": panels_b64,  # base64 panels (for backward compat)
+        "panel_urls": panel_urls,  # GCS URLs for each panel
         "meta": {
             "project_id": PROJECT_ID,
             "vertex_location": VERTEX_LOCATION,
