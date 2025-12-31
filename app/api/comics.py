@@ -957,8 +957,10 @@ async def generate_comic(
         parts_dict[panel.page_number].append({
             "panel_no": panel.panel_number,
             "panel_idx": panel.panel_number - 1,
+            "panel_title": f"Panel {panel.page_number}-{panel.panel_number}",
+            "panel_context": panel.description or panel.page_description or "",
             "description": panel.description or panel.page_description,
-            "narration": panel.narration or panel.page_narration,
+            "narration": panel.narration or panel.page_narration or "",
             "dialogues": panel.dialogues or [],
             "instruksi_visual": panel.instruksi_visual,
             "instruksi_render_teks": panel.instruksi_render_teks,
