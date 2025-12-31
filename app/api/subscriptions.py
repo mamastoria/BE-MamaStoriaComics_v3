@@ -215,17 +215,10 @@ async def purchase_subscription(
         
     except Exception as e:
         print(f"Failed to generate Doku Payment URL: {str(e)}")
-        # Fallback to Mock Payment if Doku fails (e.g. invalid keys or network issue)
-        # This ensures the user can still test the flow even if gateway is down
-        if settings.DEBUG:
-            base_url = str(request.base_url).rstrip("/")
-            payment_url = f"{base_url}/api/v1/mock-payment/{order_id}"
-            print(f"Fallback to Mock URL: {payment_url}")
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE, 
-                detail=f"Payment gateway error: {str(e)}"
-            )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, 
+            detail=f"Payment gateway error: {str(e)}"
+        )
         
     transaction.payment_url = payment_url
     
