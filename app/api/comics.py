@@ -955,6 +955,7 @@ async def generate_comic(
     parts_dict = defaultdict(list)
     for panel in panels:
         parts_dict[panel.page_number].append({
+            "panel_no": panel.panel_number,
             "panel_idx": panel.panel_number - 1,
             "description": panel.description or panel.page_description,
             "narration": panel.narration or panel.page_narration,
@@ -965,11 +966,18 @@ async def generate_comic(
         })
     
     # Build script structure expected by core.start_render_all_job
-    script = {}
-    for part_no in sorted(parts_dict.keys()):
-        script[f"part{part_no}"] = {
-            "panels": parts_dict[part_no]
+    script = {
+        "parts": [],
+        "global": {
+            "comic_title": comic.title or "Untitled"
         }
+    }
+    
+    for part_no in sorted(parts_dict.keys()):
+        script["parts"].append({
+            "part_no": part_no,
+            "panels": parts_dict[part_no]
+        })
     
     # Get style name - Comic stores style as string directly, not as FK
     style_name = comic.style or "manga"
