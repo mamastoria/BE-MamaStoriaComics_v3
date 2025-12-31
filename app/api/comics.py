@@ -180,13 +180,16 @@ async def create_story_and_attributes(
             db.query(ComicPanel).filter(ComicPanel.comic_id == comic.id).delete()
             
             # Save script as draft panels (no image_url yet)
+            # Script format: {"global": {...}, "parts": [{"part_no": 1, ...}, {"part_no": 2, ...}]}
             panel_counter = 0
-            parts = [script.get("part1"), script.get("part2")]
+            parts = script.get("parts", [])
             
-            for p_idx, part in enumerate(parts):
-                if not part:
+            for part in parts:
+                if not part or not isinstance(part, dict):
                     continue
-                part_no = p_idx + 1
+                part_no = int(part.get("part_no", 0))
+                if part_no not in (1, 2):
+                    continue
                 panels_script = part.get("panels", [])
                 
                 for i, panel_data in enumerate(panels_script):
@@ -195,7 +198,7 @@ async def create_story_and_attributes(
                         page_number=part_no,
                         panel_number=i + 1,
                         image_url=None,  # No image yet - will be generated on approve
-                        description=panel_data.get("description"),
+                        description=panel_data.get("panel_context") or panel_data.get("description"),
                         page_description=panel_data.get("panel_context") or panel_data.get("description"),
                         narration=panel_data.get("narration"),
                         page_narration=panel_data.get("narration"),
