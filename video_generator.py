@@ -211,9 +211,9 @@ def create_ken_burns_filter(
     
     # Calculate zoom and position expressions
     # t = current time, d = duration
-    zoom_expr = f"{p['start_zoom']}+({p['end_zoom']}-{p['start_zoom']})*t/{duration}"
-    x_expr = f"(iw-iw/zoom)/2+({p['start_x']}-0.5)*iw*(1-t/{duration})+({p['end_x']}-0.5)*iw*t/{duration}"
-    y_expr = f"(ih-ih/zoom)/2+({p['start_y']}-0.5)*ih*(1-t/{duration})+({p['end_y']}-0.5)*ih*t/{duration}"
+    zoom_expr = f"{p['start_zoom']}+({p['end_zoom']}-{p['start_zoom']})*time/{duration}"
+    x_expr = f"(iw-iw/zoom)/2+({p['start_x']}-0.5)*iw*(1-time/{duration})+({p['end_x']}-0.5)*iw*time/{duration}"
+    y_expr = f"(ih-ih/zoom)/2+({p['start_y']}-0.5)*ih*(1-time/{duration})+({p['end_y']}-0.5)*ih*time/{duration}"
     
     return f"zoompan=z='{zoom_expr}':x='{x_expr}':y='{y_expr}':d={int(duration*VIDEO_FPS)}:s={width}x{height}:fps={VIDEO_FPS}"
 
@@ -356,13 +356,48 @@ def generate_cinematic_video(
                 panel_video
             ]
             
+            
+            logger.info(f"Generating panel {i} video (Duration: {duration}s)")
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            
             if result.returncode != 0:
                 stderr_head = result.stderr[:500]
                 stderr_tail = result.stderr[-500:] if len(result.stderr) > 500 else ""
-                logger.warning(f"Panel {i} video creation failed.\nCMD: {' '.join(cmd)}\nSTDERR Head: {stderr_head}\nSTDERR Tail: {stderr_tail}")
-                continue
-            
+                logger.warning(f"Panel {i} video creation failed with Ken Burns.\nCMD: {' '.join(cmd)}\nSTDERR Head: {stderr_head}\nSTDERR Tail: {stderr_tail}")
+                
+                # FALLBACK: Generate static video without Ken Burns
+                logger.info(f"Retrying Panel {i} with static video fallback...")
+                
+                # Letterbox only if requested
+                filters = []
+                if with_letterbox:
+                    filters.append(f"drawbox=x=0:y=0:w=iw:h=ih*0.05:c=black:t=fill,drawbox=x=0:y=ih*0.95:w=iw:h=ih*0.05:c=black:t=fill")
+                
+                # Ensure dimensions are even
+                filters.append("scale=trunc(iw/2)*2:trunc(ih/2)*2")
+                
+                filter_str = ",".join(filters) if filters else "null"
+                
+                cmd_fallback = [
+                    "ffmpeg", "-y",
+                    "-loop", "1",
+                    "-i", panel_path,
+                    "-vf", filter_str,
+                    "-t", str(duration),
+                    "-c:v", "libx264",
+                    "-preset", "fast",
+                    "-crf", "23",
+                    "-pix_fmt", "yuv420p",
+                    panel_video
+                ]
+                
+                res_fallback = subprocess.run(cmd_fallback, capture_output=True, text=True, timeout=60)
+                if res_fallback.returncode != 0:
+                     logger.error(f"Panel {i} static fallback also failed: {res_fallback.stderr}")
+                     continue
+                
+                logger.info(f"Panel {i} generated successfully using fallback.")
+
             panel_videos.append(panel_video)
         
         if not panel_videos:
