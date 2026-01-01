@@ -1604,3 +1604,102 @@ async def regenerate_panel(
             "status": "queued"
         }
     }
+
+
+# ===================== DEBUG ENDPOINTS (REMOVE IN PRODUCTION) =====================
+
+@router.post("/debug/generate-video/{comic_id}", response_model=dict)
+async def debug_generate_video(
+    comic_id: int,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
+    """
+    DEBUG ONLY: Generate video without authentication.
+    This endpoint should be removed in production.
+    """
+    from app.models.comic_panel import ComicPanel
+    
+    comic = db.query(Comic).filter(Comic.id == comic_id).first()
+    
+    if not comic:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comic not found"
+        )
+    
+    # Get panels with images
+    panels = db.query(ComicPanel).filter(
+        ComicPanel.comic_id == comic_id,
+        ComicPanel.image_url.isnot(None)
+    ).order_by(ComicPanel.page_number, ComicPanel.panel_number).all()
+    
+    if not panels:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No panels with images found"
+        )
+    
+    panel_data = [{
+        "image_url": p.image_url,
+        "narration": p.narration or p.page_narration or "",
+        "dialogue": p.dialogues or [],
+        "description": p.description or p.page_description or ""
+    } for p in panels]
+    
+    # Background task for video generation
+    def debug_video_task(cid: int, pdata: list):
+        try:
+            import sys
+            import traceback
+            from pathlib import Path
+            
+            ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+            if str(ROOT_DIR) not in sys.path:
+                sys.path.append(str(ROOT_DIR))
+            
+            from app.core.database import get_session_local
+            import video_generator
+            
+            SessionLocal = get_session_local()
+            thread_db = SessionLocal()
+            
+            try:
+                logger.info(f"[DEBUG] Starting video generation for comic {cid}...")
+                logger.info(f"[DEBUG] Panel count: {len(pdata)}")
+                
+                video_url = video_generator.generate_video_for_comic(
+                    comic_id=cid,
+                    panels=pdata
+                )
+                
+                logger.info(f"[DEBUG] Video generation returned: {video_url}")
+                
+                if video_url:
+                    comic_rec = thread_db.query(Comic).filter(Comic.id == cid).first()
+                    if comic_rec:
+                        comic_rec.preview_video_url = video_url
+                        thread_db.commit()
+                        logger.info(f"[DEBUG] Video URL saved: {video_url}")
+                else:
+                    logger.error(f"[DEBUG] Video generation returned None!")
+                    
+            except Exception as e:
+                logger.exception(f"[DEBUG] Video generation failed: {e}")
+                logger.error(f"[DEBUG] Traceback: {traceback.format_exc()}")
+            finally:
+                thread_db.close()
+        except Exception as outer:
+            logger.exception(f"[DEBUG] Outer error: {outer}")
+    
+    background.add_task(debug_video_task, comic_id, panel_data)
+    
+    return {
+        "ok": True,
+        "message": "[DEBUG] Video generation started",
+        "data": {
+            "comic_id": comic_id,
+            "panels_count": len(panel_data),
+            "first_panel_image": panel_data[0].get("image_url") if panel_data else None
+        }
+    }
