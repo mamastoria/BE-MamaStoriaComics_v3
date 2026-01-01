@@ -70,7 +70,7 @@ class PaymentHistoryItem(BaseModel):
     status: str
     payment_method: Optional[str]
     created_at: datetime
-    package_name: Optional[str]
+    type_transaction: Optional[str]
     
     class Config:
         from_attributes = True
@@ -615,19 +615,6 @@ async def get_payment_history(
     
     history_data = []
     for transaction in items:
-        # Get package name if subscription exists
-        package_name = None
-        if transaction.subscription_id:
-            subscription = db.query(Subscription).filter(
-                Subscription.id == transaction.subscription_id
-            ).first()
-            if subscription:
-                package = db.query(SubscriptionPackage).filter(
-                    SubscriptionPackage.id == subscription.package_id
-                ).first()
-                if package:
-                    package_name = package.name
-        
         history_data.append({
             "id": transaction.id,
             "invoice_number": transaction.doku_order_id, # Map doku_order_id to invoice_number for FE compatibility
