@@ -260,6 +260,10 @@ def generate_cinematic_video(
     work_dir = tempfile.mkdtemp(prefix="comic_video_")
     logger.info(f"Working directory created: {work_dir}")
     
+    # Initialize variable to prevent UnboundLocalError
+    final_with_audio = None
+    concatenated_video = None
+    
     try:
         # Step 1: Download and prepare panel images
         logger.info("Step 1: Preparing panel images...")
@@ -469,12 +473,13 @@ def generate_cinematic_video(
         # Step 5: Add audio (narration + optional background music)
         logger.info("Step 4: Adding audio...")
         
+        # Define final_with_audio path early to prevent UnboundLocalError
         final_with_audio = os.path.join(work_dir, "final_with_audio.mp4")
         
         # Concatenate all narration audio files
         valid_audio = [(f, d) for f, d in zip(audio_files, panel_durations) if f]
         
-        if valid_audio:
+        if valid_audio and concatenated_video and os.path.exists(concatenated_video):
             # Create audio with correct timing
             audio_concat = os.path.join(work_dir, "narration_full.mp3")
             
@@ -556,11 +561,14 @@ def generate_cinematic_video(
                 if os.path.exists(final_with_audio):
                     shutil.copy(final_with_audio, output_path)
                 else:
-                    shutil.copy(concatenated_video, output_path)
+                    if concatenated_video and os.path.exists(concatenated_video):
+                        shutil.copy(concatenated_video, output_path)
             else:
-                shutil.copy(concatenated_video, output_path)
+                if concatenated_video and os.path.exists(concatenated_video):
+                    shutil.copy(concatenated_video, output_path)
         else:
-            shutil.copy(concatenated_video, output_path)
+            if concatenated_video and os.path.exists(concatenated_video):
+                shutil.copy(concatenated_video, output_path)
         
         logger.info(f"Video generated successfully: {output_path}")
         return True
