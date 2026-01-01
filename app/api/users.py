@@ -458,29 +458,46 @@ async def update_kredit(
     - **amount**: Amount to add/subtract
     - **operation**: "add" or "subtract"
     """
+    # Refetch user to ensure we have the latest data and lock the row
+    user = db.query(User).filter(User.id_users == current_user.id_users).with_for_update().first()
+    
+    if not user:
+         raise HTTPException(status_code=404, detail="User not found")
+
     if kredit_data.operation == "add":
-        current_user.kredit += kredit_data.amount
+        user.kredit += kredit_data.amount
     elif kredit_data.operation == "subtract":
-        if current_user.kredit < kredit_data.amount:
+        if user.kredit < kredit_data.amount:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Insufficient credits"
             )
-        current_user.kredit -= kredit_data.amount
+        user.kredit -= kredit_data.amount
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid operation. Use 'add' or 'subtract'"
         )
     
+    # Optional: Log to Transaction table if you have one
+    # from app.models.subscription import Transaction
+    # transaction = Transaction(
+    #    user_id=user.id_users,
+    #    type="credit_update",
+    #    amount=kredit_data.amount if kredit_data.operation == "add" else -kredit_data.amount,
+    #    description=kredit_data.description or f"Manual credit {kredit_data.operation}"
+    # )
+    # db.add(transaction)
+    
+    db.add(user) # Mark as modified
     db.commit()
-    db.refresh(current_user)
+    db.refresh(user)
     
     return {
         "ok": True,
         "message": f"Credits {kredit_data.operation}ed successfully",
         "data": {
-            "current_kredit": current_user.kredit
+            "current_kredit": user.kredit
         }
     }
 
