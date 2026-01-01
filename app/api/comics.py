@@ -1733,3 +1733,19 @@ async def debug_ffmpeg():
         "version_head": version_out[:500],
         "encoders_head": encoders_out[:1000] if encoders_out else ""
     }
+
+@router.get("/debug/check-video/{comic_id}", response_model=dict)
+async def debug_check_video(
+    comic_id: int,
+    db: Session = Depends(get_db)
+):
+    """Check comic video status"""
+    comic = db.query(Comic).filter(Comic.id == comic_id).first()
+    if not comic:
+        return {"error": "Comic not found"}
+    
+    return {
+        "id": comic.id,
+        "title": comic.title,
+        "preview_video_url": comic.preview_video_url
+    }

@@ -30,8 +30,8 @@ from io import BytesIO
 logger = logging.getLogger("video_generator")
 
 # Video settings
-VIDEO_WIDTH = 1080
-VIDEO_HEIGHT = 1920  # 9:16 aspect ratio for mobile
+VIDEO_WIDTH = 720
+VIDEO_HEIGHT = 1280  # 9:16 aspect ratio for mobile
 VIDEO_FPS = 30
 PANEL_DURATION = 4.0  # seconds per panel (will be adjusted based on narration)
 TRANSITION_DURATION = 0.5  # fade duration
@@ -248,7 +248,7 @@ def generate_cinematic_video(
         logger.error("FFmpeg not installed or not found in PATH!")
         # Try to check what's available
         try:
-            import shutil
+            # import shutil  <-- Removed to prevent shadowing global import
             ffmpeg_path = shutil.which("ffmpeg")
             logger.error(f"shutil.which('ffmpeg') returned: {ffmpeg_path}")
         except Exception as e:
@@ -259,6 +259,10 @@ def generate_cinematic_video(
     
     work_dir = tempfile.mkdtemp(prefix="comic_video_")
     logger.info(f"Working directory created: {work_dir}")
+    
+    # Initialize variable to prevent UnboundLocalError
+    final_with_audio = None
+    concatenated_video = None
     
     try:
         # Step 1: Download and prepare panel images
@@ -469,10 +473,13 @@ def generate_cinematic_video(
         # Step 5: Add audio (narration + optional background music)
         logger.info("Step 4: Adding audio...")
         
+        # Define final_with_audio path early to prevent UnboundLocalError
+        final_with_audio = os.path.join(work_dir, "final_with_audio.mp4")
+        
         # Concatenate all narration audio files
         valid_audio = [(f, d) for f, d in zip(audio_files, panel_durations) if f]
         
-        if valid_audio:
+        if valid_audio and concatenated_video and os.path.exists(concatenated_video):
             # Create audio with correct timing
             audio_concat = os.path.join(work_dir, "narration_full.mp3")
             
@@ -518,7 +525,6 @@ def generate_cinematic_video(
                 ], capture_output=True, timeout=120)
             
             # Combine video with audio
-            final_with_audio = os.path.join(work_dir, "final_with_audio.mp4")
             
             if os.path.exists(audio_concat):
                 cmd = [
@@ -555,11 +561,14 @@ def generate_cinematic_video(
                 if os.path.exists(final_with_audio):
                     shutil.copy(final_with_audio, output_path)
                 else:
-                    shutil.copy(concatenated_video, output_path)
+                    if concatenated_video and os.path.exists(concatenated_video):
+                        shutil.copy(concatenated_video, output_path)
             else:
-                shutil.copy(concatenated_video, output_path)
+                if concatenated_video and os.path.exists(concatenated_video):
+                    shutil.copy(concatenated_video, output_path)
         else:
-            shutil.copy(concatenated_video, output_path)
+            if concatenated_video and os.path.exists(concatenated_video):
+                shutil.copy(concatenated_video, output_path)
         
         logger.info(f"Video generated successfully: {output_path}")
         return True
