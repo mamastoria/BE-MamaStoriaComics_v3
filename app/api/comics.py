@@ -1703,3 +1703,33 @@ async def debug_generate_video(
             "first_panel_image": panel_data[0].get("image_url") if panel_data else None
         }
     }
+
+@router.get("/debug/ffmpeg", response_model=dict)
+async def debug_ffmpeg():
+    """Check FFmpeg installation and codecs"""
+    import subprocess
+    import shutil
+    
+    ffmpeg_path = shutil.which("ffmpeg")
+    version_out = ""
+    encoders_out = ""
+    
+    if ffmpeg_path:
+        try:
+            version_out = subprocess.check_output([ffmpeg_path, "-version"], text=True, stderr=subprocess.STDOUT)
+            encoders_out = subprocess.check_output([ffmpeg_path, "-encoders"], text=True, stderr=subprocess.STDOUT)
+            
+            # Check specifically for libx264
+            has_libx264 = "libx264" in encoders_out
+        except Exception as e:
+            version_out = f"Error running ffmpeg: {e}"
+    else:
+        version_out = "FFmpeg binary not found in PATH"
+        has_libx264 = False
+
+    return {
+        "path": ffmpeg_path,
+        "has_libx264": has_libx264,
+        "version_head": version_out[:500],
+        "encoders_head": encoders_out[:1000] if encoders_out else ""
+    }

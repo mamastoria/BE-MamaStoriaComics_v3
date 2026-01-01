@@ -358,7 +358,9 @@ def generate_cinematic_video(
             
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
             if result.returncode != 0:
-                logger.warning(f"Panel {i} video creation failed: {result.stderr[:500]}")
+                stderr_head = result.stderr[:500]
+                stderr_tail = result.stderr[-500:] if len(result.stderr) > 500 else ""
+                logger.warning(f"Panel {i} video creation failed.\nCMD: {' '.join(cmd)}\nSTDERR Head: {stderr_head}\nSTDERR Tail: {stderr_tail}")
                 continue
             
             panel_videos.append(panel_video)
