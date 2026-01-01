@@ -469,6 +469,8 @@ def generate_cinematic_video(
         # Step 5: Add audio (narration + optional background music)
         logger.info("Step 4: Adding audio...")
         
+        final_with_audio = os.path.join(work_dir, "final_with_audio.mp4")
+        
         # Concatenate all narration audio files
         valid_audio = [(f, d) for f, d in zip(audio_files, panel_durations) if f]
         
@@ -518,7 +520,6 @@ def generate_cinematic_video(
                 ], capture_output=True, timeout=120)
             
             # Combine video with audio
-            final_with_audio = os.path.join(work_dir, "final_with_audio.mp4")
             
             if os.path.exists(audio_concat):
                 cmd = [
