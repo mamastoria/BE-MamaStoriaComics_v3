@@ -186,6 +186,11 @@ async def startup_event():
             # Add expires_at if not exists
             conn.execute(text("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP WITH TIME ZONE"))
             
+            # PATCH: Add missing columns to withdrawals table
+            conn.execute(text("ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS bank_name VARCHAR(255)"))
+            conn.execute(text("ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS account_number VARCHAR(255)"))
+            conn.execute(text("ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS account_name VARCHAR(255)"))
+            
             # Commit changes
             try:
                 conn.commit()

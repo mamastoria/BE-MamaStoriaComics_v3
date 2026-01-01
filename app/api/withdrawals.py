@@ -62,7 +62,10 @@ async def add_withdrawal(
 
     - **id_user**: User ID
     - **amount**: Withdrawal amount (must be > 0)
-    - **status**: Withdrawal status
+    - **status**: Withdrawal status (optional, defaults to pending)
+    - **bank_name**: (Optional)
+    - **account_number**: (Optional)
+    - **account_name**: (Optional)
     """
     # Check if user exists
     user = db.query(User).filter(User.id_users == withdrawal_data.id_user).first()
@@ -76,7 +79,10 @@ async def add_withdrawal(
     new_withdrawal = Withdrawal(
         id_user=withdrawal_data.id_user,
         amount=withdrawal_data.amount,
-        status=withdrawal_data.status
+        status=withdrawal_data.status or "pending", # Ensure status is not None
+        bank_name=withdrawal_data.bank_name,
+        account_number=withdrawal_data.account_number,
+        account_name=withdrawal_data.account_name
     )
 
     db.add(new_withdrawal)
