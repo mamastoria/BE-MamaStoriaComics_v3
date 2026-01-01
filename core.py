@@ -164,7 +164,7 @@ def upload_panel_to_gcs(
     panel_img.save(buf, format="PNG")
     img_bytes = buf.getvalue()
     
-    gcs_path = f"{GCS_PANEL_PREFIX}/{job_id}/part{part_no}_panel{panel_idx}.png"
+    gcs_path = f"{GCS_PANEL_PREFIX}/{job_id}/part{part_no}_panel{panel_idx:02d}.png"
     return upload_image_to_gcs(img_bytes, gcs_path)
 
 
@@ -540,16 +540,51 @@ def b64_png(img: Image.Image) -> str:
 
 
 def split_grid_3x3(img: Image.Image) -> List[Image.Image]:
+    """
+    Split a 3x3 grid image into 9 panels with ASYMMETRIC SAFETY CROP.
+    - Outer edges (page borders) have larger crop to remove white space.
+    - Inner edges (panel gutters) have standard safety crop.
+    """
     w, h = img.size
     cell_w = w // 3
     cell_h = h // 3
+    
+    # Crop Ratios
+    INNER_M = 0.035  # 3.5% for internal panel borders (gutters)
+    OUTER_M = 0.075  # 7.5% for outer page edges (white space/thick border)
+    
     panels: List[Image.Image] = []
     for row in range(3):
         for col in range(3):
-            left = col * cell_w
-            top = row * cell_h
-            right = (col + 1) * cell_w if col < 2 else w
-            bottom = (row + 1) * cell_h if row < 2 else h
+            # 1. Base coordinates
+            base_left = col * cell_w
+            base_top = row * cell_h
+            base_right = base_left + cell_w
+            base_bottom = base_top + cell_h
+            
+            # 2. Determine margins based on position
+            # Left edge: If col 0 (leftmost), use OUTER margin. Else INNER.
+            m_left = OUTER_M if col == 0 else INNER_M
+            
+            # Top edge: If row 0 (topmost), use OUTER margin. Else INNER.
+            m_top = OUTER_M if row == 0 else INNER_M
+            
+            # Right edge: If col 2 (rightmost), use OUTER margin. Else INNER.
+            m_right = OUTER_M if col == 2 else INNER_M
+            
+            # Bottom edge: If row 2 (bottommost), use OUTER margin. Else INNER.
+            m_bottom = OUTER_M if row == 2 else INNER_M
+            
+            # 3. Calculate pixel crop
+            left = base_left + int(cell_w * m_left)
+            top = base_top + int(cell_h * m_top)
+            right = base_right - int(cell_w * m_right)
+            bottom = base_bottom - int(cell_h * m_bottom)
+            
+            # 4. Safety clamp
+            if left >= right: left = base_left
+            if top >= bottom: top = base_top
+            
             panels.append(img.crop((left, top, right, bottom)))
     return panels
 
@@ -841,6 +876,8 @@ def build_image_prompt_3x3(global_data: Dict[str, Any], part: Dict[str, Any], pr
         key=lambda x: int(x.get("panel_no", 0) or 0),
     )
 
+    part_no = int(part.get("part_no") or 1)
+    
     panel_lines = []
     for panel in panels_sorted[:9]:
         pn = int(panel.get("panel_no") or 0)
@@ -850,16 +887,25 @@ def build_image_prompt_3x3(global_data: Dict[str, Any], part: Dict[str, Any], pr
         ctx = (panel.get("panel_context") or "").strip()
 
         dblock = "\n".join([f"- {d}" for d in dlgs]) if dlgs else "- (no dialogue)"
-        panel_lines.append(
-            f"""PANEL {pn}: {title}
+        
+        # SPECIAL: PART 1 PANEL 1 IS COVER/POSTER - NO BUBBLES
+        if part_no == 1 and pn == 1:
+            panel_lines.append(
+                f"""PANEL {pn}: {title} (POSTER/COVER)
+VISUAL: {ctx}
+TEXT INSTRUCTION: ABSOLUTELY NO SPEECH BUBBLES. NO NARRATION BOXES. RENDER ONLY THE COMIC TITLE TEXT AS PART OF THE ART (POSTER STYLE).
+""".strip()
+            )
+        else:
+            panel_lines.append(
+                f"""PANEL {pn}: {title}
 VISUAL: {ctx}
 NARRATION (caption 1-2 sentences, in Indonesian): {narr}
 DIALOGUE (speech bubbles, max 2):
 {dblock}
 """.strip()
-        )
+            )
 
-    part_no = int(part.get("part_no") or 1)
     part_title = (part.get("part_title") or "").strip()
     part_summary = (part.get("part_summary") or "").strip()
 
@@ -887,12 +933,10 @@ TEXT RULES (CRITICAL):
 LAYOUT / CANVAS (CRITICAL - MUST FOLLOW EXACTLY):
 - Single image canvas MUST be portrait with exact aspect ratio {TARGET_AR} (like 1080x1620 or 1024x1536).
 - Draw a PERFECT 3x3 grid of 9 EQUAL panels.
-- PANELS MUST FILL THE ENTIRE CANVAS EDGE-TO-EDGE with NO margins/borders on the outer edges.
-- Use THIN BLACK separator lines (2-3 pixels) between panels, NOT white gutters.
-- NO white space, NO white borders at the edges of the image.
-- The image must start and end at the actual panel content, with NO padding.
-- Each panel must be large and readable on a phone in portrait mode.
-- Keep compositions simple with strong focal points.
+- PANELS MUST FILL THE ENTIRE CANVAS EDGE-TO-EDGE (FULL BLEED).
+- ABSOLUTELY NO WHITE BORDERS, NO FRAMES, NO MARGINS around the outer edges of the image.
+- The grid lines must be THIN BLACK lines. The content must touch the very edge of the canvas.
+- Ensure the image looks like a digital screenshot, NOT a scanned book page with white paper showing.
 """.strip()
 
     # Character consistency rules - CRITICAL for multi-page comics
@@ -944,11 +988,12 @@ PANELS (reading order left-to-right, top-to-bottom):
 {chr(10).join(panel_lines)}
 
 QUALITY REQUIREMENTS:
-- Sharp, clean, no blur/no noise.
-- PERFECT grid alignment with edge-to-edge panels.
+- 2K ULTRA HD RESOLUTION, Extremely Detailed, Masterpiece.
+- Sharp focus, high fidelity, 8k texture quality.
+- PERFECT grid alignment with edge-to-edge panels (FULL BLEED).
 - IDENTICAL character faces/outfits across all panels - this is CRITICAL.
 - Consistent art style and color palette throughout.
-- NO white borders or margins around the image edges.
+- NO WHITE BORDERS or margins around the image edges. The image must be full colored from edge to edge.
 """.strip()
 
 
