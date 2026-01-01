@@ -32,7 +32,7 @@ class GoogleStorageService:
             # Use Application Default Credentials (for Cloud Run)
             self.client = storage.Client(project=settings.GOOGLE_PROJECT_ID)
         
-        self.bucket_name = settings.GOOGLE_BUCKET_NAME
+        self.bucket_name = settings.GOOGLE_BUCKET_NAME or "nanobanana-storage"
         self.bucket = self.client.bucket(self.bucket_name)
     
     def upload_file(
