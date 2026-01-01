@@ -148,7 +148,9 @@ class DokuClient:
         digest_str = base64.b64encode(digest).decode('utf-8')
         
         # Signature (Inlined)
-        raw_signature = f"Client-Id:{self.client_id}\nRequest-Id:{request_id}\nRequest-Timestamp:{timestamp}\nRequest-Target:{target_path}\nDigest:{digest_str}"
+        # Signature (Inlined)
+        # For GET requests (Check Status), Digest is NOT included in the signature component
+        raw_signature = f"Client-Id:{self.client_id}\nRequest-Id:{request_id}\nRequest-Timestamp:{timestamp}\nRequest-Target:{target_path}"
         
         signature_bytes = hmac.new(
             self.secret_key.encode('utf-8'),
