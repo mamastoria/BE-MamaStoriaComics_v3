@@ -1238,6 +1238,7 @@ async def generate_comic_video(
         """Background task to generate video"""
         try:
             import sys
+            import traceback
             from pathlib import Path
             
             ROOT_DIR = Path(__file__).resolve().parent.parent.parent
@@ -1252,48 +1253,31 @@ async def generate_comic_video(
             
             try:
                 logger.info(f"Starting cinematic video generation for comic {comic_id}...")
+                logger.info(f"Panels data count: {len(panels_data)}")
                 
-                # Generate video
-                output_path = video_generator.generate_video_for_comic(
+                # Generate video - this function handles GCS upload internally
+                video_url = video_generator.generate_video_for_comic(
                     comic_id=comic_id,
                     panels=panels_data
                 )
                 
-                if output_path:
-                    # Upload to GCS
-                    try:
-                        from app.services.google_storage_service import GoogleStorageService
-                        storage = GoogleStorageService()
-                        
-                        with open(output_path, "rb") as f:
-                            video_url = storage.upload_file(
-                                file_content=f.read(),
-                                destination_path=f"comics/videos/{comic_id}_cinematic.mp4",
-                                content_type="video/mp4"
-                            )
-                        
-                        logger.info(f"Video uploaded to GCS: {video_url}")
-                        
-                        # Update comic with video URL
-                        comic_record = thread_db.query(Comic).filter(Comic.id == comic_id).first()
-                        if comic_record:
-                            comic_record.preview_video_url = video_url
-                            thread_db.commit()
-                        
-                        logger.info(f"Comic {comic_id}: Cinematic video generated successfully!")
-                        
-                    except Exception as upload_err:
-                        logger.warning(f"GCS upload failed, using local path: {upload_err}")
-                        # Store local path as fallback
-                        comic_record = thread_db.query(Comic).filter(Comic.id == comic_id).first()
-                        if comic_record:
-                            comic_record.preview_video_url = f"/api/video/{comic_id}"
-                            thread_db.commit()
+                if video_url:
+                    logger.info(f"Video generation returned URL: {video_url}")
+                    
+                    # Update comic with video URL
+                    comic_record = thread_db.query(Comic).filter(Comic.id == comic_id).first()
+                    if comic_record:
+                        comic_record.preview_video_url = video_url
+                        thread_db.commit()
+                        logger.info(f"Comic {comic_id}: Video URL saved to database")
+                    
+                    logger.info(f"Comic {comic_id}: Cinematic video generated successfully!")
                 else:
-                    logger.error(f"Video generation failed for comic {comic_id}")
+                    logger.error(f"Video generation returned None for comic {comic_id}")
                     
             except Exception as e:
                 logger.exception(f"Video generation task failed for comic {comic_id}: {e}")
+                logger.error(f"Traceback: {traceback.format_exc()}")
             finally:
                 thread_db.close()
                 
