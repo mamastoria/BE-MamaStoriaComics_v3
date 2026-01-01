@@ -1097,12 +1097,15 @@ async def generate_comic(
                 # Generate Video automatically after images are ready
                 try:
                     import video_generator
+                    import traceback
                     
                     # Get panels with images for video
                     panels_for_video = thread_db.query(ComicPanel).filter(
                         ComicPanel.comic_id == comic_id,
                         ComicPanel.image_url.isnot(None)
                     ).order_by(ComicPanel.page_number, ComicPanel.panel_number).all()
+                    
+                    logger.info(f"Video generation: Found {len(panels_for_video)} panels for comic {comic_id}")
                     
                     if panels_for_video:
                         panel_data = [{
@@ -1112,7 +1115,9 @@ async def generate_comic(
                             "description": p.description or p.page_description or ""
                         } for p in panels_for_video]
                         
-                        logger.info(f"Starting video generation for comic {comic_id}...")
+                        logger.info(f"Starting video generation for comic {comic_id} with {len(panel_data)} panels...")
+                        logger.info(f"First panel image URL: {panel_data[0].get('image_url', 'N/A')}")
+                        
                         output_path = video_generator.generate_video_for_comic(
                             comic_id=comic_id,
                             panels=panel_data
@@ -1120,12 +1125,19 @@ async def generate_comic(
                         
                         if output_path:
                             # Update video URL in database
+                            logger.info(f"Video output path: {output_path}")
                             if comic_record:
                                 comic_record.preview_video_url = output_path
                                 thread_db.commit()
-                            logger.info(f"Video generated for comic {comic_id}: {output_path}")
+                            logger.info(f"Video generated and saved for comic {comic_id}: {output_path}")
+                        else:
+                            logger.error(f"Video generation returned None for comic {comic_id}")
+                    else:
+                        logger.warning(f"No panels found for video generation for comic {comic_id}")
+                        
                 except Exception as video_err:
-                    logger.warning(f"Video generation warning for comic {comic_id}: {video_err}")
+                    logger.exception(f"Video generation FAILED for comic {comic_id}: {video_err}")
+                    logger.error(f"Video error traceback: {traceback.format_exc()}")
                 
                 logger.info(f"Comic {comic_id} rendering completed successfully!")
                 

@@ -241,12 +241,24 @@ def generate_cinematic_video(
     Returns:
         True if successful, False otherwise
     """
+    logger.info(f"generate_cinematic_video called with {len(panels)} panels, output_path={output_path}")
+    
+    # Check FFmpeg
     if not check_ffmpeg():
-        logger.error("FFmpeg not installed!")
+        logger.error("FFmpeg not installed or not found in PATH!")
+        # Try to check what's available
+        try:
+            import shutil
+            ffmpeg_path = shutil.which("ffmpeg")
+            logger.error(f"shutil.which('ffmpeg') returned: {ffmpeg_path}")
+        except Exception as e:
+            logger.error(f"Could not check ffmpeg path: {e}")
         return False
     
+    logger.info("FFmpeg check passed")
+    
     work_dir = tempfile.mkdtemp(prefix="comic_video_")
-    logger.info(f"Working directory: {work_dir}")
+    logger.info(f"Working directory created: {work_dir}")
     
     try:
         # Step 1: Download and prepare panel images
