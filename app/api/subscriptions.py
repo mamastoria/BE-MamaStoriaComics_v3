@@ -76,6 +76,74 @@ class PaymentHistoryItem(BaseModel):
         from_attributes = True
 
 
+def process_successful_payment(db: Session, transaction: PaymentTransaction) -> bool:
+    """
+    Process successful payment transaction
+    Updates subscription, credits, and transaction status
+    """
+    # Prevent double processing
+    if transaction.status == "success":
+        return True
+        
+    # Get user
+    user = db.query(User).filter(User.id_users == transaction.user_id).first()
+    if not user:
+        print(f"Error: User {transaction.user_id} not found for transaction {transaction.id}")
+        return False
+        
+    # Find package based on amount (temporary solution until package_id is stored in transaction)
+    package = db.query(SubscriptionPackage).filter(
+        SubscriptionPackage.price == transaction.amount
+    ).first()
+    
+    if not package:
+        print(f"Error: Package not found for amount {transaction.amount}")
+        return False
+        
+    print(f"Processing success for user {user.email} package {package.name}")
+
+    # Create or update subscription
+    subscription = db.query(Subscription).filter(
+        Subscription.user_id == user.id_users
+    ).first()
+    
+    if subscription:
+        # Update existing subscription
+        subscription.package_id = package.id
+        subscription.status = "active"
+        subscription.start_date = datetime.utcnow()
+        subscription.end_date = datetime.utcnow() + timedelta(days=package.duration_days)
+    else:
+        # Create new subscription
+        subscription = Subscription(
+            user_id=user.id_users,
+            package_id=package.id,
+            status="active",
+            start_date=datetime.utcnow(),
+            end_date=datetime.utcnow() + timedelta(days=package.duration_days)
+        )
+        db.add(subscription)
+    
+    db.flush() # Sync ID
+    
+    # Update transaction
+    transaction.status = "success"
+    transaction.subscription_id = subscription.id
+    
+    # Update User Quota/Credits (Accumulate)
+    user.publish_quota += package.publish_quota
+    user.kredit += package.bonus_credits
+    
+    try:
+        db.commit()
+        return True
+    except Exception as e:
+        print(f"Error processing payment: {e}")
+        db.rollback()
+        return False
+
+
+
 @router.get("/subscriptions/packages", response_model=dict)
 async def list_packages(db: Session = Depends(get_db)):
     """
@@ -395,52 +463,18 @@ async def payment_callback(
     transaction.doku_response = json.dumps(body)
     
     # Handle payment success
-    if transaction_status == "SUCCESS" and transaction.status == "pending":
-        # Update transaction status
-        transaction.status = "success"
-        
-        # Get user and package
-        user = db.query(User).filter(User.id_users == transaction.user_id).first()
-        
-        # Find package from transaction amount (temporary solution)
-        package = db.query(SubscriptionPackage).filter(
-            SubscriptionPackage.price == transaction.amount
-        ).first()
-        
-        if user and package:
-            # Create or update subscription
-            subscription = db.query(Subscription).filter(
-                Subscription.user_id == user.id_users
-            ).first()
-            
-            if subscription:
-                # Update existing subscription
-                subscription.package_id = package.id
-                subscription.status = "active"
-                subscription.start_date = datetime.utcnow()
-                subscription.end_date = datetime.utcnow() + timedelta(days=package.duration_days)
+    if transaction_status == "SUCCESS":
+        if transaction.status == "pending":
+            if process_successful_payment(db, transaction):
+                return {"ok": True, "message": "Payment processed successfully"}
             else:
-                # Create new subscription
-                subscription = Subscription(
-                    user_id=user.id_users,
-                    package_id=package.id,
-                    status="active",
-                    start_date=datetime.utcnow(),
-                    end_date=datetime.utcnow() + timedelta(days=package.duration_days)
-                )
-                db.add(subscription)
-            
-            # Update transaction with subscription_id
-            db.flush()  # Get subscription.id
-            transaction.subscription_id = subscription.id
-            
-            # Add publish quota and bonus credits
-            user.publish_quota += package.publish_quota
-            user.kredit += package.bonus_credits
-            
-            db.commit()
-            
-            return {"ok": True, "message": "Payment processed successfully"}
+                 # If processing failed (e.g. package not found), return success to Doku but log error
+                 # or maybe we should return error to Doku to force manual intervention?
+                 # Returning success to Doku prevents endless retries for unfixable errors
+                 return {"ok": True, "message": "Payment successful but processing failed (check logs)"}
+        elif transaction.status == "success":
+             return {"ok": True, "message": "Payment already processed"}
+
     
     # Handle payment failure or expiration
     if transaction_status in ["FAILED", "EXPIRED"]:
@@ -467,6 +501,29 @@ async def check_payment_status(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Transaction not found"
         )
+    
+    # Lazy Status Check: If pending, ask Doku
+    if transaction.status == "pending" and not settings.USE_MOCK_PAYMENT:
+        try:
+            from app.utils.doku import doku_client
+            # Check status at Doku
+            print(f"Checking Doku status for {invoice_number}...")
+            status_response = doku_client.check_status(invoice_number)
+            
+            if status_response:
+                doku_status = status_response.get("transaction", {}).get("status")
+                print(f"Doku status for {invoice_number}: {doku_status}")
+                
+                if doku_status == "SUCCESS":
+                    process_successful_payment(db, transaction)
+                    db.refresh(transaction)
+                elif doku_status in ["FAILED", "EXPIRED"]:
+                    transaction.status = doku_status.lower()
+                    db.commit()
+                    db.refresh(transaction)
+        except Exception as e:
+            print(f"Failed to auto-update status: {e}")
+
         
     return {
         "ok": True,

@@ -130,5 +130,43 @@ class DokuClient:
             print(f"Doku Request Exception: {str(e)}")
             raise e
 
+    def check_status(self, invoice_number: str) -> dict:
+        """
+        Check Transaction Status from Doku API
+        """
+        target_path = f"/orders/v1/status/{invoice_number}"
+        request_id = str(uuid.uuid4())
+        timestamp = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+        
+        # For GET request, body is empty
+        json_body = ""
+        digest = self.generate_digest(json_body)
+        signature = self.generate_signature(request_id, timestamp, target_path, digest)
+        
+        headers = {
+            "Content-Type": "application/json",
+            "Client-Id": self.client_id,
+            "Request-Id": request_id,
+            "Request-Timestamp": timestamp,
+            "Signature": signature
+        }
+        
+        try:
+            response = requests.get(
+                f"{self.base_url}{target_path}",
+                headers=headers,
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                print(f"Doku Check Status Error: {response.text}")
+                return None
+                
+        except Exception as e:
+            print(f"Doku Check Status Exception: {str(e)}")
+            return None
+
 # Global instance
 doku_client = DokuClient()
