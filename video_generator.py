@@ -248,7 +248,7 @@ def generate_cinematic_video(
         logger.error("FFmpeg not installed or not found in PATH!")
         # Try to check what's available
         try:
-            import shutil
+            # import shutil  <-- Removed to prevent shadowing global import
             ffmpeg_path = shutil.which("ffmpeg")
             logger.error(f"shutil.which('ffmpeg') returned: {ffmpeg_path}")
         except Exception as e:
