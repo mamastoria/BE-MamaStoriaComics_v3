@@ -15,7 +15,7 @@ ENV APP_ENV=production
 
 WORKDIR /app
 
-# System deps for Pillow (jpeg/png), and CA certs
+# System deps for Pillow (jpeg/png), ffmpeg for video, and CA certs
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libjpeg62-turbo-dev \
@@ -25,6 +25,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libtiff5-dev \
     libopenjp2-7-dev \
     ca-certificates \
+    ffmpeg \
  && rm -rf /var/lib/apt/lists/*
 
 # Install Python deps first (better layer caching)

@@ -821,14 +821,19 @@ def build_image_prompt_3x3(global_data: Dict[str, Any], part: Dict[str, Any], pr
     comic_title = (global_data.get("comic_title") or "").strip() or "Judul Komik"
     tagline = (global_data.get("tagline") or "").strip()
 
+    # Build detailed character bible for consistency
     char_bible_lines = []
     for c in characters[:4]:
         if not isinstance(c, dict):
             continue
+        char_name = c.get('name', 'Karakter')
+        char_appearance = c.get('appearance', '')
+        char_outfit = c.get('outfit', '')
+        char_personality = c.get('personality', '')
         char_bible_lines.append(
-            f"- {c.get('name','Karakter')}: {c.get('appearance','')}; outfit: {c.get('outfit','')}; sifat: {c.get('personality','')}"
+            f"- {char_name}: APPEARANCE: {char_appearance}; OUTFIT: {char_outfit}; PERSONALITY: {char_personality}"
         )
-    char_bible = "\n".join(char_bible_lines) if char_bible_lines else "- Buat karakter utama konsisten."
+    char_bible = "\n".join(char_bible_lines) if char_bible_lines else "- Create visually consistent main characters."
 
     panels_list = part.get("panels") or []
     panels_sorted = sorted(
@@ -844,12 +849,12 @@ def build_image_prompt_3x3(global_data: Dict[str, Any], part: Dict[str, Any], pr
         dlgs = _dialogue_lines(panel.get("dialogues"))
         ctx = (panel.get("panel_context") or "").strip()
 
-        dblock = "\n".join([f"- {d}" for d in dlgs]) if dlgs else "- (tanpa dialog)"
+        dblock = "\n".join([f"- {d}" for d in dlgs]) if dlgs else "- (no dialogue)"
         panel_lines.append(
             f"""PANEL {pn}: {title}
 VISUAL: {ctx}
-NARASI (caption 1-2 kalimat, bahasa Indonesia): {narr}
-DIALOG (speech bubbles, max 2):
+NARRATION (caption 1-2 sentences, in Indonesian): {narr}
+DIALOGUE (speech bubbles, max 2):
 {dblock}
 """.strip()
         )
@@ -874,17 +879,32 @@ TEXT RULES (CRITICAL):
 - Avoid distorted letters, random symbols, or unreadable typography.
 - Do NOT place text over faces; keep safe margins.
 - For each panel:
-  * 1 narration caption box (bottom or top) using the provided NARASI.
-  * up to 2 speech bubbles using the provided DIALOG lines.
+  * 1 narration caption box (bottom or top) using the provided NARRATION.
+  * up to 2 speech bubbles using the provided DIALOGUE lines.
 """.strip()
 
     layout_rules = f"""
-LAYOUT / CANVAS (CRITICAL):
-- Single image canvas MUST be portrait and phone-friendly (target aspect ratio {TARGET_AR}, like 1080×1620 or 1024×1536).
-- Draw a perfect 3×3 grid of 9 equal panels.
-- Thick straight white gutters.
-- Each panel must be large and readable on a phone in portrait.
-- Keep compositions simple, strong focal points.
+LAYOUT / CANVAS (CRITICAL - MUST FOLLOW EXACTLY):
+- Single image canvas MUST be portrait with exact aspect ratio {TARGET_AR} (like 1080x1620 or 1024x1536).
+- Draw a PERFECT 3x3 grid of 9 EQUAL panels.
+- PANELS MUST FILL THE ENTIRE CANVAS EDGE-TO-EDGE with NO margins/borders on the outer edges.
+- Use THIN BLACK separator lines (2-3 pixels) between panels, NOT white gutters.
+- NO white space, NO white borders at the edges of the image.
+- The image must start and end at the actual panel content, with NO padding.
+- Each panel must be large and readable on a phone in portrait mode.
+- Keep compositions simple with strong focal points.
+""".strip()
+
+    # Character consistency rules - CRITICAL for multi-page comics
+    character_consistency_rules = """
+CHARACTER CONSISTENCY (MANDATORY - HIGHEST PRIORITY):
+- EVERY character MUST look EXACTLY THE SAME in EVERY panel they appear.
+- Maintain IDENTICAL: face shape, eye color, hair color, hairstyle, skin tone, body type.
+- Maintain IDENTICAL outfit/clothing unless explicitly stated to change.
+- Characters should be immediately recognizable across all panels.
+- Do NOT vary character appearances for "artistic" reasons.
+- If a character appears in panel 1 and panel 9, they MUST look like the SAME person.
+- Reference the CHARACTER BIBLE above for each character's fixed appearance.
 """.strip()
 
     continuity = f"Previous part summary: {prev_part_summary}" if prev_part_summary else "Previous part summary: (first part)"
@@ -895,7 +915,9 @@ Create ONE high-quality COMIC PAGE as a portrait phone-friendly image.
 
 {layout_rules}
 
-STYLE (consistent):
+{character_consistency_rules}
+
+STYLE (consistent across all panels):
 - style_id: {style.get("style_id","")}
 - art_style: {style.get("art_style","clean modern comic")}
 - color_mood: {style.get("color_mood","cinematic warm")}
@@ -904,7 +926,7 @@ STYLE (consistent):
 
 {nuance_rules}
 
-CHARACTER BIBLE (keep consistent across all panels):
+CHARACTER BIBLE (MUST be followed exactly in every panel):
 {char_bible}
 
 STORY CONTINUITY:
@@ -921,10 +943,12 @@ Summary: {part_summary}
 PANELS (reading order left-to-right, top-to-bottom):
 {chr(10).join(panel_lines)}
 
-QUALITY:
+QUALITY REQUIREMENTS:
 - Sharp, clean, no blur/no noise.
-- Perfect grid alignment.
-- Stable character faces/outfits across all panels.
+- PERFECT grid alignment with edge-to-edge panels.
+- IDENTICAL character faces/outfits across all panels - this is CRITICAL.
+- Consistent art style and color palette throughout.
+- NO white borders or margins around the image edges.
 """.strip()
 
 

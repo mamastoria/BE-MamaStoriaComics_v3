@@ -726,14 +726,18 @@ async def get_comic_panels(
             "dialogue": None
         } for i, url in enumerate(comic.panel_images)]
     
-    # Determine status based on draft_job_status
-    status_str = comic.draft_job_status or "pending"
-    if status_str.upper() == "COMPLETED":
-        status_str = "completed"
-    elif status_str.upper() == "PROCESSING":
-        status_str = "processing"
-    elif status_str.upper() == "FAILED":
-        status_str = "failed"
+    # Determine status based on draft_job_status - must be UPPERCASE for Flutter
+    status_str = (comic.draft_job_status or "PENDING").upper()
+    # Map to standard statuses
+    status_mapping = {
+        "COMPLETED": "COMPLETED",
+        "PROCESSING": "PROCESSING",
+        "RENDERING": "RENDERING",
+        "FAILED": "FAILED",
+        "SCRIPT_READY": "SCRIPT_READY",
+        "GENERATING_SCRIPT": "GENERATING_SCRIPT",
+    }
+    status_str = status_mapping.get(status_str, status_str)
     
     return {
         "ok": True,
@@ -1093,12 +1097,15 @@ async def generate_comic(
                 # Generate Video automatically after images are ready
                 try:
                     import video_generator
+                    import traceback
                     
                     # Get panels with images for video
                     panels_for_video = thread_db.query(ComicPanel).filter(
                         ComicPanel.comic_id == comic_id,
                         ComicPanel.image_url.isnot(None)
                     ).order_by(ComicPanel.page_number, ComicPanel.panel_number).all()
+                    
+                    logger.info(f"Video generation: Found {len(panels_for_video)} panels for comic {comic_id}")
                     
                     if panels_for_video:
                         panel_data = [{
@@ -1108,21 +1115,29 @@ async def generate_comic(
                             "description": p.description or p.page_description or ""
                         } for p in panels_for_video]
                         
-                        logger.info(f"Starting video generation for comic {comic_id}...")
+                        logger.info(f"Starting video generation for comic {comic_id} with {len(panel_data)} panels...")
+                        logger.info(f"First panel image URL: {panel_data[0].get('image_url', 'N/A')}")
+                        
                         output_path = video_generator.generate_video_for_comic(
                             comic_id=comic_id,
-                            panels=panel_data,
-                            title=comic_record.title if comic_record else "Untitled"
+                            panels=panel_data
                         )
                         
                         if output_path:
                             # Update video URL in database
+                            logger.info(f"Video output path: {output_path}")
                             if comic_record:
                                 comic_record.preview_video_url = output_path
                                 thread_db.commit()
-                            logger.info(f"Video generated for comic {comic_id}: {output_path}")
+                            logger.info(f"Video generated and saved for comic {comic_id}: {output_path}")
+                        else:
+                            logger.error(f"Video generation returned None for comic {comic_id}")
+                    else:
+                        logger.warning(f"No panels found for video generation for comic {comic_id}")
+                        
                 except Exception as video_err:
-                    logger.warning(f"Video generation warning for comic {comic_id}: {video_err}")
+                    logger.exception(f"Video generation FAILED for comic {comic_id}: {video_err}")
+                    logger.error(f"Video error traceback: {traceback.format_exc()}")
                 
                 logger.info(f"Comic {comic_id} rendering completed successfully!")
                 
@@ -1223,6 +1238,7 @@ async def generate_comic_video(
         """Background task to generate video"""
         try:
             import sys
+            import traceback
             from pathlib import Path
             
             ROOT_DIR = Path(__file__).resolve().parent.parent.parent
@@ -1237,48 +1253,31 @@ async def generate_comic_video(
             
             try:
                 logger.info(f"Starting cinematic video generation for comic {comic_id}...")
+                logger.info(f"Panels data count: {len(panels_data)}")
                 
-                # Generate video
-                output_path = video_generator.generate_video_for_comic(
+                # Generate video - this function handles GCS upload internally
+                video_url = video_generator.generate_video_for_comic(
                     comic_id=comic_id,
                     panels=panels_data
                 )
                 
-                if output_path:
-                    # Upload to GCS
-                    try:
-                        from app.services.google_storage_service import GoogleStorageService
-                        storage = GoogleStorageService()
-                        
-                        with open(output_path, "rb") as f:
-                            video_url = storage.upload_file(
-                                file_content=f.read(),
-                                destination_path=f"comics/videos/{comic_id}_cinematic.mp4",
-                                content_type="video/mp4"
-                            )
-                        
-                        logger.info(f"Video uploaded to GCS: {video_url}")
-                        
-                        # Update comic with video URL
-                        comic_record = thread_db.query(Comic).filter(Comic.id == comic_id).first()
-                        if comic_record:
-                            comic_record.preview_video_url = video_url
-                            thread_db.commit()
-                        
-                        logger.info(f"Comic {comic_id}: Cinematic video generated successfully!")
-                        
-                    except Exception as upload_err:
-                        logger.warning(f"GCS upload failed, using local path: {upload_err}")
-                        # Store local path as fallback
-                        comic_record = thread_db.query(Comic).filter(Comic.id == comic_id).first()
-                        if comic_record:
-                            comic_record.preview_video_url = f"/api/video/{comic_id}"
-                            thread_db.commit()
+                if video_url:
+                    logger.info(f"Video generation returned URL: {video_url}")
+                    
+                    # Update comic with video URL
+                    comic_record = thread_db.query(Comic).filter(Comic.id == comic_id).first()
+                    if comic_record:
+                        comic_record.preview_video_url = video_url
+                        thread_db.commit()
+                        logger.info(f"Comic {comic_id}: Video URL saved to database")
+                    
+                    logger.info(f"Comic {comic_id}: Cinematic video generated successfully!")
                 else:
-                    logger.error(f"Video generation failed for comic {comic_id}")
+                    logger.error(f"Video generation returned None for comic {comic_id}")
                     
             except Exception as e:
                 logger.exception(f"Video generation task failed for comic {comic_id}: {e}")
+                logger.error(f"Traceback: {traceback.format_exc()}")
             finally:
                 thread_db.close()
                 

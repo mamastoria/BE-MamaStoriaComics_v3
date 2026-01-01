@@ -2,7 +2,7 @@
 Core configuration settings for MamaStoria API
 """
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import List, Optional
 import os
 
 
@@ -38,10 +38,10 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: Optional[str] = None
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/google/callback"
     
-    # DOKU Payment
-    DOKU_CLIENT_ID: str
-    DOKU_SECRET_KEY: str
-    DOKU_NOTIFICATION_SECRET: str
+    # DOKU Payment (optional - not all deployments use this)
+    DOKU_CLIENT_ID: str = ""
+    DOKU_SECRET_KEY: str = ""
+    DOKU_NOTIFICATION_SECRET: str = ""
     DOKU_IS_PRODUCTION: bool = False
     
     # CORS
