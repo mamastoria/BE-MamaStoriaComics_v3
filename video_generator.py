@@ -30,8 +30,8 @@ from io import BytesIO
 logger = logging.getLogger("video_generator")
 
 # Video settings
-VIDEO_WIDTH = 1080
-VIDEO_HEIGHT = 1920  # 9:16 aspect ratio for mobile
+VIDEO_WIDTH = 720
+VIDEO_HEIGHT = 1280  # 9:16 aspect ratio for mobile
 VIDEO_FPS = 30
 PANEL_DURATION = 4.0  # seconds per panel (will be adjusted based on narration)
 TRANSITION_DURATION = 0.5  # fade duration
