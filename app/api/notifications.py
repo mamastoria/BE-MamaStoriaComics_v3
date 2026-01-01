@@ -301,6 +301,7 @@ class SendEmailRequest(BaseModel):
     """Schema for sending email"""
     title: str
     message: str
+    emailTo: str
 
 
 @router.post("/notifications/send-email", response_model=dict)
@@ -311,9 +312,10 @@ async def send_email_notification(
 ):
     """
     Send email notification via Resend
-    
+
     - **title**: Email subject
     - **message**: Email HTML body
+    - **emailTo**: Recipient email address
     """
     import requests
     
@@ -324,7 +326,7 @@ async def send_email_notification(
     
     payload = {
         "from": RESEND_EMAIL_FROM,
-        "to": [RESEND_EMAIL_TO],
+        "to": [email_data.emailTo],
         "subject": email_data.title,
         "html": f"<p>{email_data.message}</p>"
     }

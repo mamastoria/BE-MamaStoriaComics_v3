@@ -17,6 +17,8 @@ from app.schemas.user import (
     SendResetToken,
     VerifyResetToken,
     ResetPassword,
+    CheckVerificationCode,
+    SendOTP,
     UpdateKredit,
     ProfileRating,
     ReferralCodeResponse
@@ -207,8 +209,45 @@ async def send_reset_token(
     user.last_verification_sent_at = datetime.utcnow()
     db.commit()
     
-    # TODO: Send via Email Service
-    print(f"Password reset code for {reset_data.email}: {reset_token}")
+    # Send email via Resend
+    try:
+        import requests
+        
+        RESEND_KEY = "re_hsvmU2Zv_EjdhcaWUC7aRuUgfjfinhfVq"
+        RESEND_URL = "https://api.resend.com/emails"
+        RESEND_EMAIL_FROM = "onboarding@resend.dev"
+        
+        headers = {
+            "Authorization": f"Bearer {RESEND_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "from": RESEND_EMAIL_FROM,
+            "to": [reset_data.email],
+            "subject": "Password Reset Code",
+            "html": f"""
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2>Password Reset Request</h2>
+                    <p>You have requested to reset your password. Use the code below:</p>
+                    <h1 style="background-color: #f0f0f0; padding: 20px; text-align: center; letter-spacing: 5px;">
+                        {reset_token}
+                    </h1>
+                    <p>This code will expire in 15 minutes.</p>
+                    <p>If you didn't request this, please ignore this email and your password will remain unchanged.</p>
+                </div>
+            """
+        }
+        
+        response = requests.post(RESEND_URL, json=payload, headers=headers)
+        response.raise_for_status()
+        
+        print(f"Password reset code sent to {reset_data.email}: {reset_token}")
+        
+    except Exception as e:
+        # Log error but don't fail the request (security)
+        print(f"Failed to send reset email: {str(e)}")
+        # Still return success message to not reveal if email exists
     
     return {
         "ok": True,
@@ -288,6 +327,123 @@ async def reset_password(
         "ok": True,
         "message": "Password reset successfully"
     }
+
+
+@router.post("/users/check-verification-code", response_model=dict)
+async def check_verification_code(
+    check_data: CheckVerificationCode,
+    db: Session = Depends(get_db)
+):
+    """
+    Check if verification code is valid for a given email
+    
+    - **email**: User's email address
+    - **verification_code**: 6-digit verification code
+    
+    Returns user info if code is valid and not expired
+    """
+    user = db.query(User).filter(User.email == check_data.email).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    if user.verification_code != check_data.verification_code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid verification code"
+        )
+    
+    # Check expiry (15 minutes)
+    if user.last_verification_sent_at:
+        expiry = user.last_verification_sent_at + timedelta(minutes=15)
+        if datetime.utcnow() > expiry:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Verification code expired"
+            )
+    
+    return {
+        "ok": True,
+        "message": "Verification code is valid",
+        "data": {
+            "user_id": user.id_users,
+            "email": user.email,
+            "full_name": user.full_name,
+            "is_verified": user.is_verified
+        }
+    }
+
+
+@router.post("/users/send-otp", response_model=dict)
+async def send_otp(
+    otp_data: SendOTP,
+    db: Session = Depends(get_db)
+):
+    """
+    Send OTP verification code to email
+    
+    - **email**: User's email address
+    
+    Generates 6-digit OTP, saves to database, and sends via email
+    Returns simple true/false response
+    """
+    # Check if user exists
+    user = db.query(User).filter(User.email == otp_data.email).first()
+    
+    if not user:
+        # Return false without revealing user doesn't exist (security)
+        return {"ok": False}
+    
+    # Generate 6-digit OTP
+    otp_code = generate_verification_code()
+    
+    # Save to database
+    user.verification_code = otp_code
+    user.last_verification_sent_at = datetime.utcnow()
+    db.commit()
+    
+    # Send email via Resend
+    try:
+        import requests
+        
+        RESEND_KEY = "re_hsvmU2Zv_EjdhcaWUC7aRuUgfjfinhfVq"
+        RESEND_URL = "https://api.resend.com/emails"
+        RESEND_EMAIL_FROM = "onboarding@resend.dev"
+        
+        headers = {
+            "Authorization": f"Bearer {RESEND_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "from": RESEND_EMAIL_FROM,
+            "to": [otp_data.email],
+            "subject": "Your Verification Code",
+            "html": f"""
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2>Verification Code</h2>
+                    <p>Your verification code is:</p>
+                    <h1 style="background-color: #f0f0f0; padding: 20px; text-align: center; letter-spacing: 5px;">
+                        {otp_code}
+                    </h1>
+                    <p>This code will expire in 15 minutes.</p>
+                    <p>If you didn't request this code, please ignore this email.</p>
+                </div>
+            """
+        }
+        
+        response = requests.post(RESEND_URL, json=payload, headers=headers)
+        response.raise_for_status()
+        
+        return {"ok": True}
+        
+    except Exception as e:
+        # Log error but still return false (don't expose internal errors)
+        print(f"Failed to send OTP email: {str(e)}")
+        return {"ok": False}
 
 
 @router.post("/profile/update-kredit", response_model=dict)

@@ -181,6 +181,10 @@ async def startup_event():
             # Add doku fields if not exists
             conn.execute(text("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS doku_order_id VARCHAR(255)"))
             conn.execute(text("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS doku_response TEXT"))
+            # Add type_transaction if not exists
+            conn.execute(text("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS type_transaction VARCHAR(255)"))
+            # Add expires_at if not exists
+            conn.execute(text("ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP WITH TIME ZONE"))
             
             # Commit changes
             try:

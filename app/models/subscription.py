@@ -84,6 +84,10 @@ class PaymentTransaction(Base):
     doku_order_id = Column(String, nullable=True, index=True)
     doku_response = Column(Text, nullable=True)  # JSON response from DOKU
     
+    # Transaction type and expiration
+    type_transaction = Column(String, nullable=True)  # topup, subscription, etc.
+    expires_at = Column(DateTime(timezone=True), nullable=True)  # Payment expiration time
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     

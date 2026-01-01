@@ -180,15 +180,20 @@ async def purchase_subscription(
     # Generate order ID (used as invoice number)
     order_id = f"INV-{uuid.uuid4().hex[:8].upper()}-{int(datetime.now().timestamp())}"
     
+    # Set payment expiration (24 hours from now - standard for Doku)
+    expires_at = datetime.utcnow() + timedelta(hours=24)
+    
     # Create payment transaction
     transaction = PaymentTransaction(
         user_id=current_user.id_users,
         subscription_id=None,
-        invoice_number=order_id, # FIX: Set this instead of None
-        doku_order_id=order_id, # Use doku_order_id as main identifier
+        invoice_number=order_id,
+        doku_order_id=order_id,
         amount=package.price,
         payment_method=purchase_data.payment_method,
-        status="pending"
+        status="pending",
+        type_transaction="subscription",  # Type of transaction
+        expires_at=expires_at  # Payment expiration time
     )
     
     db.add(transaction)
@@ -379,6 +384,10 @@ async def payment_callback(
             detail="Transaction not found"
         )
     
+    # Store Doku response for audit trail
+    import json
+    transaction.doku_response = json.dumps(body)
+    
     # Handle payment success
     if transaction_status == "SUCCESS" and transaction.status == "pending":
         # Update transaction status
@@ -433,6 +442,39 @@ async def payment_callback(
         db.commit()
     
     return {"ok": True, "message": "Callback received"}
+
+
+@router.get("/subscriptions/payment-status/{invoice_number}", response_model=dict)
+async def check_payment_status(
+    invoice_number: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Check payment status by invoice number
+    """
+    transaction = db.query(PaymentTransaction).filter(
+        PaymentTransaction.invoice_number == invoice_number
+    ).first()
+    
+    if not transaction:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transaction not found"
+        )
+        
+    return {
+        "ok": True,
+        "data": {
+            "invoice_number": transaction.invoice_number,
+            "status": transaction.status,
+            "amount": transaction.amount,
+            "payment_method": transaction.payment_method,
+            "created_at": transaction.created_at,
+            "payment_url": transaction.payment_url,
+            "type_transaction": transaction.type_transaction,
+            "expires_at": transaction.expires_at
+        }
+    }
 
 
 @router.get("/me/subscription", response_model=dict)

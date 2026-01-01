@@ -68,6 +68,17 @@ class ResetPassword(BaseModel):
     new_password: str = Field(..., min_length=6)
 
 
+class CheckVerificationCode(BaseModel):
+    """Schema for checking verification code"""
+    email: EmailStr
+    verification_code: str = Field(..., min_length=6, max_length=6)
+
+
+class SendOTP(BaseModel):
+    """Schema for sending OTP to email"""
+    email: EmailStr
+
+
 class UpdateProfile(BaseModel):
     """Schema for updating profile details"""
     full_name: Optional[str] = Field(None, min_length=2, max_length=100)
