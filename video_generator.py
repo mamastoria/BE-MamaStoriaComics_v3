@@ -23,6 +23,7 @@ import logging
 import subprocess
 import tempfile
 import shutil
+import random
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from io import BytesIO
@@ -31,7 +32,7 @@ logger = logging.getLogger("video_generator")
 
 # Video settings
 VIDEO_WIDTH = 720
-VIDEO_HEIGHT = 1280  # 9:16 aspect ratio for mobile
+VIDEO_HEIGHT = 1280  # 720p vertical (9:16)
 VIDEO_FPS = 30
 PANEL_DURATION = 4.0  # seconds per panel (will be adjusted based on narration)
 TRANSITION_DURATION = 0.5  # fade duration
@@ -62,7 +63,7 @@ def generate_tts_audio(
     text: str,
     output_path: str,
     language_code: str = "id-ID",
-    voice_name: str = "id-ID-Wavenet-D",  # MALE, Deep & Dramatic
+    voice_name: str = "id-ID-Wavenet-A",  # FEMALE, Soft & Storytelling
 ) -> Optional[float]:
     """
     Generate TTS audio using Google Cloud Text-to-Speech.
@@ -80,13 +81,13 @@ def generate_tts_audio(
         voice = texttospeech.VoiceSelectionParams(
             language_code=language_code,
             name=voice_name,
-            ssml_gender=texttospeech.SsmlVoiceGender.MALE
+            ssml_gender=texttospeech.SsmlVoiceGender.FEMALE
         )
         
         audio_config = texttospeech.AudioConfig(
             audio_encoding=texttospeech.AudioEncoding.MP3,
-            speaking_rate=0.85,  # Slower pace for storytelling
-            pitch=-2.0,          # Deeper voice for dramatic effect
+            speaking_rate=0.9,   # Natural pace
+            pitch=0.0,           # Natural pitch (removed deep effect)
             volume_gain_db=0.0
         )
         
@@ -160,21 +161,38 @@ def prepare_panel_image(
         original_w, original_h = img.size
         
         # Calculate scaling to fill frame
-        scale_w = target_width / original_w
-        scale_h = target_height / original_h
-        scale = max(scale_w, scale_h) * 1.15  # Scale up for Ken Burns room
+        # FIT TO SCREEN LOGIC WITH BLURRED BACKGROUND (FULL VISIBILITY)
         
-        new_w = int(original_w * scale)
-        new_h = int(original_h * scale)
+        # 1. Background: Blurred Cover
+        scale_cover = max(target_width / original_w, target_height / original_h)
+        nw_cover = int(original_w * scale_cover)
+        nh_cover = int(original_h * scale_cover)
         
-        img_resized = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+        bg_img = img.resize((nw_cover, nh_cover), Image.Resampling.LANCZOS)
+        # Center crop background
+        left = (nw_cover - target_width) // 2
+        top = (nh_cover - target_height) // 2
+        bg_img = bg_img.crop((left, top, left + target_width, top + target_height))
+        bg_img = bg_img.filter(ImageFilter.GaussianBlur(radius=30))
         
-        # Center crop to target size
-        left = (new_w - target_width) // 2
-        top = (new_h - target_height) // 2
-        img_cropped = img_resized.crop((left, top, left + target_width, top + target_height))
+        # Darken background
+        from PIL import ImageEnhance
+        enhancer = ImageEnhance.Brightness(bg_img)
+        bg_img = enhancer.enhance(0.5)
+
+        # 2. Foreground: Fit Inside
+        scale_fit = min(target_width / original_w, target_height / original_h)
+        nw_fit = int(original_w * scale_fit)
+        nh_fit = int(original_h * scale_fit)
+        fg_img = img.resize((nw_fit, nh_fit), Image.Resampling.LANCZOS)
         
-        img_cropped.save(output_path, "PNG", quality=95)
+        # Paste center
+        pos_x = (target_width - nw_fit) // 2
+        pos_y = (target_height - nh_fit) // 2
+        
+        bg_img.paste(fg_img, (pos_x, pos_y))
+        
+        bg_img.save(output_path, "PNG", quality=95)
         return True
         
     except Exception as e:
@@ -192,28 +210,19 @@ def create_ken_burns_filter(
 ) -> str:
     """
     Create FFmpeg filter for Ken Burns effect (zoom + pan).
-    Alternates between different motion patterns for variety.
+    Simple gentle zoom in/out to avoid distraction.
     """
     patterns = [
-        # Zoom in from center
-        {"start_zoom": 1.0, "end_zoom": 1.12, "start_x": 0.5, "start_y": 0.5, "end_x": 0.5, "end_y": 0.5},
-        # Zoom out with slight pan right
-        {"start_zoom": 1.15, "end_zoom": 1.0, "start_x": 0.45, "start_y": 0.5, "end_x": 0.55, "end_y": 0.5},
-        # Pan left to right
-        {"start_zoom": 1.1, "end_zoom": 1.1, "start_x": 0.3, "start_y": 0.5, "end_x": 0.7, "end_y": 0.5},
-        # Pan top to bottom
-        {"start_zoom": 1.1, "end_zoom": 1.1, "start_x": 0.5, "start_y": 0.35, "end_x": 0.5, "end_y": 0.65},
-        # Zoom in with pan to bottom-right
-        {"start_zoom": 1.0, "end_zoom": 1.15, "start_x": 0.4, "start_y": 0.4, "end_x": 0.6, "end_y": 0.6},
+        # Still Image (No Zoom/Pan) - Static 1.0 zoom
+        {"start_zoom": 1.0, "end_zoom": 1.0, "x": "iw/2-(iw/zoom/2)", "y": "ih/2-(ih/zoom/2)"},
     ]
     
     p = patterns[panel_index % len(patterns)]
     
     # Calculate zoom and position expressions
-    # t = current time, d = duration
     zoom_expr = f"{p['start_zoom']}+({p['end_zoom']}-{p['start_zoom']})*time/{duration}"
-    x_expr = f"(iw-iw/zoom)/2+({p['start_x']}-0.5)*iw*(1-time/{duration})+({p['end_x']}-0.5)*iw*time/{duration}"
-    y_expr = f"(ih-ih/zoom)/2+({p['start_y']}-0.5)*ih*(1-time/{duration})+({p['end_y']}-0.5)*ih*time/{duration}"
+    x_expr = p['x']
+    y_expr = p['y']
     
     return f"zoompan=z='{zoom_expr}':x='{x_expr}':y='{y_expr}':d={int(duration*VIDEO_FPS)}:s={width}x{height}:fps={VIDEO_FPS}"
 
@@ -223,7 +232,7 @@ def generate_cinematic_video(
     output_path: str,
     background_music_path: Optional[str] = None,
     with_narration: bool = True,
-    with_letterbox: bool = True
+    with_letterbox: bool = False  # Default False as per request
 ) -> bool:
     """
     Generate a cinematic video from comic panels.
@@ -296,20 +305,54 @@ def generate_cinematic_video(
             if with_narration:
                 narration_text = panel.get("narration", "")
                 dialogue = panel.get("dialogue", [])
-                if isinstance(dialogue, list):
-                    dialogue_text = " ".join([d.get("text", "") for d in dialogue if isinstance(d, dict)])
-                else:
-                    dialogue_text = str(dialogue) if dialogue else ""
                 
-                full_text = f"{narration_text} {dialogue_text}".strip()
+                # REQ: Panel 1 (Cover) - NO DIALOGUE
+                if i == 0:
+                    dialogue = []
+                
+                # Collect text parts for TTS
+                text_parts = []
+                if narration_text:
+                    text_parts.append(narration_text)
+                
+                # Handle dialogue (can be list of strings or dicts)
+                if isinstance(dialogue, list):
+                    for d in dialogue:
+                        if isinstance(d, str):
+                            # Reformat "Name: Dialog" -> "Dialog, ucap Name"
+                            if ":" in d:
+                                try:
+                                    parts = d.split(":", 1)
+                                    name = parts[0].strip()
+                                    text = parts[1].strip().replace('"', '').replace("'", "")
+                                    
+                                    # Randomize formatting
+                                    ucap_words = ["ucap", "kata", "ujar", "tukas"]
+                                    if random.random() > 0.5:
+                                        d_formatted = f"{text}, {random.choice(ucap_words)} {name}."
+                                    else:
+                                        d_formatted = f"{name} berkata, {text}."
+                                    text_parts.append(d_formatted)
+                                except:
+                                    text_parts.append(d)
+                            else:
+                                text_parts.append(d)
+                        elif isinstance(d, dict):
+                            text_parts.append(d.get("text", str(d)))
+                elif isinstance(dialogue, str) and dialogue:
+                    text_parts.append(dialogue)
+                
+                # Join with SSML break for natural pause
+                full_text = ' <break time="600ms"/> '.join([p for p in text_parts if p])
                 
                 if full_text:
                     audio_path = os.path.join(work_dir, f"narration_{i:02d}.mp3")
                     audio_duration = generate_tts_audio(full_text, audio_path)
                     
                     if audio_duration:
-                        # Add buffer after narration
-                        duration = max(MIN_PANEL_DURATION, min(MAX_PANEL_DURATION, audio_duration + 1.0))
+                        # AUDIO SYNC FIX: Video duration must be Audio + Transition overlap + small buffer.
+                        # We remove MAX_PANEL_DURATION cap to allow full playback of long dialogues.
+                        duration = max(MIN_PANEL_DURATION, audio_duration + TRANSITION_DURATION + 0.3)
                         audio_files.append(audio_path)
                     else:
                         audio_files.append(None)
@@ -341,8 +384,8 @@ def generate_cinematic_video(
             else:
                 letterbox_filter = ""
             
-            # Add subtle vignette for cinematic look
-            vignette_filter = ",vignette=PI/4"
+            # Add subtle vignette for cinematic look (reduced intensity)
+            vignette_filter = ",vignette=PI/10"
             
             # Combine filters
             full_filter = f"{kb_filter}{letterbox_filter}{vignette_filter}"
@@ -545,9 +588,10 @@ def generate_cinematic_video(
                         "ffmpeg", "-y",
                         "-i", concatenated_video,
                         "-i", audio_concat,
+                        "-stream_loop", "-1",  # Loop music infinitely
                         "-i", background_music_path,
                         "-filter_complex",
-                        "[1:a]volume=1.0[narr];[2:a]volume=0.15[music];[narr][music]amix=inputs=2:duration=shortest[aout]",
+                        "[1:a]volume=1.0[narr];[2:a]volume=0.25[music];[narr][music]amix=inputs=2:duration=first[aout]",
                         "-map", "0:v:0",
                         "-map", "[aout]",
                         "-c:v", "copy",
@@ -616,7 +660,7 @@ def generate_video_for_comic(
             output_path=output_path,
             background_music_path=str(bg_music_path) if bg_music_path.exists() else None,
             with_narration=True,
-            with_letterbox=True
+            with_letterbox=False  # Disable letterbox
         )
         
         if not success or not os.path.exists(output_path):
