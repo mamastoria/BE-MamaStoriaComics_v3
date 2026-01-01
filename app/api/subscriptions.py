@@ -615,6 +615,7 @@ async def get_payment_history(
     
     history_data = []
     for transaction in items:
+
         history_data.append({
             "id": transaction.id,
             "invoice_number": transaction.doku_order_id, # Map doku_order_id to invoice_number for FE compatibility
@@ -622,7 +623,7 @@ async def get_payment_history(
             "status": transaction.status,
             "payment_method": transaction.payment_method,
             "created_at": transaction.created_at,
-            "package_name": package_name
+            "type_transaction": transaction.type_transaction
         })
     
     return paginated_response(history_data, page, per_page, total)
