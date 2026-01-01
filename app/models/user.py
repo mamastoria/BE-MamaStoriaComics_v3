@@ -49,6 +49,7 @@ class User(Base):
     
     # Subscription
     publish_quota = Column(Integer, default=0, nullable=False)
+    watermark = Column(Boolean, default=True, nullable=False)
     
     # Rating System
     previous_rating = Column(Integer, nullable=True)

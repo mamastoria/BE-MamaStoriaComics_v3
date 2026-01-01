@@ -21,7 +21,9 @@ from app.schemas.user import (
     SendOTP,
     UpdateKredit,
     ProfileRating,
-    ReferralCodeResponse
+    ProfileRating,
+    ReferralCodeResponse,
+    UpdateWatermark
 )
 from app.services.google_storage_service import GoogleStorageService
 from datetime import datetime, timedelta
@@ -151,6 +153,30 @@ async def update_profile_photo(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to upload photo: {str(e)}"
         )
+
+
+@router.post("/profile/update-watermark", response_model=dict)
+async def update_watermark(
+    watermark_data: UpdateWatermark,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Update watermark preference
+    
+    - **watermark**: boolean (true/false)
+    """
+    current_user.watermark = watermark_data.watermark
+    db.commit()
+    db.refresh(current_user)
+    
+    return {
+        "ok": True,
+        "message": "Watermark preference updated successfully",
+        "data": {
+            "watermark": current_user.watermark
+        }
+    }
 
 
 @router.post("/password/change-password", response_model=dict)

@@ -100,6 +100,11 @@ class UpdateFCMToken(BaseModel):
     fcm_token: str
 
 
+class UpdateWatermark(BaseModel):
+    """Schema for updating watermark preference"""
+    watermark: bool
+
+
 class GoogleTokenVerify(BaseModel):
     """Schema for Google OAuth token verification"""
     id_token: str
@@ -130,6 +135,7 @@ class UserResponse(UserBase):
     balance: int
     profile_photo_path: Optional[str]
     publish_quota: int
+    watermark: bool
     previous_rating: Optional[int]
     previous_rating_name: Optional[str]
     created_at: datetime
