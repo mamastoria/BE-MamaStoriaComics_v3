@@ -653,4 +653,51 @@ async def check_transaction_status(
     }
 
 
+@router.get("/referral/check-bonus", response_model=dict)
+async def check_referral_bonus(
+    user_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Check if user is eligible for referral bonus
+    
+    - **user_id**: User ID to check
+    
+    Logic:
+    1. Check if user has a parent referral (exists in referrals table as referred_user_id)
+    2. If has parent, check if user has any successful subscription payment (type_transaction='subscription')
+    3. Return true if both conditions met, false otherwise
+    
+    Returns boolean indicating eligibility for referral bonus
+    """
+    from app.models.referral import Referral
+    
+    # Step 1: Check if user has parent referral
+    referral_record = db.query(Referral).filter(
+        Referral.referred_user_id == user_id
+    ).first()
+    
+    if not referral_record:
+        # No parent referral found
+        return {
+            "ok": True,
+            "data": False,
+            "message": "User has no parent referral"
+        }
+    
+    # Step 2: Check if user has successful subscription payment
+    has_subscription = db.query(PaymentTransaction).filter(
+        PaymentTransaction.user_id == user_id,
+        PaymentTransaction.type_transaction == "subscription",
+        PaymentTransaction.status == "success"
+    ).count() > 0
+    
+    return {
+        "ok": True,
+        "data": has_subscription,
+        "message": "Eligible for referral bonus" if has_subscription else "No successful subscription payment found",
+        "referrer_id": referral_record.referrer_id if has_subscription else None
+    }
+
+
 
