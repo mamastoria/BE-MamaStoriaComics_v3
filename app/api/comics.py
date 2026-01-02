@@ -37,7 +37,7 @@ async def list_comics(
     per_page: int = Query(20, ge=1, le=100),
     genre: Optional[str] = None,
     style: Optional[str] = None,
-    search: Optional[str] = None,
+    q: Optional[str] = None,  # Changed from 'search' to 'q'
     db: Session = Depends(get_db)
 ):
     """
@@ -47,7 +47,7 @@ async def list_comics(
     - **per_page**: Items per page (default: 20, max: 100)
     - **genre**: Filter by genre name
     - **style**: Filter by style name
-    - **search**: Search in title and synopsis
+    - **q**: Search query in title, synopsis, and tags
     """
     # Base query - only published comics
     query = db.query(Comic).filter(
@@ -62,11 +62,12 @@ async def list_comics(
     if style:
         query = query.filter(Comic.style == style)
     
-    if search:
-        search_term = f"%{search}%"
+    if q:
+        search_term = f"%{q}%"
         query = query.filter(
             (Comic.title.ilike(search_term)) | 
-            (Comic.synopsis.ilike(search_term))
+            (Comic.synopsis.ilike(search_term)) |
+            (Comic.tags.ilike(search_term))  # Added tags search
         )
     
     # Order by views (most popular first)

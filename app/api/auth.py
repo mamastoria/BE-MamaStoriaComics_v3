@@ -206,9 +206,11 @@ async def refresh_token(
     token_data: RefreshTokenRequest
 ):
     """
-    Refresh access token using refresh token
+    Refresh access token using refresh token (Sliding Session)
     
     - **refresh_token**: Refresh token string
+    
+    Returns new access token AND new refresh token to keep session alive
     
     Request body should be JSON:
     {
@@ -222,9 +224,9 @@ async def refresh_token(
             detail="refresh_token cannot be empty"
         )
     
-    new_access_token = AuthService.refresh_access_token(token_data.refresh_token)
+    tokens = AuthService.refresh_access_token(token_data.refresh_token)
     
-    if not new_access_token:
+    if not tokens:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid refresh token"
@@ -232,10 +234,7 @@ async def refresh_token(
     
     return {
         "ok": True,
-        "data": {
-            "access_token": new_access_token,
-            "token_type": "bearer"
-        }
+        "data": tokens
     }
 
 

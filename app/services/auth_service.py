@@ -252,15 +252,15 @@ class AuthService:
         }
     
     @staticmethod
-    def refresh_access_token(refresh_token: str) -> Optional[str]:
+    def refresh_access_token(refresh_token: str) -> Optional[dict]:
         """
-        Create new access token from refresh token
+        Create new access and refresh tokens from refresh token (Sliding Session)
         
         Args:
             refresh_token: Refresh token string
             
         Returns:
-            New access token or None if invalid
+            Dict with new access_token, refresh_token, and expires_in, or None if invalid
         """
         payload = decode_token(refresh_token)
         
@@ -271,9 +271,16 @@ class AuthService:
         if not user_id:
             return None
         
-        # Create new access token
+        # Create new access token AND new refresh token (sliding session)
         new_access_token = create_access_token(data={"sub": user_id})
-        return new_access_token
+        new_refresh_token = create_refresh_token(data={"sub": user_id})
+        
+        return {
+            "access_token": new_access_token,
+            "refresh_token": new_refresh_token,
+            "token_type": "bearer",
+            "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        }
     
     @staticmethod
     def update_fcm_token(
