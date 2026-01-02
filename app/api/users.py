@@ -421,7 +421,12 @@ async def send_otp(
     
     if not user:
         # Return false without revealing user doesn't exist (security)
-        return {"ok": False}
+        # Modified for debugging: return clearer message
+        print(f"Send OTP failed - User not found: {otp_data.email}")
+        return {
+            "ok": False,
+            "message": "User not found"
+        }
     
     # Generate 6-digit OTP
     otp_code = generate_verification_code()
@@ -469,7 +474,10 @@ async def send_otp(
     except Exception as e:
         # Log error but still return false (don't expose internal errors)
         print(f"Failed to send OTP email: {str(e)}")
-        return {"ok": False}
+        return {
+            "ok": False, 
+            "message": f"Failed to send email: {str(e)}"
+        }
 
 
 @router.post("/profile/update-kredit", response_model=dict)

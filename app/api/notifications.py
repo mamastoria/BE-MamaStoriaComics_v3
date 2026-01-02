@@ -45,7 +45,6 @@ class NotificationResponse(BaseModel):
 @router.post("/notifications", response_model=dict)
 async def create_notification(
     notification_data: NotificationCreate,
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
