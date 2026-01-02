@@ -150,6 +150,38 @@ def render_comic_images_task(comic_id: int, script_data: dict, style: str):
             logger.exception(f"Video generation FAILED for comic {comic_id}: {video_err}")
             logger.error(f"Video error traceback: {traceback.format_exc()}")
         
+        
+        # Notify user (Database + Push)
+        try:
+            # Re-query comic to ensure user relationship is loaded
+            comic_notif = thread_db.query(Comic).filter(Comic.id == comic_id).first()
+            if comic_notif:
+                from app.models.notification import Notification
+                from app.services.push_notification_service import send_push_notification
+                
+                # Create DB Notification
+                notif = Notification(
+                    user_id=comic_notif.user_id,
+                    type="success",
+                    title="Komik Selesai! 🎉",
+                    message=f"Komik '{comic_notif.title or 'baru'}' sudah siap dibaca.",
+                    data=f'{{"comic_id": {comic_id}, "status": "success"}}'
+                )
+                thread_db.add(notif)
+                thread_db.commit()
+
+                # Push Notification via FCM
+                if comic_notif.user and comic_notif.user.fcm_token:
+                    logger.info(f"Sending push notification to user {comic_notif.user_id}")
+                    send_push_notification(
+                        fcm_token=comic_notif.user.fcm_token,
+                        title="Komik Selesai! 🎉",
+                        body=f"Komik '{comic_notif.title or 'baru'}' sudah siap dibaca.",
+                        data={"comic_id": str(comic_id), "type": "success"}
+                    )
+        except Exception as notif_err:
+            logger.error(f"Failed to send notification for comic {comic_id}: {notif_err}")
+
         logger.info(f"Comic {comic_id} rendering completed successfully!")
         
     except Exception as e:
