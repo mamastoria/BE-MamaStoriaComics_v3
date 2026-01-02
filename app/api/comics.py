@@ -1333,11 +1333,12 @@ async def delete_draft(
             detail="Draft not found"
         )
     
-    # Only delete if not published
-    if comic.title:
+    # Only delete if not published/completed
+    # Allow deleting failed/pending drafts even if they have a title
+    if comic.draft_job_status == "COMPLETED":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot delete published comic"
+            detail="Cannot delete completed/published comic"
         )
     
     db.delete(comic)
