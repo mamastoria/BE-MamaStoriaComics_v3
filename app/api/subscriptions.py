@@ -152,7 +152,7 @@ async def list_packages(db: Session = Depends(get_db)):
     
     Returns list of available subscription packages with pricing and features
     """
-    packages = db.query(SubscriptionPackage).all()
+    packages = db.query(SubscriptionPackage).order_by(SubscriptionPackage.price.asc()).all()
     
     packages_data = [
         SubscriptionPackageResponse.model_validate(pkg).model_dump()
