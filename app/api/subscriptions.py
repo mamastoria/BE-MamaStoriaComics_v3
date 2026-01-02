@@ -131,8 +131,9 @@ def process_successful_payment(db: Session, transaction: PaymentTransaction) -> 
     transaction.subscription_id = subscription.id
     
     # Update User Quota/Credits (Accumulate)
-    user.publish_quota += package.publish_quota
-    user.kredit += package.bonus_credits
+    # DISABLED: User requested to handle credit addition on FE side (or not at all here)
+    # user.publish_quota += package.publish_quota
+    # user.kredit += package.bonus_credits
     
     try:
         db.commit()
@@ -515,7 +516,19 @@ async def check_payment_status(
                 print(f"Doku status for {invoice_number}: {doku_status}")
                 
                 if doku_status == "SUCCESS":
-                    process_successful_payment(db, transaction)
+                    # Payment is confirmed by Gateway
+                    if process_successful_payment(db, transaction):
+                         # Credits given, status updated to success inside logic
+                         pass
+                    else:
+                         # Payment successful at Doku but app processing failed (e.g. package not found)
+                         # We force status to success so it's recorded as paid
+                         print(f"CRITICAL: Payment {invoice_number} success at Doku but processing failed.")
+                         import json
+                         transaction.status = "success"
+                         transaction.doku_response = json.dumps(status_response)
+                         db.commit()
+                    
                     db.refresh(transaction)
                 elif doku_status in ["FAILED", "EXPIRED"]:
                     transaction.status = doku_status.lower()
