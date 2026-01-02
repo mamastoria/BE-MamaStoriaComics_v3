@@ -149,8 +149,8 @@ class DokuClient:
         
         # Signature (Inlined)
         # Signature (Inlined)
-        # For GET requests (Check Status), Digest is NOT included in the signature component
-        raw_signature = f"Client-Id:{self.client_id}\nRequest-Id:{request_id}\nRequest-Timestamp:{timestamp}\nRequest-Target:{target_path}"
+        # For GET requests (Check Status), Digest MUST be included in the signature component for Doku Jokul
+        raw_signature = f"Client-Id:{self.client_id}\nRequest-Id:{request_id}\nRequest-Timestamp:{timestamp}\nRequest-Target:{target_path}\nDigest:{digest_str}"
         
         signature_bytes = hmac.new(
             self.secret_key.encode('utf-8'),
