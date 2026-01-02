@@ -74,6 +74,12 @@ class GoogleOAuthService:
             # Update user info if needed
             if google_info.get('picture') and not user.profile_photo_path:
                 user.profile_photo_path = google_info['picture']
+            
+            # Trust Google verification and auto-verify user
+            if google_info.get('email_verified') and not user.is_verified:
+                user.is_verified = True
+                user.verification_code = None
+                
             db.commit()
             db.refresh(user)
             return user
@@ -87,6 +93,12 @@ class GoogleOAuthService:
                 user.login_method = 'google'
                 if google_info.get('picture') and not user.profile_photo_path:
                     user.profile_photo_path = google_info['picture']
+
+                # Trust Google verification and auto-verify user
+                if google_info.get('email_verified') and not user.is_verified:
+                    user.is_verified = True
+                    user.verification_code = None
+
                 db.commit()
                 db.refresh(user)
                 return user
@@ -99,7 +111,7 @@ class GoogleOAuthService:
             full_name=google_info.get('name', 'Google User'),
             email=google_info.get('email'),
             phone_number=phone_number,
-            password_hash='',  # No password for Google OAuth users
+            password='',  # No password for Google OAuth users
             external_id=google_info['google_id'],
             login_method='google',
             is_verified=google_info.get('email_verified', True),  # Trust Google verification
