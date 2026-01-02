@@ -136,6 +136,64 @@ async def like_comic(
     
     db.commit()
     
+    # Notify author and check milestones
+    try:
+        from app.models.notification import Notification
+        from app.services.push_notification_service import send_push_notification
+        import logging
+        logger = logging.getLogger(__name__)
+
+        # 1. Notify Author (if not self-like)
+        if comic_obj.user_id != current_user.id_users:
+            author = comic_obj.user
+            
+            # DB Notification
+            notif = Notification(
+                user_id=comic_obj.user_id,
+                type="engagement",
+                title="Seseorang menyukai komikmu! ❤️",
+                message=f"{current_user.full_name or current_user.username} menyukai komik '{comic_obj.title or 'Unknown'}'",
+                data=f'{{"comic_id": {comic}, "user_id": {current_user.id_users}}}'
+            )
+            db.add(notif)
+            
+            # Push Notification
+            if author and author.fcm_token:
+                send_push_notification(
+                    fcm_token=author.fcm_token,
+                    title="Seseorang menyukai komikmu! ❤️",
+                    body=f"{current_user.full_name or current_user.username} menyukai komik '{comic_obj.title or 'Unknown'}'",
+                    data={"comic_id": str(comic), "type": "engagement"}
+                )
+
+        # 2. Check Milestones
+        milestones = [10, 50, 100, 500, 1000, 5000, 10000]
+        if comic_obj.total_likes in milestones:
+            # DB Notification
+            notif_milestone = Notification(
+                user_id=comic_obj.user_id,
+                type="milestone",
+                title="Milestone Tercapai! 🏆",
+                message=f"Selamat! Komik '{comic_obj.title or 'Unknown'}' sudah mencapai {comic_obj.total_likes} likes!",
+                data=f'{{"comic_id": {comic}, "total_likes": {comic_obj.total_likes}}}'
+            )
+            db.add(notif_milestone)
+            
+            # Push Notification
+            if comic_obj.user and comic_obj.user.fcm_token:
+                 send_push_notification(
+                    fcm_token=comic_obj.user.fcm_token,
+                    title="Milestone Tercapai! 🏆",
+                    body=f"Selamat! Komik '{comic_obj.title or 'Unknown'}' sudah mencapai {comic_obj.total_likes} likes!",
+                    data={"comic_id": str(comic), "type": "milestone"}
+                )
+
+        db.commit()
+    except Exception as e:
+        logger.error(f"Failed to send like notification: {e}")
+        # Don't rollback main transaction as like is already committed
+
+    
     return {
         "ok": True,
         "message": "Comic liked successfully",

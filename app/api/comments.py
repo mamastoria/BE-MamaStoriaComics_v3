@@ -135,6 +135,64 @@ async def create_comment(
     
     db.commit()
     db.refresh(comment)
+
+    # Notify author and check milestones
+    try:
+        from app.models.notification import Notification
+        from app.services.push_notification_service import send_push_notification
+
+        # 1. Notify Author (if not self-comment)
+        if comic_obj.user_id != current_user.id_users:
+            author = comic_obj.user
+            
+            # Create snippet for message
+            snippet = comment_data.content[:50] + "..." if len(comment_data.content) > 50 else comment_data.content
+
+            # DB Notification
+            notif = Notification(
+                user_id=comic_obj.user_id,
+                type="new_comment",
+                title="Komentar baru di komikmu! 💬",
+                message=f"{current_user.full_name or current_user.username} mengomentari: {snippet}",
+                data=f'{{"comic_id": {comic}, "comment_id": {comment.id}}}'
+            )
+            db.add(notif)
+            
+            # Push Notification
+            if author and author.fcm_token:
+                send_push_notification(
+                    fcm_token=author.fcm_token,
+                    title="Komentar baru di komikmu! 💬",
+                    body=f"{current_user.full_name or current_user.username} mengomentari: {snippet}",
+                    data={"comic_id": str(comic), "comment_id": str(comment.id), "type": "new_comment"}
+                )
+
+        # 2. Check Milestones (Comments)
+        milestones = [10, 50, 100, 500, 1000]
+        if comic_obj.total_comments in milestones:
+            # DB Notification
+            notif_milestone = Notification(
+                user_id=comic_obj.user_id,
+                type="milestone",
+                title="Komikmu Ramai Dibicarakan! 🗣️",
+                message=f"Selamat! Komik '{comic_obj.title or 'Unknown'}' sudah mencapai {comic_obj.total_comments} komentar!",
+                data=f'{{"comic_id": {comic}, "total_comments": {comic_obj.total_comments}}}'
+            )
+            db.add(notif_milestone)
+            
+            # Push Notification
+            if comic_obj.user and comic_obj.user.fcm_token:
+                 send_push_notification(
+                    fcm_token=comic_obj.user.fcm_token,
+                    title="Komikmu Ramai Dibicarakan! 🗣️",
+                    body=f"Selamat! Komik '{comic_obj.title or 'Unknown'}' sudah mencapai {comic_obj.total_comments} komentar!",
+                    data={"comic_id": str(comic), "type": "milestone"}
+                )
+
+        db.commit()
+    except Exception as e:
+        logger.error(f"Failed to send comment notification: {e}")
+
     
     # Prepare response with user info
     comment_dict = CommentResponse.model_validate(comment).model_dump()
