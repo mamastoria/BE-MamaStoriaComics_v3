@@ -421,7 +421,7 @@ Tugas:
 - Family-friendly.
 - Setiap panel wajib ada:
   panel_no, panel_title, narration, dialogues (max 2 baris), panel_context (visual wajib).
-- Untuk BAGIAN 1 PANEL 1: itu adalah poster film + judul komik (desain poster, cinematic).
+- Untuk BAGIAN 1 PANEL 1: Panel pembuka standar. Sertakan judul komik di dalam panel ini.
 - panel_context harus konkret (tempat, aksi, ekspresi, objek penting).
 """.strip()
 
@@ -693,9 +693,9 @@ RULES KETAT:
   - narration (1-2 kalimat)
   - dialogues (list max 2 baris; format "Nama: ...")
   - panel_context (visual wajib; jelas, konkret)
-- BAGIAN 1 PANEL 1: harus berupa POSTER FILM + JUDUL buku cerita.
-  - Komposisi poster: hero shot karakter utama, title besar, tagline singkat.
-  - Tetap panel #1 dalam grid 3×3.
+- BAGIAN 1 PANEL 1: Panel pembuka standar (ukuran 1/9 grid).
+  - Tampilkan JUDUL buku cerita di dalam panel ini dengan jelas.
+  - Visual tetap menggambarkan adegan pembuka cerita.
 
 OUTPUT FORMAT (JSON):
 {{
@@ -891,50 +891,33 @@ def build_image_prompt_3x3(global_data: Dict[str, Any], part: Dict[str, Any], pr
         dblock = "\n".join([f"- {d}" for d in dlgs]) if dlgs else "- (no dialogue)"
         
         # SPECIAL: PART 1 PANEL 1 IS COVER/POSTER - NO BUBBLES
+        # Standard panel processing (Part 1 Panel 1 handled same as others but with title)
+        extra = ""
         if part_no == 1 and pn == 1:
-            panel_lines.append(
-                f"""PANEL {pn}: {title} (POSTER/COVER)
-VISUAL: {ctx}
-TEXT INSTRUCTION: ABSOLUTELY NO SPEECH BUBBLES. NO NARRATION BOXES. RENDER ONLY THE COMIC TITLE TEXT AS PART OF THE ART (POSTER STYLE).
-""".strip()
-            )
-        else:
-            panel_lines.append(
-                f"""PANEL {pn}: {title}
+            extra = f"TEXT INSTRUCTION: Render the story title '{comic_title}' clearly at the top."
+
+        panel_lines.append(
+            f"""PANEL {pn}: {title}
 VISUAL: {ctx}
 NARRATION (caption 1-2 sentences, in Indonesian): {narr}
 DIALOGUE (speech bubbles, max 2):
 {dblock}
+{extra}
 """.strip()
-            )
+        )
 
     part_title = (part.get("part_title") or "").strip()
     part_summary = (part.get("part_summary") or "").strip()
 
-    poster_rules = f"""
-POSTER RULE (ONLY for Part 1 Panel 1):
-- Panel 1 (top-left) is a movie-poster-style cover for the comic.
-- Render big readable title text: "{comic_title}"
-- Render smaller readable tagline text: "{tagline}" (if empty, invent a short tagline).
-- Typography: bold sans-serif, high contrast, clean, no gibberish.
-- CRITICAL: The poster panel MUST STILL fill edge-to-edge like all other panels.
-- CRITICAL: DO NOT add any white/light borders, frames, or margins around any panels including the poster.
-- The entire page must look cohesive - the poster is IN the grid, not a separate framed element.
-""".strip()
-
-    # For Part 2 - ensure same edge-to-edge requirements AND 3x3 grid
-    continuation_rules = """
-CONTINUATION PAGE RULES (Part 2+):
-- This is a continuation page - all 9 panels are regular story panels.
-- CRITICAL: The grid MUST be EXACTLY 3x3 with 9 EQUAL-SIZED panels, just like Part 1.
-- CRITICAL: Maintain EXACT SAME layout style as Part 1 (edge-to-edge, no borders).
-- CRITICAL: Each row must have exactly 3 panels of equal width.
-- CRITICAL: Each column must have exactly 3 panels of equal height.
-- DO NOT merge panels or create larger panels. Every panel must be the same size.
-- The page must look like it belongs to the same comic book as Part 1.
-- CRITICAL: DO NOT add any white/light borders, frames, or margins around any panels.
-- All panels must extend fully to the edges of their grid cells.
-- The overall image must have ZERO white space at the outer edges.
+    # SINGLE UNIFIED GRID RULE FOR ALL PARTS (1 and 2)
+    grid_rules = """
+GRID LAYOUT RULES (CRITICAL):
+- The image MUST be a PERFECT 3x3 GRID of 9 EQUAL-SIZED PANELS.
+- CRITICAL: Every panel MUST be exactly 1/3 width and 1/3 height of the page.
+- DO NOT merge panels. DO NOT make Panel 1 larger.
+- Layout MUST be identical for Part 1 and Part 2.
+- ABSOLUTELY NO white borders or margins around the page edges.
+- Full bleed: all panels must touch the edges of the image file.
 """.strip()
 
     text_rules = """
@@ -1001,7 +984,7 @@ TARGET PART:
 Part {part_no}: {part_title}
 Summary: {part_summary}
 
-{poster_rules if part_no == 1 else continuation_rules}
+{grid_rules}
 
 {text_rules}
 
