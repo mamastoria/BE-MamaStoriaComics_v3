@@ -103,18 +103,27 @@ class AuthService:
         )
 
         db.add(user)
-        db.commit()
-        db.refresh(user)
+        db.flush() # Generate ID without committing transaction
 
         # Create referral record if valid referral code was provided
         if referrer and referral_code:
-            referral_record = Referral(
-                referrer_id=referrer.id_users,
-                referred_user_id=user.id_users,
-                referral_code=referral_code
-            )
-            db.add(referral_record)
-            db.commit()
+            try:
+                referral_record = Referral(
+                    referrer_id=referrer.id_users,
+                    referred_user_id=user.id_users,
+                    referral_code=referral_code
+                )
+                db.add(referral_record)
+                db.flush()
+            except Exception as e:
+                # If adding referral fails (e.g. strict unique constraint), 
+                # we log it but maybe we shouldn't fail the whole registration?
+                # Or if we want strict atomicity, we let it fail and rollback in the caller or here.
+                # Given user complained about weird errors, strict atomicity is safer to avoid 'half-created' users.
+                raise e
+
+        db.commit()
+        db.refresh(user)
 
         return user
     

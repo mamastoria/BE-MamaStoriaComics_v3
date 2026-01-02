@@ -76,6 +76,13 @@ async def register(
             }
         }
     except Exception as e:
+        error_msg = str(e)
+        if "unique_referral_code" in error_msg:
+             raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Registration failed: This referral code cannot be processed (System Limit). Please register without referral code or try a different one."
+            )
+            
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create user: {str(e)}"
