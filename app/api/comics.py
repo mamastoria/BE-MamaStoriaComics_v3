@@ -434,9 +434,18 @@ async def list_drafts(
     page, per_page = get_pagination_params(page, per_page)
     items, total = paginate(query, page, per_page)
     
-    comics_data = [ComicDetail.model_validate(comic).model_dump() for comic in items]
+    # Build comics data with status field for frontend filtering
+    comics_data = []
+    for comic in items:
+        data = ComicDetail.model_validate(comic).model_dump()
+        # Add status field based on draft_job_status (UPPERCASE for frontend)
+        data['status'] = (comic.draft_job_status or 'PENDING').upper()
+        # Ensure coverUrl mapping (frontend uses camelCase)
+        data['coverUrl'] = comic.cover_url
+        comics_data.append(data)
     
     total_pages = (total + per_page - 1) // per_page
+
     
     # Custom response format matching frontend expectations
     return {
