@@ -165,6 +165,10 @@ class ComicService:
         if synopsis:
             comic.synopsis = synopsis
         
+        # Set publisher to creator's name if not already set
+        if not comic.publisher and comic.user:
+            comic.publisher = comic.user.full_name or comic.user.username
+        
         # TODO: Validate comic is ready to publish (has panels, cover, etc.)
         
         db.commit()

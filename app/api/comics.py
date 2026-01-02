@@ -773,6 +773,8 @@ async def get_comic_panels(
         "data": {
             "comic_id": comic.id,
             "title": comic.title or comic.story_idea[:50] if comic.story_idea else "Untitled",
+            "preview_video_url": comic.preview_video_url,
+            "publisher": comic.publisher,
             "status": status_str,
             "total_panels": len(panels),
             "panels": panels
