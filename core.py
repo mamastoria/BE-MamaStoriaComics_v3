@@ -337,7 +337,7 @@ COMIC_STYLES: Dict[str, Dict[str, str]] = {
         "color_mood": "limited palette, slightly desaturated, print texture",
         "line_style": "bold ink outlines, classic crosshatching",
         "camera": "classic hero shots, strong silhouettes",
-        "notes": "Keren buat poster panel #1 yang “komik klasik”.",
+        "notes": "Keren buat poster panel #1 yang “buku cerita klasik”.",
     },
 }
 DEFAULT_STYLE_ID = "modern_clean"
@@ -410,11 +410,12 @@ def nuance_rules_text(nuances: List[str]) -> str:
 # SYSTEM PROMPT (TEXT MODEL)
 # ============================================================
 SYSTEM_PROMPT = """
-Kamu adalah editor komik profesional.
+Kamu adalah editor buku cerita profesional.
 
 Tugas:
 - Ubah input user menjadi naskah komik dalam 2 BAGIAN besar.
-- Output WAJIB JSON valid dan hanya JSON (tanpa teks lain).
+- Output JSON WAJIB memiliki object "global" dengan field WAJIB:
+- comic_title: string judul komik yang singkat, menarik, dan relevan
 - Konsistensi karakter harus ketat.
 - Setiap BAGIAN wajib tepat 9 PANEL.
 - Family-friendly.
@@ -551,7 +552,7 @@ def split_grid_3x3(img: Image.Image) -> List[Image.Image]:
     
     # Crop Ratios
     INNER_M = 0.035  # 3.5% for internal panel borders (gutters)
-    OUTER_M = 0.075  # 7.5% for outer page edges (white space/thick border)
+    OUTER_M = 0.06   # 6% for outer page edges (reduced from 7.5%)
     
     panels: List[Image.Image] = []
     for row in range(3):
@@ -661,7 +662,7 @@ def make_two_part_script(user_story: str, style_id: Optional[str], nuances: Opti
     nuance_lines = [f"- {nid} ({(COMIC_NUANCES.get(nid) or {}).get('label', nid)})" for nid in chosen_nuances]
 
     prompt = f"""
-Buat naskah komik dari input user berikut.
+Buat naskah buku cerita dari input user berikut.
 
 USER_INPUT:
 {user_story}
@@ -684,6 +685,7 @@ RULES KETAT:
 - Output harus 2 BAGIAN besar: part_no 1 dan 2.
 - Masing-masing BAGIAN harus punya tepat 9 PANEL (panel_no 1..9).
 - Konsistensi karakter wajib ketat (nama/ciri/outfit).
+- JIKA USER TIDAK MENYEBUT NAMA KARAKTER: Wajib gunakan nama Indonesia/Internasional yang kreatif, modern, dan variatif. Sesuaikan dengan nuansa cerita.
 - Family-friendly.
 - Setiap panel wajib punya:
   - panel_no (1..9)
@@ -691,7 +693,7 @@ RULES KETAT:
   - narration (1-2 kalimat)
   - dialogues (list max 2 baris; format "Nama: ...")
   - panel_context (visual wajib; jelas, konkret)
-- BAGIAN 1 PANEL 1: harus berupa POSTER FILM + JUDUL KOMIK.
+- BAGIAN 1 PANEL 1: harus berupa POSTER FILM + JUDUL buku cerita.
   - Komposisi poster: hero shot karakter utama, title besar, tagline singkat.
   - Tetap panel #1 dalam grid 3×3.
 
@@ -853,7 +855,7 @@ def build_image_prompt_3x3(global_data: Dict[str, Any], part: Dict[str, Any], pr
     if not isinstance(characters, list):
         characters = []
 
-    comic_title = (global_data.get("comic_title") or "").strip() or "Judul Komik"
+    comic_title = (global_data.get("comic_title") or "").strip() or "Judul buku cerita"
     tagline = (global_data.get("tagline") or "").strip()
 
     # Build detailed character bible for consistency
@@ -911,10 +913,28 @@ DIALOGUE (speech bubbles, max 2):
 
     poster_rules = f"""
 POSTER RULE (ONLY for Part 1 Panel 1):
-- It MUST look like a movie poster inside the top-left panel (panel 1).
+- Panel 1 (top-left) is a movie-poster-style cover for the comic.
 - Render big readable title text: "{comic_title}"
 - Render smaller readable tagline text: "{tagline}" (if empty, invent a short tagline).
 - Typography: bold sans-serif, high contrast, clean, no gibberish.
+- CRITICAL: The poster panel MUST STILL fill edge-to-edge like all other panels.
+- CRITICAL: DO NOT add any white/light borders, frames, or margins around any panels including the poster.
+- The entire page must look cohesive - the poster is IN the grid, not a separate framed element.
+""".strip()
+
+    # For Part 2 - ensure same edge-to-edge requirements AND 3x3 grid
+    continuation_rules = """
+CONTINUATION PAGE RULES (Part 2+):
+- This is a continuation page - all 9 panels are regular story panels.
+- CRITICAL: The grid MUST be EXACTLY 3x3 with 9 EQUAL-SIZED panels, just like Part 1.
+- CRITICAL: Maintain EXACT SAME layout style as Part 1 (edge-to-edge, no borders).
+- CRITICAL: Each row must have exactly 3 panels of equal width.
+- CRITICAL: Each column must have exactly 3 panels of equal height.
+- DO NOT merge panels or create larger panels. Every panel must be the same size.
+- The page must look like it belongs to the same comic book as Part 1.
+- CRITICAL: DO NOT add any white/light borders, frames, or margins around any panels.
+- All panels must extend fully to the edges of their grid cells.
+- The overall image must have ZERO white space at the outer edges.
 """.strip()
 
     text_rules = """
@@ -930,13 +950,14 @@ TEXT RULES (CRITICAL):
 """.strip()
 
     layout_rules = f"""
-LAYOUT / CANVAS (CRITICAL - MUST FOLLOW EXACTLY):
+LAYOUT / CANVAS (CRITICAL - MUST FOLLOW EXACTLY FOR ALL PARTS):
 - Single image canvas MUST be portrait with exact aspect ratio {TARGET_AR} (like 1080x1620 or 1024x1536).
 - Draw a PERFECT 3x3 grid of 9 EQUAL panels.
-- PANELS MUST FILL THE ENTIRE CANVAS EDGE-TO-EDGE (FULL BLEED).
+- PANELS MUST FILL THE ENTIRE CANVAS EDGE-TO-EDGE (FULL BLEED) - THIS APPLIES TO PART 1 AND PART 2 EQUALLY.
 - ABSOLUTELY NO WHITE BORDERS, NO FRAMES, NO MARGINS around the outer edges of the image.
-- The grid lines must be THIN BLACK lines. The content must touch the very edge of the canvas.
-- Ensure the image looks like a digital screenshot, NOT a scanned book page with white paper showing.
+- The grid lines must be THIN BLACK lines (1-2px). Panel artwork MUST touch the very edge of the canvas.
+- The image must look like a digital comic page, NOT a printed book scanned with white paper borders.
+- Even if a panel contains a "poster" design, the artwork must extend fully to the panel edges with no internal margins.
 """.strip()
 
     # Character consistency rules - CRITICAL for multi-page comics
@@ -980,20 +1001,26 @@ TARGET PART:
 Part {part_no}: {part_title}
 Summary: {part_summary}
 
-{poster_rules if part_no == 1 else ""}
+{poster_rules if part_no == 1 else continuation_rules}
 
 {text_rules}
 
 PANELS (reading order left-to-right, top-to-bottom):
 {chr(10).join(panel_lines)}
 
-QUALITY REQUIREMENTS:
+QUALITY REQUIREMENTS (MANDATORY):
 - 2K ULTRA HD RESOLUTION, Extremely Detailed, Masterpiece.
 - Sharp focus, high fidelity, 8k texture quality.
 - PERFECT grid alignment with edge-to-edge panels (FULL BLEED).
 - IDENTICAL character faces/outfits across all panels - this is CRITICAL.
 - Consistent art style and color palette throughout.
-- NO WHITE BORDERS or margins around the image edges. The image must be full colored from edge to edge.
+
+ANTI-WHITE-BORDER CHECK (CRITICAL - APPLIES TO ALL PARTS):
+- The ENTIRE canvas must be filled with colored artwork.
+- There must be ZERO white/light pixels at any of the 4 edges (top, bottom, left, right).
+- The panels must TOUCH the very edge of the image file.
+- If you see any white/light margin or border in your output, you have FAILED the task.
+- The image background color must extend to the edges - NO paper-white frames.
 """.strip()
 
 
@@ -1163,7 +1190,7 @@ def build_read_along_pages(script: Dict[str, Any]) -> List[Dict[str, Any]]:
             # legacy/debug text (boleh ada label)
             legacy_chunks = []
             if page_no == 1 and title:
-                legacy_chunks.append(f"Judul komik: {title}.")
+                legacy_chunks.append(f"Judul buku cerita: {title}.")
             legacy_chunks.append(f"Halaman {page_no}.")
             legacy_chunks.append(f"Bagian {pno}, panel {panel_no}.")
             if panel_title:

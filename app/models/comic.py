@@ -65,7 +65,7 @@ class Comic(Base):
     
     # Relationships
     user = relationship("User", back_populates="comics")
-    panels = relationship("ComicPanel", back_populates="comic", cascade="all, delete-orphan", order_by="ComicPanel.page_number")
+    panels = relationship("ComicPanel", back_populates="comic", cascade="all, delete-orphan", order_by="ComicPanel.page_number, ComicPanel.panel_number")
     comments = relationship("Comment", back_populates="comic", cascade="all, delete-orphan")
     panel_ideas = relationship("ComicPanelIdea", back_populates="comic", cascade="all, delete-orphan")
     

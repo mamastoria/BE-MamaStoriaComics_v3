@@ -731,6 +731,9 @@ async def get_comic_panels(
             "narration": p.narration,
             "dialogue": p.dialogues
         } for i, p in enumerate(comic.panels)]
+        
+        # Ensure proper order: page_number first, then panel_number
+        panels = sorted(panels, key=lambda x: (x.get('page_number', 0) or 0, x.get('panel_number', 0) or 0))
     elif hasattr(comic, 'panel_images') and comic.panel_images:
         # panel_images is a JSON list of URLs
         panels = [{

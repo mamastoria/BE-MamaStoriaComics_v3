@@ -534,11 +534,17 @@ def generate_cinematic_video(
                 if audio_path:
                     audio_parts.append(audio_path)
                 
-                # Add silence to fill remaining time for this panel
+                # FIX SYNC: Adjust target duration because video transitions consume time (overlap)
+                # Video duration for panel i (except last) effectively becomes (duration - transition)
+                if i < len(panel_durations) - 1:
+                    target_duration = duration - TRANSITION_DURATION
+                else:
+                    target_duration = duration
+
                 audio_duration = get_audio_duration(audio_path) if audio_path else 0
-                silence_duration = duration - audio_duration
+                silence_duration = max(0, target_duration - audio_duration)
                 
-                if silence_duration > 0.1:
+                if silence_duration > 0.05:
                     silence_file = os.path.join(work_dir, f"silence_{i:02d}.mp3")
                     subprocess.run([
                         "ffmpeg", "-y",
@@ -548,8 +554,8 @@ def generate_cinematic_video(
                         "-c:a", "libmp3lame",
                         silence_file
                     ], capture_output=True, timeout=30)
-                    if audio_path:
-                        audio_parts.append(silence_file)
+                    # Always append silence if calculated, regardless of audio_path existence
+                    audio_parts.append(silence_file)
             
             # Concat audio parts
             if audio_parts:
