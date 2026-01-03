@@ -26,6 +26,7 @@ from app.schemas.user import (
     UpdateWatermark
 )
 from app.services.google_storage_service import GoogleStorageService
+from app.utils.email import send_email
 from datetime import datetime, timedelta
 import uuid
 
@@ -235,40 +236,28 @@ async def send_reset_token(
     user.last_verification_sent_at = datetime.utcnow()
     db.commit()
     
-    # Send email via Resend
+    # Send email via Gmail SMTP
     try:
-        import requests
+        html_content = f"""
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2>Password Reset Request</h2>
+                <p>You have requested to reset your password. Use the code below:</p>
+                <h1 style="background-color: #f0f0f0; padding: 20px; text-align: center; letter-spacing: 5px;">
+                    {reset_token}
+                </h1>
+                <p>This code will expire in 15 minutes.</p>
+                <p>If you didn't request this, please ignore this email and your password will remain unchanged.</p>
+            </div>
+        """
         
-        RESEND_KEY = "re_hsvmU2Zv_EjdhcaWUC7aRuUgfjfinhfVq"
-        RESEND_URL = "https://api.resend.com/emails"
-        RESEND_EMAIL_FROM = "onboarding@resend.dev"
+        send_email(
+            to_email=reset_data.email,
+            subject="Password Reset Code",
+            html_content=html_content,
+            text_content=f"Your password reset code is: {reset_token}. It expires in 15 minutes."
+        )
         
-        headers = {
-            "Authorization": f"Bearer {RESEND_KEY}",
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "from": RESEND_EMAIL_FROM,
-            "to": [reset_data.email],
-            "subject": "Password Reset Code",
-            "html": f"""
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                    <h2>Password Reset Request</h2>
-                    <p>You have requested to reset your password. Use the code below:</p>
-                    <h1 style="background-color: #f0f0f0; padding: 20px; text-align: center; letter-spacing: 5px;">
-                        {reset_token}
-                    </h1>
-                    <p>This code will expire in 15 minutes.</p>
-                    <p>If you didn't request this, please ignore this email and your password will remain unchanged.</p>
-                </div>
-            """
-        }
-        
-        response = requests.post(RESEND_URL, json=payload, headers=headers)
-        response.raise_for_status()
-        
-        print(f"Password reset code sent to {reset_data.email}: {reset_token}")
+        print(f"Password reset code sent to {reset_data.email}")
         
     except Exception as e:
         # Log error but don't fail the request (security)
@@ -436,38 +425,28 @@ async def send_otp(
     user.last_verification_sent_at = datetime.utcnow()
     db.commit()
     
-    # Send email via Resend
+    # Send email via Gmail SMTP
     try:
-        import requests
+        html_content = f"""
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2>Verification Code</h2>
+                <p>Your verification code is:</p>
+                <h1 style="background-color: #f0f0f0; padding: 20px; text-align: center; letter-spacing: 5px;">
+                    {otp_code}
+                </h1>
+                <p>This code will expire in 15 minutes.</p>
+                <p>If you didn't request this code, please ignore this email.</p>
+            </div>
+        """
+
+        send_email(
+            to_email=otp_data.email,
+            subject="Your Verification Code",
+            html_content=html_content,
+            text_content=f"Your verification code is: {otp_code}. It expires in 15 minutes."
+        )
         
-        RESEND_KEY = "re_hsvmU2Zv_EjdhcaWUC7aRuUgfjfinhfVq"
-        RESEND_URL = "https://api.resend.com/emails"
-        RESEND_EMAIL_FROM = "onboarding@resend.dev"
-        
-        headers = {
-            "Authorization": f"Bearer {RESEND_KEY}",
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "from": RESEND_EMAIL_FROM,
-            "to": [otp_data.email],
-            "subject": "Your Verification Code",
-            "html": f"""
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                    <h2>Verification Code</h2>
-                    <p>Your verification code is:</p>
-                    <h1 style="background-color: #f0f0f0; padding: 20px; text-align: center; letter-spacing: 5px;">
-                        {otp_code}
-                    </h1>
-                    <p>This code will expire in 15 minutes.</p>
-                    <p>If you didn't request this code, please ignore this email.</p>
-                </div>
-            """
-        }
-        
-        response = requests.post(RESEND_URL, json=payload, headers=headers)
-        response.raise_for_status()
+        return {"ok": True}
         
         return {"ok": True}
         
