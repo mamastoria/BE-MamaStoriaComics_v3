@@ -36,7 +36,14 @@ class Settings(BaseSettings):
     # Google OAuth
     GOOGLE_CLIENT_ID: Optional[str] = None
     GOOGLE_CLIENT_SECRET: Optional[str] = None
-    GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/google/callback"
+    GOOGLE_REDIRECT_URI: str = "https://nanobanana-backend-1089713441636.asia-southeast2.run.app/api/v1/auth/google/callback"
+    
+    # Email (Gmail SMTP)
+    SMTP_SERVER: str = "smtp.gmail.com"
+    SMTP_PORT: int = 465
+    SMTP_USERNAME: str = "admin@mamastoria.com"
+    SMTP_PASSWORD: str = ""
+    #smtp password: gbog dqwb wzog iral
     
     # DOKU Payment (optional - not all deployments use this)
     DOKU_CLIENT_ID: str = ""

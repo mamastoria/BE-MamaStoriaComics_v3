@@ -9,10 +9,12 @@ from datetime import datetime
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
+from app.core.config import settings
 from app.models.user import User
 from app.models.notification import Notification
 from app.utils.pagination import paginate, get_pagination_params
 from app.utils.responses import paginated_response
+from app.utils.email import send_email
 from pydantic import BaseModel
 
 router = APIRouter()
@@ -289,13 +291,6 @@ async def mark_all_as_read(
         "message": f"All {len(notifications)} notification(s) marked as read"
     }
 
-# Email Configuration
-RESEND_KEY = "re_hsvmU2Zv_EjdhcaWUC7aRuUgfjfinhfVq"
-RESEND_URL = "https://api.resend.com/emails"
-RESEND_EMAIL_FROM = "onboarding@resend.dev"
-RESEND_EMAIL_TO = "yapri177@gmail.com"
-
-
 class SendEmailRequest(BaseModel):
     """Schema for sending email"""
     title: str
@@ -307,47 +302,31 @@ class SendEmailRequest(BaseModel):
 async def send_email_notification(
     email_data: SendEmailRequest,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)  # Kept for consistency if needed later
+    db: Session = Depends(get_db)  # Kept for consistency
 ):
     """
-    Send email notification via Resend
+    Send email notification via Gmail SMTP
 
     - **title**: Email subject
     - **message**: Email HTML body
     - **emailTo**: Recipient email address
     """
-    import requests
-    
-    headers = {
-        "Authorization": f"Bearer {RESEND_KEY}",
-        "Content-Type": "application/json"
-    }
-    
-    payload = {
-        "from": RESEND_EMAIL_FROM,
-        "to": [email_data.emailTo],
-        "subject": email_data.title,
-        "html": f"<p>{email_data.message}</p>"
-    }
     
     try:
-        response = requests.post(RESEND_URL, json=payload, headers=headers)
-        response.raise_for_status()
-        
+        send_email(
+            to_email=email_data.emailTo,
+            subject=email_data.title,
+            html_content=f"<p>{email_data.message}</p>" if not email_data.message.strip().startswith("<") else email_data.message,
+            text_content=email_data.message  # Simple fallback
+        )
+            
         return {
             "ok": True,
-            "message": "Email sent successfully",
-            "data": response.json()
+            "message": "Email sent successfully via Gmail SMTP"
         }
-    except requests.exceptions.RequestException as e:
-        error_detail = str(e)
-        if response is not None:
-             try:
-                 error_detail = response.json()
-             except:
-                 error_detail = response.text
-                 
+    except Exception as e:
+        # print(f"Failed to send email: {str(e)}") # Already printed in utility
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to send email: {error_detail}"
+            detail=f"Failed to send email: {str(e)}"
         )
