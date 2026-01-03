@@ -110,8 +110,7 @@ class AuthService:
             try:
                 referral_record = Referral(
                     referrer_id=referrer.id_users,
-                    referred_user_id=user.id_users,
-                    referral_code=referral_code
+                    referred_user_id=user.id_users
                 )
                 db.add(referral_record)
                 db.flush()
