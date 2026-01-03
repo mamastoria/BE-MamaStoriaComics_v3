@@ -19,7 +19,7 @@ class Referral(Base):
     referred_user_id = Column(Integer, ForeignKey('users.id_users'), nullable=False)
 
     # Referral code used
-    referral_code = Column(String, nullable=False)
+    # referral_code = Column(String, nullable=False) # Removed per user request
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
