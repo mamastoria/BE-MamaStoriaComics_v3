@@ -11,7 +11,6 @@ class ReferralBase(BaseModel):
     """Base referral schema"""
     referrer_id: int
     referred_user_id: int
-    referral_code: str
     created_at: datetime
     updated_at: datetime
 
