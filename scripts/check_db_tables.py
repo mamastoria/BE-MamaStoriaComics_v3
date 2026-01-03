@@ -2,8 +2,8 @@
 import sys
 from sqlalchemy import create_engine, inspect
 
-DATABASE_NAME = "nanobananacomic-482111-database"
-PORT = 5434
+DATABASE_NAME = "nanobanana_db"
+PORT = 5433
 # Password attempt: "Aihebat@1" (URL Encoded as Aihebat%401)
 DB_URL = f"postgresql+pg8000://postgres:Aihebat%401@127.0.0.1:{PORT}/{DATABASE_NAME}"
 
