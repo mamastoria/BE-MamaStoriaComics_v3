@@ -250,14 +250,19 @@ async def send_reset_token(
             </div>
         """
         
-        send_email(
+        result = send_email(
             to_email=reset_data.email,
             subject="Password Reset Code",
             html_content=html_content,
             text_content=f"Your password reset code is: {reset_token}. It expires in 15 minutes."
         )
         
-        print(f"Password reset code sent to {reset_data.email}")
+        if not result:
+            print(f"Failed to send reset email: SMTP credentials missing")
+            # We arguably could return an error here, but for security (user enumeration) we might want to stay silent or generic.
+            # However, for debugging config issues, logging is key.
+        else:
+            print(f"Password reset code sent to {reset_data.email}")
         
     except Exception as e:
         # Log error but don't fail the request (security)
@@ -439,12 +444,18 @@ async def send_otp(
             </div>
         """
 
-        send_email(
+        result = send_email(
             to_email=otp_data.email,
             subject="Your Verification Code",
             html_content=html_content,
             text_content=f"Your verification code is: {otp_code}. It expires in 15 minutes."
         )
+        
+        if not result:
+            return {
+                "ok": False,
+                "message": "Failed to send email: SMTP credentials not configured on server."
+            }
         
         return {"ok": True}
         
