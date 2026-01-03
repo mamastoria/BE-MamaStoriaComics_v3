@@ -421,7 +421,7 @@ Tugas:
 - Family-friendly.
 - Setiap panel wajib ada:
   panel_no, panel_title, narration, dialogues (max 2 baris), panel_context (visual wajib).
-- Untuk BAGIAN 1 PANEL 1: Panel pembuka standar. Sertakan judul komik di dalam panel ini.
+- Untuk BAGIAN 1 PANEL 1: Panel pembuka standar. Sertakan judul komik di dalam panel ini dan jangan beri bubletext di panel ini.
 - panel_context harus konkret (tempat, aksi, ekspresi, objek penting).
 """.strip()
 
@@ -552,7 +552,7 @@ def split_grid_3x3(img: Image.Image) -> List[Image.Image]:
     
     # Crop Ratios
     INNER_M = 0.035  # 3.5% for internal panel borders (gutters)
-    OUTER_M = 0.06   # 6% for outer page edges (reduced from 7.5%)
+    OUTER_M = 0.05   # 6% for outer page edges (reduced from 7.5%)
     
     panels: List[Image.Image] = []
     for row in range(3):
