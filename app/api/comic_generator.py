@@ -1,10 +1,13 @@
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request, Depends, status
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Optional
 from pathlib import Path
 import sys
 import os
+
+from app.core.dependencies import get_current_user
+from app.models.user import User
 
 # Add root directory to python path to import core
 # Assuming this file is in app/api/, root is ../../
@@ -51,23 +54,23 @@ class RenderAllRequest(BaseModel):
 # ROUTES
 # ============================================================
 
-@router.get("/health-check-ai")
-def health_ai():
+@router.get("/health-check-ai", include_in_schema=False)
+def health_ai(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Diagnostic endpoint for AI configuration.
+    Restricted to authenticated users (admin ideally, but authed for now).
+    """
+    if str(current_user.role).lower() != "admin":
+         raise HTTPException(status_code=403, detail="Admin restricted")
+
     return {
         "status": "ok",
         "project_id": core.PROJECT_ID,
         "text_model": core.TEXT_MODEL,
-        "image_model": core.IMAGE_MODEL,
-        "parts": core.PARTS,
-        "panels_per_part": core.PANELS_PER_PART,
-        "total_panels": core.TOTAL_PANELS,
-        "option": "B_text_inside_image",
-        "target_canvas": core.TARGET_CANVAS,
-        "target_ar": core.TARGET_AR,
-        "styles": list(core.COMIC_STYLES.keys()),
-        "nuances": list(core.COMIC_NUANCES.keys()),
-        "no_text_in_image": core.NO_TEXT_IN_IMAGE,
-        "pdf_export_dir": str(core.EXPORT_DIR),
+        # "image_model": core.IMAGE_MODEL, # Hide partial details if needed
+        # "parts": core.PARTS,
     }
 
 
@@ -100,7 +103,10 @@ def api_nuances():
 # or just keep it there. I'll omit "/" here and let app/main.py handle serving index.html.
 
 @router.post("/api/script")
-def api_script(req: ScriptRequest):
+def api_script(
+    req: ScriptRequest,
+    current_user: User = Depends(get_current_user)
+):
     story = (req.story or "").strip()
     if not story:
         raise HTTPException(status_code=400, detail="story is empty")
@@ -132,10 +138,17 @@ def api_script(req: ScriptRequest):
 
 
 @router.post("/api/render_part")
-def api_render_part(req: RenderPartRequest):
+def api_render_part(
+    req: RenderPartRequest,
+    current_user: User = Depends(get_current_user)
+):
     """
     Render satu part (langsung synchronous) untuk debug/manual.
+    SECURITY: Restricted to Admin only.
     """
+    if str(current_user.role).lower() != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+
     try:
         payload = core.render_part_payload(req.script, int(req.part_no))
         return JSONResponse(payload)
@@ -145,7 +158,10 @@ def api_render_part(req: RenderPartRequest):
 
 
 @router.post("/api/render_all_start")
-def api_render_all_start(req: RenderAllRequest):
+def api_render_all_start(
+    req: RenderAllRequest,
+    current_user: User = Depends(get_current_user)
+):
     try:
         job_id = core.start_render_all_job(req.script)
         return JSONResponse({"job_id": job_id, "status": "queued"})
