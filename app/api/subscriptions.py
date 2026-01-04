@@ -509,9 +509,13 @@ async def check_payment_status(
             from app.utils.doku import doku_client
             # Check status at Doku
             print(f"Checking Doku status for {invoice_number}...")
-            status_response = doku_client.check_status(invoice_number)
+            status_result = doku_client.check_status(invoice_number)
             
-            if status_response:
+            print(f"Doku check_status result: {status_result}")
+            
+            if status_result and status_result.get("success"):
+                # Successfully got response from Doku
+                status_response = status_result.get("data", {})
                 doku_status = status_response.get("transaction", {}).get("status")
                 print(f"Doku status for {invoice_number}: {doku_status}")
                 
@@ -519,11 +523,11 @@ async def check_payment_status(
                     # Payment is confirmed by Gateway
                     if process_successful_payment(db, transaction):
                          # Credits given, status updated to success inside logic
-                         pass
+                         print(f"✅ Payment {invoice_number} processed successfully")
                     else:
                          # Payment successful at Doku but app processing failed (e.g. package not found)
                          # We force status to success so it's recorded as paid
-                         print(f"CRITICAL: Payment {invoice_number} success at Doku but processing failed.")
+                         print(f"⚠️ CRITICAL: Payment {invoice_number} success at Doku but processing failed.")
                          import json
                          transaction.status = "success"
                          transaction.doku_response = json.dumps(status_response)
@@ -531,11 +535,25 @@ async def check_payment_status(
                     
                     db.refresh(transaction)
                 elif doku_status in ["FAILED", "EXPIRED"]:
+                    print(f"Payment {invoice_number} status: {doku_status}")
                     transaction.status = doku_status.lower()
                     db.commit()
                     db.refresh(transaction)
+                elif doku_status == "PENDING":
+                    print(f"Payment {invoice_number} still pending at Doku")
+                else:
+                    print(f"⚠️ Unknown Doku status: {doku_status}")
+            else:
+                # Failed to get status from Doku
+                error_msg = status_result.get("error", "Unknown error") if status_result else "No response from Doku"
+                status_code = status_result.get("status_code", 0) if status_result else 0
+                print(f"❌ Failed to check Doku status: {error_msg} (HTTP {status_code})")
+                print(f"⚠️ Transaction {invoice_number} remains pending - manual verification may be needed")
+                
         except Exception as e:
-            print(f"Failed to auto-update status: {e}")
+            print(f"❌ Exception while checking status: {e}")
+            import traceback
+            print(traceback.format_exc())
 
         
     return {

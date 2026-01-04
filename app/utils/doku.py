@@ -136,28 +136,25 @@ class DokuClient:
     def check_status(self, invoice_number: str) -> dict:
         """
         Check Transaction Status from Doku API
-        (Inlined logic from verified test script, with Debug Logging)
+        Using helper methods for consistency
+        
+        Returns:
+            dict: Response from Doku API with structure:
+                {
+                    "success": bool,
+                    "data": dict (Doku response) or None,
+                    "error": str or None,
+                    "status_code": int
+                }
         """
         target_path = f"/orders/v1/status/{invoice_number}"
         request_id = str(uuid.uuid4())
         timestamp = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
         
-        # Digest (Inlined)
+        # For GET requests, body is empty string
         json_body = ""
-        digest = hashlib.sha256(json_body.encode('utf-8')).digest()
-        digest_str = base64.b64encode(digest).decode('utf-8')
-        
-        # Signature (Inlined)
-        # Signature (Inlined)
-        # For GET requests (Check Status), Digest MUST be included in the signature component for Doku Jokul
-        raw_signature = f"Client-Id:{self.client_id}\nRequest-Id:{request_id}\nRequest-Timestamp:{timestamp}\nRequest-Target:{target_path}\nDigest:{digest_str}"
-        
-        signature_bytes = hmac.new(
-            self.secret_key.encode('utf-8'),
-            raw_signature.encode('utf-8'),
-            hashlib.sha256
-        ).digest()
-        signature = f"HMACSHA256={base64.b64encode(signature_bytes).decode('utf-8')}"
+        digest = self.generate_digest(json_body)
+        signature = self.generate_signature(request_id, timestamp, target_path, digest)
         
         headers = {
             "Content-Type": "application/json",
@@ -169,26 +166,82 @@ class DokuClient:
         
         url = f"{self.base_url}{target_path}"
         
+        print(f"\n=== DOKU CHECK STATUS ===")
+        print(f"Invoice Number: {invoice_number}")
+        print(f"URL: {url}")
+        print(f"Client-Id: {self.client_id}")
+        print(f"Request-Id: {request_id}")
+        print(f"Timestamp: {timestamp}")
+        print(f"Environment: {'Production' if self.is_production else 'Sandbox'}")
+        
         try:
             response = requests.get(
                 url,
                 headers=headers,
-                timeout=10
+                timeout=30 
             )
             
+            print(f"Response Status Code: {response.status_code}")
+            print(f"Response Headers: {dict(response.headers)}")
+            print(f"Response Body: {response.text}")
+            
             if response.status_code == 200:
-                print(f"DEBUG SUCCESS: Doku status - {response.text}")
-                return response.json()
+                try:
+                    response_data = response.json()
+                    print(f"✅ SUCCESS: Transaction status retrieved")
+                    return {
+                        "success": True,
+                        "data": response_data,
+                        "error": None,
+                        "status_code": 200
+                    }
+                except ValueError as json_err:
+                    print(f"❌ ERROR: Invalid JSON response - {json_err}")
+                    return {
+                        "success": False,
+                        "data": None,
+                        "error": f"Invalid JSON response: {response.text}",
+                        "status_code": response.status_code
+                    }
             else:
-                print(f"Doku Check Status Error ({response.status_code}): {response.text}")
-                print(f"DEBUG FAIL: RawSig={repr(raw_signature)}")
-                print(f"DEBUG FAIL: Sig={signature}")
-                print(f"DEBUG FAIL: ClientID={repr(self.client_id)}")
-                return None
+                error_msg = f"Doku API returned {response.status_code}: {response.text}"
+                print(f"❌ ERROR: {error_msg}")
+                return {
+                    "success": False,
+                    "data": None,
+                    "error": error_msg,
+                    "status_code": response.status_code
+                }
                 
+        except requests.exceptions.Timeout:
+            error_msg = "Request to Doku API timed out after 30 seconds"
+            print(f"❌ TIMEOUT: {error_msg}")
+            return {
+                "success": False,
+                "data": None,
+                "error": error_msg,
+                "status_code": 0
+            }
+        except requests.exceptions.ConnectionError as conn_err:
+            error_msg = f"Connection error to Doku API: {str(conn_err)}"
+            print(f"❌ CONNECTION ERROR: {error_msg}")
+            return {
+                "success": False,
+                "data": None,
+                "error": error_msg,
+                "status_code": 0
+            }
         except Exception as e:
-            print(f"Doku Check Status Exception: {str(e)}")
-            return None
+            error_msg = f"Unexpected error: {str(e)}"
+            print(f"❌ EXCEPTION: {error_msg}")
+            import traceback
+            print(traceback.format_exc())
+            return {
+                "success": False,
+                "data": None,
+                "error": error_msg,
+                "status_code": 0
+            }
 
 # Global instance
 doku_client = DokuClient()

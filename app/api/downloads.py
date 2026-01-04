@@ -73,10 +73,7 @@ async def download_video(
         
         # Download file from Google Storage
         logger.info(f"Downloading file: {file_path}")
-        file_content = storage_service.download_file(file_path)
-        
-        # Create a BytesIO object for streaming
-        file_stream = io.BytesIO(file_content)
+        file_stream = storage_service.get_file_stream(file_path)
         
         # Prepare headers for download
         headers = {
@@ -163,10 +160,7 @@ async def download_file(
         
         # Download file from Google Storage
         logger.info(f"Downloading file: {file_path}")
-        file_content = storage_service.download_file(file_path)
-        
-        # Create a BytesIO object for streaming
-        file_stream = io.BytesIO(file_content)
+        file_stream = storage_service.get_file_stream(file_path)
         
         # Prepare headers for download
         headers = {
