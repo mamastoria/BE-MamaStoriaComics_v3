@@ -69,6 +69,11 @@ def get_engine():
                         db_name = u.database or db_name
                     except:
                         pass
+                        
+                # FIX: Handle potential double-percent escaping in password from .env
+                if db_pass and "%%" in db_pass:
+                    logger.info("Detected '%%' in DB password, replacing with '%'")
+                    db_pass = db_pass.replace("%%", "%")
 
                 def getconn():
                     conn = connector.connect(
