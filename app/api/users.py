@@ -488,6 +488,14 @@ async def update_kredit(
     if not user:
          raise HTTPException(status_code=404, detail="User not found")
 
+    # SECURITY: Only admins can manually update credits
+    # Using case-insensitive check just in case
+    if str(current_user.role).lower() != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permission denied. Only admins can manually update credits."
+        )
+
     if kredit_data.operation == "add":
         user.kredit += kredit_data.amount
     elif kredit_data.operation == "subtract":
@@ -607,20 +615,4 @@ async def get_update_quota(
     }
 
 
-@router.get("/profile/debug-kredit", response_model=dict)
-async def debug_kredit(
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Debug endpoint to check current credits
-    
-    Returns current kredit balance
-    """
-    return {
-        "ok": True,
-        "data": {
-            "user_id": current_user.id_users,
-            "kredit": current_user.kredit,
-            "balance": current_user.balance
-        }
-    }
+
