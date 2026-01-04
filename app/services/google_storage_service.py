@@ -114,6 +114,19 @@ class GoogleStorageService:
         blob = self.bucket.blob(source_path)
         return blob.download_as_bytes()
     
+    def get_file_stream(self, source_path: str):
+        """
+        Get file stream from GCS
+        
+        Args:
+            source_path: Path in bucket
+            
+        Returns:
+            File-like object
+        """
+        blob = self.bucket.blob(source_path)
+        return blob.open("rb")
+    
     def delete_file(self, file_path: str) -> bool:
         """
         Delete file from GCS
