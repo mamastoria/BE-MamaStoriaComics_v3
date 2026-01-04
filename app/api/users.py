@@ -488,13 +488,13 @@ async def update_kredit(
     if not user:
          raise HTTPException(status_code=404, detail="User not found")
 
-    # SECURITY WARNING: Admin check disabled by user request. 
-    # This allows any user to potentially modify their own credits.
-    # if str(current_user.role).lower() != "admin":
-    #     raise HTTPException(
-    #         status_code=status.HTTP_403_FORBIDDEN,
-    #         detail="Permission denied. Only admins can manually update credits."
-    #     )
+    # SECURITY: Only admins can manually update credits
+    # Using case-insensitive check just in case
+    if str(current_user.role).lower() != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permission denied. Only admins can manually update credits."
+        )
 
     if kredit_data.operation == "add":
         user.kredit += kredit_data.amount
@@ -530,6 +530,125 @@ async def update_kredit(
         "message": f"Credits {kredit_data.operation}ed successfully",
         "data": {
             "current_kredit": user.kredit
+        }
+    }
+
+
+@router.post("/profile/kredit/add", response_model=dict)
+async def add_user_kredit(
+    kredit_data: UpdateKredit,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Add credits to current user's account (SELF-SERVICE ONLY)
+    
+    - **amount**: Amount to add
+    - **operation**: Must be "add" (subtract not allowed for users)
+    
+    SECURITY: This endpoint ONLY modifies the logged-in user's own account.
+    User cannot specify target user_id. Credits are added to the account
+    associated with the JWT token.
+    
+    Use case: Called after successful payment to add purchased credits.
+    """
+    # Only allow "add" operation for regular users
+    if kredit_data.operation != "add":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only 'add' operation is allowed for this endpoint"
+        )
+    
+    # SECURITY: Only fetch and update the authenticated user's own account
+    # current_user comes from JWT token, cannot be manipulated
+    user = db.query(User).filter(User.id_users == current_user.id_users).with_for_update().first()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Verify we're updating the correct user (double-check security)
+    if user.id_users != current_user.id_users:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only modify your own account"
+        )
+    
+    # Add credits to authenticated user's account
+    user.kredit += kredit_data.amount
+    
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    
+    return {
+        "ok": True,
+        "message": "Credits added successfully",
+        "data": {
+            "current_kredit": user.kredit
+        }
+    }
+
+
+@router.post("/profile/kredit/subtract", response_model=dict)
+async def subtract_user_kredit(
+    kredit_data: UpdateKredit,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Subtract credits from current user's account (SELF-SERVICE ONLY)
+    
+    - **amount**: Amount to subtract
+    - **operation**: Must be "subtract" (add not allowed for users)
+    
+    SECURITY: This endpoint ONLY modifies the logged-in user's own account.
+    User cannot specify target user_id. Credits are deducted from the account
+    associated with the JWT token.
+    
+    Use case: Called when user uses features that require credits
+    (e.g., generate comic, AI features, etc.)
+    """
+    # Only allow "subtract" operation for regular users
+    if kredit_data.operation != "subtract":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only 'subtract' operation is allowed for this endpoint"
+        )
+    
+    # SECURITY: Only fetch and update the authenticated user's own account
+    # current_user comes from JWT token, cannot be manipulated
+    user = db.query(User).filter(User.id_users == current_user.id_users).with_for_update().first()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Verify we're updating the correct user (double-check security)
+    if user.id_users != current_user.id_users:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only modify your own account"
+        )
+    
+    # Check if user has enough credits
+    if user.kredit < kredit_data.amount:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Insufficient credits. Current balance: {user.kredit}, Required: {kredit_data.amount}"
+        )
+    
+    # Subtract credits from authenticated user's account
+    user.kredit -= kredit_data.amount
+    
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    
+    return {
+        "ok": True,
+        "message": "Credits deducted successfully",
+        "data": {
+            "current_kredit": user.kredit,
+            "deducted_amount": kredit_data.amount
         }
     }
 
