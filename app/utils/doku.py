@@ -136,28 +136,16 @@ class DokuClient:
     def check_status(self, invoice_number: str) -> dict:
         """
         Check Transaction Status from Doku API
-        (Inlined logic from verified test script, with Debug Logging)
+        Using helper methods for consistency
         """
         target_path = f"/orders/v1/status/{invoice_number}"
         request_id = str(uuid.uuid4())
         timestamp = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
         
-        # Digest (Inlined)
+        # For GET requests, body is empty string
         json_body = ""
-        digest = hashlib.sha256(json_body.encode('utf-8')).digest()
-        digest_str = base64.b64encode(digest).decode('utf-8')
-        
-        # Signature (Inlined)
-        # Signature (Inlined)
-        # For GET requests (Check Status), Digest MUST be included in the signature component for Doku Jokul
-        raw_signature = f"Client-Id:{self.client_id}\nRequest-Id:{request_id}\nRequest-Timestamp:{timestamp}\nRequest-Target:{target_path}\nDigest:{digest_str}"
-        
-        signature_bytes = hmac.new(
-            self.secret_key.encode('utf-8'),
-            raw_signature.encode('utf-8'),
-            hashlib.sha256
-        ).digest()
-        signature = f"HMACSHA256={base64.b64encode(signature_bytes).decode('utf-8')}"
+        digest = self.generate_digest(json_body)
+        signature = self.generate_signature(request_id, timestamp, target_path, digest)
         
         headers = {
             "Content-Type": "application/json",
@@ -169,21 +157,23 @@ class DokuClient:
         
         url = f"{self.base_url}{target_path}"
         
+        print(f"Checking Doku Status URL: {url}")
+        print(f"Headers[Client-Id]: {self.client_id}")
+        
         try:
             response = requests.get(
                 url,
                 headers=headers,
-                timeout=10
+                timeout=30 
             )
             
+            print(f"Doku Status Response Code: {response.status_code}")
+            
             if response.status_code == 200:
-                print(f"DEBUG SUCCESS: Doku status - {response.text}")
+                print(f"DEBUG SUCCESS: Doku status payload - {response.text}")
                 return response.json()
             else:
                 print(f"Doku Check Status Error ({response.status_code}): {response.text}")
-                print(f"DEBUG FAIL: RawSig={repr(raw_signature)}")
-                print(f"DEBUG FAIL: Sig={signature}")
-                print(f"DEBUG FAIL: ClientID={repr(self.client_id)}")
                 return None
                 
         except Exception as e:
