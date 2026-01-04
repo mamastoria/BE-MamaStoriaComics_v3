@@ -86,6 +86,9 @@ class AuthService:
                 # Invalid referral code - we'll still create the user but without referral
                 referral_code = None
 
+        # Generate verification code
+        verification_code = generate_verification_code()
+        
         # Create user
         user = User(
             full_name=full_name,
@@ -94,13 +97,16 @@ class AuthService:
             password=hashed_password,
             referral_code_id=new_referral_code,
             referrals_for=referral_code,  # Code of person who referred them
-            verification_code=None,
-            last_verification_sent_at=None,
-            is_verified=True,
+            verification_code=verification_code,
+            last_verification_sent_at=datetime.utcnow(),
+            is_verified=False,
             kredit=1,
             balance=0,
             publish_quota=0
         )
+
+        # TODO: Send verification code via SMS/WhatsApp
+        print(f"Verification code for {phone_number}: {verification_code}")
 
         db.add(user)
         db.flush() # Generate ID without committing transaction

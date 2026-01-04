@@ -72,7 +72,7 @@ async def register(
             "data": {
                 "user_id": user.id_users,
                 "phone_number": user.phone_number,
-                "verification_code_sent": False
+                "verification_code_sent": True
             }
         }
     except Exception as e:
