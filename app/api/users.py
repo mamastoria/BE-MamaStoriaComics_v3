@@ -27,7 +27,7 @@ from app.schemas.user import (
 )
 from app.services.google_storage_service import GoogleStorageService
 from app.utils.email import send_email
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import uuid
 
 router = APIRouter()
@@ -233,7 +233,7 @@ async def send_reset_token(
     
     # Store in verification_code field (reusing OTP field)
     user.verification_code = reset_token
-    user.last_verification_sent_at = datetime.utcnow()
+    user.last_verification_sent_at = datetime.now(timezone.utc)
     db.commit()
     
     # Send email via Gmail SMTP
@@ -297,7 +297,7 @@ async def verify_reset_token(
     # Check expiry (15 minutes)
     if user.last_verification_sent_at:
         expiry = user.last_verification_sent_at + timedelta(minutes=15)
-        if datetime.utcnow() > expiry:
+        if datetime.now(timezone.utc) > expiry:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Reset code expired"
@@ -332,7 +332,7 @@ async def reset_password(
     # Check expiry
     if user.last_verification_sent_at:
         expiry = user.last_verification_sent_at + timedelta(minutes=15)
-        if datetime.utcnow() > expiry:
+        if datetime.now(timezone.utc) > expiry:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Reset code expired"
@@ -379,7 +379,7 @@ async def check_verification_code(
     # Check expiry (15 minutes)
     if user.last_verification_sent_at:
         expiry = user.last_verification_sent_at + timedelta(minutes=15)
-        if datetime.utcnow() > expiry:
+        if datetime.now(timezone.utc) > expiry:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Verification code expired"
@@ -427,7 +427,7 @@ async def send_otp(
     
     # Save to database
     user.verification_code = otp_code
-    user.last_verification_sent_at = datetime.utcnow()
+    user.last_verification_sent_at = datetime.now(timezone.utc)
     db.commit()
     
     # Send email via Gmail SMTP

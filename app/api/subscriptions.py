@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pydantic import BaseModel, Field, ConfigDict
 
 from app.core.database import get_db
@@ -111,16 +111,16 @@ def process_successful_payment(db: Session, transaction: PaymentTransaction) -> 
         # Update existing subscription
         subscription.package_id = package.id
         subscription.status = "active"
-        subscription.start_date = datetime.utcnow()
-        subscription.end_date = datetime.utcnow() + timedelta(days=package.duration_days)
+        subscription.start_date = datetime.now(timezone.utc)
+        subscription.end_date = datetime.now(timezone.utc) + timedelta(days=package.duration_days)
     else:
         # Create new subscription
         subscription = Subscription(
             user_id=user.id_users,
             package_id=package.id,
             status="active",
-            start_date=datetime.utcnow(),
-            end_date=datetime.utcnow() + timedelta(days=package.duration_days)
+            start_date=datetime.now(timezone.utc),
+            end_date=datetime.now(timezone.utc) + timedelta(days=package.duration_days)
         )
         db.add(subscription)
     
@@ -250,7 +250,7 @@ async def purchase_subscription(
     order_id = f"INV-{uuid.uuid4().hex[:8].upper()}-{int(datetime.now().timestamp())}"
     
     # Set payment expiration (24 hours from now - standard for Doku)
-    expires_at = datetime.utcnow() + timedelta(hours=24)
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
     
     # Create payment transaction
     transaction = PaymentTransaction(
@@ -585,7 +585,7 @@ async def get_subscription_status(
     subscription = db.query(Subscription).filter(
         Subscription.user_id == current_user.id_users,
         Subscription.status == "active",
-        Subscription.end_date > datetime.utcnow()
+        Subscription.end_date > datetime.now(timezone.utc)
     ).first()
     
     if subscription:
@@ -594,7 +594,7 @@ async def get_subscription_status(
             SubscriptionPackage.id == subscription.package_id
         ).first()
         
-        days_remaining = (subscription.end_date - datetime.utcnow()).days
+        days_remaining = (subscription.end_date - datetime.now(timezone.utc)).days
         
         return {
             "ok": True,

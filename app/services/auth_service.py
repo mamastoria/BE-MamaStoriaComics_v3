@@ -4,7 +4,7 @@ Handles user registration, login, OTP verification, and token management
 """
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple
 import random
 import string
@@ -98,7 +98,7 @@ class AuthService:
             referral_code_id=new_referral_code,
             referrals_for=referral_code,  # Code of person who referred them
             verification_code=verification_code,
-            last_verification_sent_at=datetime.utcnow(),
+            last_verification_sent_at=datetime.now(timezone.utc),
             is_verified=False,
             kredit=1,
             balance=0,
@@ -194,7 +194,7 @@ class AuthService:
         # Check if code expired (15 minutes)
         if user.last_verification_sent_at:
             expiry_time = user.last_verification_sent_at + timedelta(minutes=15)
-            if datetime.utcnow() > expiry_time:
+            if datetime.now(timezone.utc) > expiry_time:
                 return False, "Verification code expired"
         
         # Mark user as verified
@@ -230,13 +230,13 @@ class AuthService:
         # Check rate limit (1 minute)
         if user.last_verification_sent_at:
             next_allowed = user.last_verification_sent_at + timedelta(minutes=1)
-            if datetime.utcnow() < next_allowed:
+            if datetime.now(timezone.utc) < next_allowed:
                 return False, "Please wait before requesting new code"
         
         # Generate new code
         new_code = generate_verification_code()
         user.verification_code = new_code
-        user.last_verification_sent_at = datetime.utcnow()
+        user.last_verification_sent_at = datetime.now(timezone.utc)
         db.commit()
         
         # TODO: Send via SMS/WhatsApp
