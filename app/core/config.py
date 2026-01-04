@@ -46,10 +46,10 @@ class Settings(BaseSettings):
     #smtp password: gbog dqwb wzog iral
     
     # DOKU Payment (optional - not all deployments use this)
-    DOKU_CLIENT_ID: str = ""
-    DOKU_SECRET_KEY: str = ""
-    DOKU_NOTIFICATION_SECRET: str = ""
-    DOKU_IS_PRODUCTION: bool = False
+    DOKU_CLIENT_ID: str = "BRN-0280-1765767732062"
+    DOKU_SECRET_KEY: str = "SK-Mb7Lbo9POYkyOCpv1vG2"
+    DOKU_NOTIFICATION_SECRET: str = "SK-Mb7Lbo9POYkyOCpv1vG2"
+    DOKU_IS_PRODUCTION: bool = true
     USE_MOCK_PAYMENT: bool = False  # Set to True to use local mock payment page instead of Doku API
     
     # CORS
