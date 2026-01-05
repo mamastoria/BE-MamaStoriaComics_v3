@@ -93,28 +93,38 @@ async def add_withdrawal(
     try:
         from app.utils.email import send_email
         from app.core.config import settings
+        from app.models.config_app import Config
         
-        subject = f"[Withdrawal Request] ID:{new_withdrawal.id} - {user.username} - Rp {new_withdrawal.amount:,}"
+        # Get recipient email from database config
+        email_config = db.query(Config).filter(Config.name_config == 'email_withdrawal').first()
+        to_email = email_config.value_config if email_config else settings.SMTP_USERNAME
         
-        html_content = f"""
-        <h2>New Withdrawal Request</h2>
-        <table style="border-collapse: collapse; width: 100%;">
-            <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>User:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">{user.full_name} ({user.email})</td></tr>
-            <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Amount:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">Rp {new_withdrawal.amount:,}</td></tr>
-            <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Bank:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">{new_withdrawal.bank_name}</td></tr>
-            <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Account Number:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">{new_withdrawal.account_number}</td></tr>
-            <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Account Name:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">{new_withdrawal.account_name}</td></tr>
-            <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Date:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">{new_withdrawal.created_at}</td></tr>
-        </table>
-        <p>Please review and process in Admin Dashboard.</p>
-        """
-        
-        send_email(
-            to_email=settings.SMTP_USERNAME, # Send to Admin
-            subject=subject,
-            html_content=html_content
-        )
-        print(f"Withdrawal email sent to {settings.SMTP_USERNAME}")
+        # Only send if we have a valid email
+        if to_email:
+            subject = f"[Withdrawal Request] ID:{new_withdrawal.id} - {user.username} - Rp {new_withdrawal.amount:,}"
+            
+            html_content = f"""
+            <h2>New Withdrawal Request</h2>
+            <table style="border-collapse: collapse; width: 100%;">
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>User:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">{user.full_name} ({user.email})</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Amount:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">Rp {new_withdrawal.amount:,}</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Bank:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">{new_withdrawal.bank_name}</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Account Number:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">{new_withdrawal.account_number}</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Account Name:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">{new_withdrawal.account_name}</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Date:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">{new_withdrawal.created_at}</td></tr>
+            </table>
+            <p>Please review and process in Admin Dashboard.</p>
+            """
+            
+            send_email(
+                to_email=to_email,
+                subject=subject,
+                html_content=html_content
+            )
+            print(f"Withdrawal email sent to {to_email}")
+        else:
+            print("No email configuration found for 'email_withdrawal' and no SMTP_USERNAME set.")
+
     except Exception as e:
         print(f"Failed to send withdrawal email: {e}")
 
