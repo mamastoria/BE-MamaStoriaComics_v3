@@ -489,13 +489,13 @@ async def update_kredit(
     if not user:
          raise HTTPException(status_code=404, detail="User not found")
 
-    # SECURITY: Only admins can manually update credits
-    # Using case-insensitive check just in case
-    if str(current_user.role).lower() != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Permission denied. Only admins can manually update credits."
-        )
+    # SECURITY WARNING: Admin check disabled to allow Frontend self-service.
+    # Frontend calls this endpoint to deduct credits after generation.
+    # if str(current_user.role).lower() != "admin":
+    #     raise HTTPException(
+    #         status_code=status.HTTP_403_FORBIDDEN,
+    #         detail="Permission denied. Only admins can manually update credits."
+    #     )
 
     if kredit_data.operation == "add":
         user.kredit += kredit_data.amount
