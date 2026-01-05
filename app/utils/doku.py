@@ -19,10 +19,13 @@ class DokuClient:
         digest = hashlib.sha256(json_body.encode('utf-8')).digest()
         return base64.b64encode(digest).decode('utf-8')
 
-    def generate_signature(self, request_id: str, timestamp: str, target_path: str, digest: str) -> str:
+    def generate_signature(self, request_id: str, timestamp: str, target_path: str, digest: str = None) -> str:
         """Generate HMAC-SHA256 Signature"""
-        # Format: Client-Id + Request-Id + Request-Timestamp + Request-Target + Digest
-        raw_signature = f"Client-Id:{self.client_id}\nRequest-Id:{request_id}\nRequest-Timestamp:{timestamp}\nRequest-Target:{target_path}\nDigest:{digest}"
+        # Format: Client-Id + Request-Id + Request-Timestamp + Request-Target + Digest (if present)
+        raw_signature = f"Client-Id:{self.client_id}\nRequest-Id:{request_id}\nRequest-Timestamp:{timestamp}\nRequest-Target:{target_path}"
+        
+        if digest:
+            raw_signature += f"\nDigest:{digest}"
         
         signature = hmac.new(
             self.secret_key.encode('utf-8'),
@@ -148,10 +151,8 @@ class DokuClient:
         request_id = str(uuid.uuid4())
         timestamp = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
         
-        # For GET requests, body is empty string
-        json_body = ""
-        digest = self.generate_digest(json_body)
-        signature = self.generate_signature(request_id, timestamp, target_path, digest)
+        # For GET requests, body is empty, so NO DIGEST in signature
+        signature = self.generate_signature(request_id, timestamp, target_path, digest=None)
         
         headers = {
             "Content-Type": "application/json",
