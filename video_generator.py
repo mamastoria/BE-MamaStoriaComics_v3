@@ -635,6 +635,34 @@ def generate_cinematic_video(
             pass
 
 
+def fix_video_compatibility(input_path: str, output_path: str) -> bool:
+    """
+    Ensure video is 100% compatible with all devices (H.264, AAC, YUV420p, Faststart).
+    """
+    logger.info(f"Running compatibility fix on {input_path}...")
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", input_path,
+        "-c:v", "libx264",
+        "-pix_fmt", "yuv420p",
+        "-profile:v", "main",
+        "-level", "3.1",
+        "-movflags", "+faststart",
+        "-c:a", "aac",
+        "-b:a", "128k",
+        output_path
+    ]
+    try:
+        subprocess.run(cmd, check=True, capture_output=True, timeout=300)
+        return True
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Fix video failed: {e.stderr.decode('utf-8') if e.stderr else str(e)}")
+        return False
+    except Exception as e:
+        logger.error(f"Fix video exception: {str(e)}")
+        return False
+
+
 def generate_video_for_comic(
     comic_id: int,
     panels: List[Dict[str, Any]],
@@ -672,6 +700,18 @@ def generate_video_for_comic(
         if not success or not os.path.exists(output_path):
             logger.error(f"Video generation failed for comic {comic_id}")
             return None
+            
+        # --- COMPATIBILITY FIX ---
+        fixed_path = output_path.replace(".mp4", "_fixed.mp4")
+        if fix_video_compatibility(output_path, fixed_path):
+            # Replace original with fixed version
+            if os.path.exists(output_path):
+                os.remove(output_path)
+            os.rename(fixed_path, output_path)
+            logger.info("✅ Video compatibility fixed (H.264/AAC/YUV420p/FastStart)")
+        else:
+            logger.warning("⚠️ Video compatibility fix failed, proceeding with original")
+        # -------------------------
         
         if upload_to_gcs:
             # Upload to Google Cloud Storage
