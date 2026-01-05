@@ -504,6 +504,7 @@ async def check_payment_status(
         )
     
     # Lazy Status Check: If pending, ask Doku
+    doku_check_debug = None
     if transaction.status == "pending" and not settings.USE_MOCK_PAYMENT:
         try:
             from app.utils.doku import doku_client
@@ -517,23 +518,41 @@ async def check_payment_status(
                 # Successfully got response from Doku
                 status_response = status_result.get("data", {})
                 doku_status = status_response.get("transaction", {}).get("status")
-                print(f"Doku status for {invoice_number}: {doku_status}")
+                # Log respon mentah untuk debugging
+                if doku_status:
+                    print(f"Doku raw status: {doku_status}")
                 
-                if doku_status == "SUCCESS":
-                    # Payment is confirmed by Gateway
-                    if process_successful_payment(db, transaction):
-                         # Credits given, status updated to success inside logic
-                         print(f"✅ Payment {invoice_number} processed successfully")
-                    else:
-                         # Payment successful at Doku but app processing failed (e.g. package not found)
-                         # We force status to success so it's recorded as paid
-                         print(f"⚠️ CRITICAL: Payment {invoice_number} success at Doku but processing failed.")
-                         import json
-                         transaction.status = "success"
-                         transaction.doku_response = json.dumps(status_response)
-                         db.commit()
+                # UPDATE: Logika Super Robust
+                # Kita terima "SUCCESS", "Success", "success"
+                is_doku_success = str(doku_status).upper() == "SUCCESS"
+                
+                if is_doku_success:
+                    print(f"✅ Doku confirm SUCCESS for {invoice_number}")
                     
+                    # 1. Update status transaksi di object transaction DULU (agar aman)
+                    transaction.status = "success"
+                    # Simpan respon lengkap doku untuk bukti
+                    import json
+                    try:
+                        transaction.doku_response = json.dumps(status_response)
+                    except:
+                        pass
+                    
+                    # 2. Coba proses logic bisnis (kasih kredit/subscription)
+                    # Kita bungkus try-except agar jika ini gagal, DATA KEUANGAN TETAP AMAN (SUCCESS)
+                    try:
+                        logic_result = process_successful_payment(db, transaction)
+                        if logic_result:
+                            print("✅ Business logic (credits/sub) applied")
+                        else:
+                            print("⚠️ Business logic returned False (package mismatch?), but Payment is Valid.")
+                    except Exception as logic_err:
+                        print(f"⚠️ Business logic CRASH: {logic_err}. Payment remains VALID.")
+                        
+                    # 3. Commit Final
+                    db.commit()
                     db.refresh(transaction)
+                    
                 elif doku_status in ["FAILED", "EXPIRED"]:
                     print(f"Payment {invoice_number} status: {doku_status}")
                     transaction.status = doku_status.lower()
@@ -566,7 +585,8 @@ async def check_payment_status(
             "created_at": transaction.created_at,
             "payment_url": transaction.payment_url,
             "type_transaction": transaction.type_transaction,
-            "expires_at": transaction.expires_at
+            "expires_at": transaction.expires_at,
+            "doku_check_debug": doku_check_debug
         }
     }
 
@@ -731,4 +751,26 @@ async def check_referral_bonus(
     }
 
 
+@router.get("/subscriptions/debug-doku/{invoice_number}", response_model=dict)
+async def debug_doku_status(
+    invoice_number: str
+):
+    """
+    DEBUG TOOL: Check RAW status from Doku without DB manipulation
+    """
+    from app.utils.doku import doku_client
+    
+    # Reload settings explicit
+    doku_client.is_production = settings.DOKU_IS_PRODUCTION
+    doku_client.base_url = "https://api.doku.com" if doku_client.is_production else "https://api-sandbox.doku.com"
+    
+    # Check status
+    result = doku_client.check_status(invoice_number)
+    
+    return {
+        "ok": True,
+        "env_production_flag": doku_client.is_production,
+        "base_url": doku_client.base_url,
+        "doku_raw_response": result
+    }
 
