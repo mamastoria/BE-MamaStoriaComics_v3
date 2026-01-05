@@ -87,12 +87,18 @@ class UpdateProfile(BaseModel):
 
 
 class UpdateKredit(BaseModel):
-    """Schema for updating user credits"""
+    """Schema for updating user credits (Admin endpoint)"""
     amount: int = Field(..., description="Amount to add/subtract") # Credits amount
     operation: str = Field(..., pattern="^(add|subtract)$", alias="type")
     description: Optional[str] = None
     
     model_config = ConfigDict(populate_by_name=True)
+
+
+class UserKreditAmount(BaseModel):
+    """Schema for user credit operations (simplified for user endpoints)"""
+    amount: int = Field(..., gt=0, description="Amount of credits")
+    description: Optional[str] = Field(None, description="Optional description of the transaction")
 
 
 class UpdateFCMToken(BaseModel):

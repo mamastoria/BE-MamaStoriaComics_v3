@@ -73,21 +73,38 @@ async def download_video(
         
         # Download file from Google Storage
         logger.info(f"Downloading file: {file_path}")
-        file_stream = storage_service.get_file_stream(file_path)
+        
+        # Download file content completely first (more reliable than streaming from GCS)
+        # For large files, we could implement chunked download, but for most videos this is fine
+        try:
+            file_content = storage_service.download_file(file_path)
+        except Exception as e:
+            logger.error(f"Failed to download file from GCS: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to download file from storage: {str(e)}"
+            )
+        
+        # Create a generator to stream the file content in chunks
+        def iterfile():
+            chunk_size = 8192 * 1024  # 8MB chunks
+            offset = 0
+            while offset < len(file_content):
+                yield file_content[offset:offset + chunk_size]
+                offset += chunk_size
         
         # Prepare headers for download
         headers = {
             'Content-Disposition': f'attachment; filename="{filename}"',
             'Content-Type': content_type,
+            'Content-Length': str(len(file_content)),
             'Access-Control-Expose-Headers': 'Content-Disposition, Content-Length',
+            'Accept-Ranges': 'bytes',
         }
-        
-        if file_size:
-            headers['Content-Length'] = str(file_size)
         
         # Return streaming response
         return StreamingResponse(
-            file_stream,
+            iterfile(),
             media_type=content_type,
             headers=headers
         )
@@ -160,21 +177,37 @@ async def download_file(
         
         # Download file from Google Storage
         logger.info(f"Downloading file: {file_path}")
-        file_stream = storage_service.get_file_stream(file_path)
+        
+        # Download file content
+        try:
+            file_content = storage_service.download_file(file_path)
+        except Exception as e:
+            logger.error(f"Failed to download file from GCS: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to download file from storage: {str(e)}"
+            )
+        
+        # Create a generator to stream the file content in chunks
+        def iterfile():
+            chunk_size = 8192 * 1024  # 8MB chunks
+            offset = 0
+            while offset < len(file_content):
+                yield file_content[offset:offset + chunk_size]
+                offset += chunk_size
         
         # Prepare headers for download
         headers = {
             'Content-Disposition': f'attachment; filename="{filename}"',
             'Content-Type': content_type,
+            'Content-Length': str(len(file_content)),
             'Access-Control-Expose-Headers': 'Content-Disposition, Content-Length',
+            'Accept-Ranges': 'bytes',
         }
-        
-        if file_size:
-            headers['Content-Length'] = str(file_size)
         
         # Return streaming response
         return StreamingResponse(
-            file_stream,
+            iterfile(),
             media_type=content_type,
             headers=headers
         )

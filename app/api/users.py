@@ -20,6 +20,7 @@ from app.schemas.user import (
     CheckVerificationCode,
     SendOTP,
     UpdateKredit,
+    UserKreditAmount,
     ProfileRating,
     ProfileRating,
     ReferralCodeResponse,
@@ -536,7 +537,7 @@ async def update_kredit(
 
 @router.post("/profile/kredit/add", response_model=dict)
 async def add_user_kredit(
-    kredit_data: UpdateKredit,
+    kredit_data: UserKreditAmount,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -552,13 +553,6 @@ async def add_user_kredit(
     
     Use case: Called after successful payment to add purchased credits.
     """
-    # Only allow "add" operation for regular users
-    if kredit_data.operation != "add":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only 'add' operation is allowed for this endpoint"
-        )
-    
     # SECURITY: Only fetch and update the authenticated user's own account
     # current_user comes from JWT token, cannot be manipulated
     user = db.query(User).filter(User.id_users == current_user.id_users).with_for_update().first()
@@ -591,7 +585,7 @@ async def add_user_kredit(
 
 @router.post("/profile/kredit/subtract", response_model=dict)
 async def subtract_user_kredit(
-    kredit_data: UpdateKredit,
+    kredit_data: UserKreditAmount,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -608,13 +602,6 @@ async def subtract_user_kredit(
     Use case: Called when user uses features that require credits
     (e.g., generate comic, AI features, etc.)
     """
-    # Only allow "subtract" operation for regular users
-    if kredit_data.operation != "subtract":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only 'subtract' operation is allowed for this endpoint"
-        )
-    
     # SECURITY: Only fetch and update the authenticated user's own account
     # current_user comes from JWT token, cannot be manipulated
     user = db.query(User).filter(User.id_users == current_user.id_users).with_for_update().first()
