@@ -504,8 +504,9 @@ async def check_payment_status(
         )
     
     # Lazy Status Check: If pending, ask Doku
+    # REMOVED settings.USE_MOCK_PAYMENT check to force check Doku API
     doku_check_debug = None
-    if transaction.status == "pending" and not settings.USE_MOCK_PAYMENT:
+    if transaction.status == "pending":
         try:
             from app.utils.doku import doku_client
             # Check status at Doku
