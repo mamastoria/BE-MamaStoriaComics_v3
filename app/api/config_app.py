@@ -5,7 +5,7 @@ Config API endpoints
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.models.config import Config
+from app.models.config_app import Config
 
 router = APIRouter()
 
