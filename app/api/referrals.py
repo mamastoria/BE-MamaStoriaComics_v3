@@ -69,20 +69,31 @@ async def list_referrals_by_user(
 from pydantic import BaseModel, Field
 
 class ReferralCreate(BaseModel):
+    user_id: int = Field(..., description="User ID redeeming the code")
     referral_code: str = Field(..., description="Referral code to redeem")
 
 @router.post("/referrals", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def create_referral(
     referral_data: ReferralCreate,
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Redeem a referral code (Set parent referrer)
+    **Public Endpoint**: Does not require authentication header.
     
+    - **user_id**: The ID of the user submitting the code
     - **referral_code**: The code of the referrer
     """
     code = referral_data.referral_code.strip()
+    user_id = referral_data.user_id
+    
+    # 0. Get the user
+    current_user = db.query(User).filter(User.id_users == user_id).first()
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
     
     # 1. Check if user already has a referrer
     if current_user.referrals_for:
