@@ -140,6 +140,8 @@ class DokuClient:
         """
         # RELOAD SETTINGS DYNAMICALLY
         self.is_production = settings.DOKU_IS_PRODUCTION
+        self.client_id = settings.DOKU_CLIENT_ID
+        self.secret_key = settings.DOKU_SECRET_KEY
         self.base_url = "https://api.doku.com" if self.is_production else "https://api-sandbox.doku.com"
         
         target_path = f"/orders/v1/status/{invoice_number}"
