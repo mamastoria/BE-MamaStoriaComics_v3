@@ -121,7 +121,7 @@ async def login(
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials"
+            detail="Username atau password salah"
         )
     
     # Check if user is verified
