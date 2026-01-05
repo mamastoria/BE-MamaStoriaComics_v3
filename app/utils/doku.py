@@ -136,17 +136,12 @@ class DokuClient:
     def check_status(self, invoice_number: str) -> dict:
         """
         Check Transaction Status from Doku API
-        Using helper methods for consistency
-        
-        Returns:
-            dict: Response from Doku API with structure:
-                {
-                    "success": bool,
-                    "data": dict (Doku response) or None,
-                    "error": str or None,
-                    "status_code": int
-                }
+        Refetch settings to ensure environment switch works without restart
         """
+        # RELOAD SETTINGS DYNAMICALLY
+        self.is_production = settings.DOKU_IS_PRODUCTION
+        self.base_url = "https://api.doku.com" if self.is_production else "https://api-sandbox.doku.com"
+        
         target_path = f"/orders/v1/status/{invoice_number}"
         request_id = str(uuid.uuid4())
         timestamp = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
