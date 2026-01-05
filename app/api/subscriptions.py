@@ -740,14 +740,17 @@ async def check_referral_bonus(
         }
     
     # Step 2: Check if user has "Never Topped Up" (Zero successful subscriptions)
+    # Only successful subscriptions disqualify the user. Pending/Failed are ignored.
     subscription_count = db.query(PaymentTransaction).filter(
         PaymentTransaction.user_id == user_id,
         PaymentTransaction.type_transaction == "subscription",
         PaymentTransaction.status == "success"
     ).count()
     
+    print(f"DEBUG Check Bonus: user_id={user_id}, referrer={referral_record.referrer_id}, sub_count={subscription_count}")
+    
     # Eligible if never topped up (count is 0)
-    is_eligible = (subscription_count == 0)
+    is_eligible = (subscription_count == 1)
     
     return {
         "ok": True,
