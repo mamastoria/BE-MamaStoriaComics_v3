@@ -66,6 +66,78 @@ async def list_referrals_by_user(
 
     return paginated_response(referrals_data, page, per_page, total)
 
+from pydantic import BaseModel, Field
+
+class ReferralCreate(BaseModel):
+    referral_code: str = Field(..., description="Referral code to redeem")
+
+@router.post("/referrals", response_model=dict, status_code=status.HTTP_201_CREATED)
+async def create_referral(
+    referral_data: ReferralCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Redeem a referral code (Set parent referrer)
+    
+    - **referral_code**: The code of the referrer
+    """
+    code = referral_data.referral_code.strip()
+    
+    # 1. Check if user already has a referrer
+    if current_user.referrals_for:
+        # Check if it's the same code
+        if current_user.referrals_for == code:
+             return {"ok": True, "message": "Referral code already applied"}
+        
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You already have a referrer set"
+        )
+    
+    # 2. Check if trying to refer self
+    if current_user.referral_code_id == code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot use your own referral code"
+        )
+
+    # 3. Find the referrer
+    referrer = db.query(User).filter(User.referral_code_id == code).first()
+    if not referrer:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invalid referral code"
+        )
+    
+    try:
+        # 4. Update User
+        current_user.referrals_for = code
+        
+        # 5. Create Referral Record
+        new_referral = Referral(
+            referrer_id=referrer.id_users,
+            referred_user_id=current_user.id_users
+        )
+        db.add(new_referral)
+        
+        db.commit()
+        
+        return {
+            "ok": True, 
+            "message": "Referral code verified successfully",
+            "data": {
+                "referrer_name": referrer.full_name,
+                "referrer_code": code
+            }
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process referral: {str(e)}"
+        )
+
 @router.get("/referrals/check-parent", response_model=dict)
 async def check_parent_referral(
     current_user: User = Depends(get_current_user),

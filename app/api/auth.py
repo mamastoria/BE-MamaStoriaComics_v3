@@ -128,7 +128,7 @@ async def login(
     if not user.is_verified:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Please verify your phone number first"
+            detail="Account not verified. Please verify your email or phone number first."
         )
     
     # Create tokens

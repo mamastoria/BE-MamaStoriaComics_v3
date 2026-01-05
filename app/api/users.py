@@ -386,6 +386,14 @@ async def check_verification_code(
                 detail="Verification code expired"
             )
     
+    # Update is_verified to True
+    if not user.is_verified:
+        user.is_verified = True
+        # Optional: Clear verification code to prevent reuse
+        # user.verification_code = None 
+        db.commit()
+        db.refresh(user)
+    
     return {
         "ok": True,
         "message": "Verification code is valid",
