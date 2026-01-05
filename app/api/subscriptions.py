@@ -716,43 +716,43 @@ async def check_referral_bonus(
     - **user_id**: User ID to check
     
     Logic:
-    1. Check if user has a parent referral (exists in referrals table as referred_user_id)
-       - If NO parent referral -> Return False (Not eligible)
-    2. If has parent, check if user has any successful subscription payment
-       - If subscription count == 0 -> Return True (Eligible for First Purchase Bonus)
-       - If subscription count > 0 -> Return False (Already purchased before)
+    1. Check if user is a referral from another account (exists in referrals table as referred_user_id)
+       - If NOT found -> Return False (Not a referred user)
+    2. If user IS a referral, check if they have any successful subscription/topup history
+       - If success count == 0 -> Return True (Eligible: "Belum pernah topup")
+       - If success count > 0 -> Return False (Already topped up before)
     
-    Returns boolean indicating eligibility for referral bonus
+    Returns boolean indicating eligibility for bonus
     """
     from app.models.referral import Referral
     
-    # Step 1: Check if user has parent referral
+    # Step 1: Check if user is a referral from another account
     referral_record = db.query(Referral).filter(
         Referral.referred_user_id == user_id
     ).first()
     
     if not referral_record:
-        # No parent referral found
+        # User is not a referral
         return {
             "ok": True,
             "data": False,
-            "message": "User has no parent referral"
+            "message": "User is not a referral from another account"
         }
     
-    # Step 2: Check if user has successful subscription payment
+    # Step 2: Check if user has "Never Topped Up" (Zero successful subscriptions)
     subscription_count = db.query(PaymentTransaction).filter(
         PaymentTransaction.user_id == user_id,
         PaymentTransaction.type_transaction == "subscription",
         PaymentTransaction.status == "success"
     ).count()
     
-    # Logic: Eligible (True) if NO successful subscriptions yet (count == 0)
+    # Eligible if never topped up (count is 0)
     is_eligible = (subscription_count == 0)
     
     return {
         "ok": True,
         "data": is_eligible,
-        "message": "Eligible for referral bonus" if is_eligible else "User already has subscription history",
+        "message": "Eligible for referral bonus" if is_eligible else "User has already topped up/subscribed",
         "referrer_id": referral_record.referrer_id
     }
 
