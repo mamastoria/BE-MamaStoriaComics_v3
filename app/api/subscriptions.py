@@ -705,7 +705,7 @@ async def check_transaction_status(
     }
 
 
-@router.get("/referral/check-bonus", response_model=dict)
+@router.get("/subscriptions/referral/check-bonus", response_model=dict)
 async def check_referral_bonus(
     user_id: int,
     db: Session = Depends(get_db)
@@ -717,8 +717,10 @@ async def check_referral_bonus(
     
     Logic:
     1. Check if user has a parent referral (exists in referrals table as referred_user_id)
-    2. If has parent, check if user has any successful subscription payment (type_transaction='subscription')
-    3. Return true if both conditions met, false otherwise
+       - If NO parent referral -> Return False (Not eligible)
+    2. If has parent, check if user has any successful subscription payment
+       - If subscription count == 0 -> Return True (Eligible for First Purchase Bonus)
+       - If subscription count > 0 -> Return False (Already purchased before)
     
     Returns boolean indicating eligibility for referral bonus
     """
@@ -738,17 +740,20 @@ async def check_referral_bonus(
         }
     
     # Step 2: Check if user has successful subscription payment
-    has_subscription = db.query(PaymentTransaction).filter(
+    subscription_count = db.query(PaymentTransaction).filter(
         PaymentTransaction.user_id == user_id,
         PaymentTransaction.type_transaction == "subscription",
         PaymentTransaction.status == "success"
-    ).count() > 0
+    ).count()
+    
+    # Logic: Eligible (True) if NO successful subscriptions yet (count == 0)
+    is_eligible = (subscription_count == 0)
     
     return {
         "ok": True,
-        "data": has_subscription,
-        "message": "Eligible for referral bonus" if has_subscription else "No successful subscription payment found",
-        "referrer_id": referral_record.referrer_id if has_subscription else None
+        "data": is_eligible,
+        "message": "Eligible for referral bonus" if is_eligible else "User already has subscription history",
+        "referrer_id": referral_record.referrer_id
     }
 
 
