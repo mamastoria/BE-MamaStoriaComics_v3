@@ -98,10 +98,11 @@ async def db_health_check():
 
 
 # Import routers
-from app.api import auth, master_data, users, comics, comments, likes, history, subscriptions, notifications, analytics, comic_generator, commissions, withdrawals, referrals, worker, comic_requests, downloads, config_app, follows
+from app.api import auth, master_data, users, comics, comments, likes, history, subscriptions, notifications, analytics, comic_generator, commissions, withdrawals, referrals, worker, comic_requests, downloads, config_app, follows, public
 
 # Include routers
 app.include_router(comic_generator.router, tags=["Comic Generator"]) # Mixed paths (api + viewer)
+app.include_router(public.router, prefix="/api/v1/public", tags=["Public"]) # Public endpoints without auth
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(users.router, prefix="/api/v1", tags=["Users"])
 app.include_router(master_data.router, prefix="/api/v1", tags=["Master Data"])
