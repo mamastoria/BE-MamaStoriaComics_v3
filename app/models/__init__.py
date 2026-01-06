@@ -9,6 +9,7 @@ from app.models.master_data import Style, Genre, Character, Background, AssetMus
 from app.models.subscription import SubscriptionPackage, Subscription, PaymentTransaction, Transaction
 from app.models.notification import Notification, Banner, BannerComic
 from app.models.comic_request import ComicRequest
+from app.models.follow import Follow
 
 __all__ = [
     # User
@@ -23,6 +24,7 @@ __all__ = [
     
     # Social
     "Comment",
+    "Follow",
     
     # Master Data
     "Style",

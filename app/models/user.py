@@ -83,10 +83,26 @@ class User(Base):
         back_populates="liked_by_users"
     )
     
+    
     read_comics = relationship(
         "Comic",
         secondary="comic_views",
         back_populates="viewed_by_users"
+    )
+
+    # Follow system
+    followers = relationship(
+        "Follow", 
+        foreign_keys="Follow.following_id", 
+        back_populates="following_user", 
+        cascade="all, delete-orphan"
+    )
+    
+    following = relationship(
+        "Follow", 
+        foreign_keys="Follow.follower_id", 
+        back_populates="follower", 
+        cascade="all, delete-orphan"
     )
     
     def __repr__(self):
