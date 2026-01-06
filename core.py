@@ -23,6 +23,10 @@ from PIL import Image
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 
+# Computer Vision
+import cv2
+import numpy as np
+
 
 # ============================================================
 # LOGGING
@@ -542,51 +546,128 @@ def b64_png(img: Image.Image) -> str:
 
 def split_grid_3x3(img: Image.Image) -> List[Image.Image]:
     """
-    Split a 3x3 grid image into 9 panels with ASYMMETRIC SAFETY CROP.
-    - Outer edges (page borders) have larger crop to remove white space.
-    - Inner edges (panel gutters) have standard safety crop.
+    Split a 3x3 grid image into 9 panels using HYBRID Method:
+    1. Try OpenCV Contour Detection (Smart)
+    2. Fallback to Manual 3x3 Grid Slicing if detection fails
     """
-    w, h = img.size
-    cell_w = w // 3
-    cell_h = h // 3
-    
-    # Crop Ratios
-    INNER_M = 0.035  # 3.5% for internal panel borders (gutters)
-    OUTER_M = 0.05   # 6% for outer page edges (reduced from 7.5%)
-    
     panels: List[Image.Image] = []
-    for row in range(3):
-        for col in range(3):
-            # 1. Base coordinates
-            base_left = col * cell_w
-            base_top = row * cell_h
-            base_right = base_left + cell_w
-            base_bottom = base_top + cell_h
+    method = "manual"
+    
+    # --- METHOD 1: OpenCV Smart Detection ---
+    try:
+        # Convert PIL to OpenCV format (RGB -> BGR)
+        img_np = np.array(img)
+        img_cv = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
+        
+        original_h, original_w = img_cv.shape[:2]
+        
+        # Preprocessing
+        gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+        thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+                                       cv2.THRESH_BINARY_INV, 11, 2)
+
+        # Morphology to merge lines
+        kernel_h = cv2.getStructuringElement(cv2.MORPH_RECT, (20, 1))
+        kernel_v = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 20))
+        detect_h = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel_h, iterations=2)
+        detect_v = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel_v, iterations=2)
+        final_mask = cv2.addWeighted(detect_h, 0.5, detect_v, 0.5, 0)
+        _, final_mask = cv2.threshold(final_mask, 0, 255, cv2.THRESH_BINARY) 
+
+        # Find Contours
+        contours, _ = cv2.findContours(final_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        # Filter Contours
+        panel_rects = []
+        min_area = (original_w * original_h) * 0.03
+        
+        for cnt in contours:
+            x, y, w, h = cv2.boundingRect(cnt)
+            area = w * h
+            aspect_ratio = w / float(h)
+            if area > min_area and 0.5 < aspect_ratio < 2.0:
+                panel_rects.append((x, y, w, h))
+        
+        # Sort if exactly 9 panels found
+        if len(panel_rects) == 9:
+            # Sort Grid logic
+            ROW_TOLERANCE = 50 
+            panel_rects.sort(key=lambda r: r[1]) # Y sort
             
-            # 2. Determine margins based on position
-            # Left edge: If col 0 (leftmost), use OUTER margin. Else INNER.
-            m_left = OUTER_M if col == 0 else INNER_M
+            rows = []
+            current_row = []
+            last_y = -999
             
-            # Top edge: If row 0 (topmost), use OUTER margin. Else INNER.
-            m_top = OUTER_M if row == 0 else INNER_M
+            for r in panel_rects:
+                y = r[1]
+                if not current_row:
+                    current_row.append(r)
+                    last_y = y
+                else:
+                    if abs(y - last_y) < ROW_TOLERANCE:
+                        current_row.append(r)
+                    else:
+                        current_row.sort(key=lambda x: x[0]) # X sort prev row
+                        rows.append(current_row)
+                        current_row = [r]
+                        last_y = y
+            if current_row:
+                current_row.sort(key=lambda x: x[0])
+                rows.append(current_row)
             
-            # Right edge: If col 2 (rightmost), use OUTER margin. Else INNER.
-            m_right = OUTER_M if col == 2 else INNER_M
+            sorted_rects = [item for sublist in rows for item in sublist]
             
-            # Bottom edge: If row 2 (bottommost), use OUTER margin. Else INNER.
-            m_bottom = OUTER_M if row == 2 else INNER_M
-            
-            # 3. Calculate pixel crop
-            left = base_left + int(cell_w * m_left)
-            top = base_top + int(cell_h * m_top)
-            right = base_right - int(cell_w * m_right)
-            bottom = base_bottom - int(cell_h * m_bottom)
-            
-            # 4. Safety clamp
-            if left >= right: left = base_left
-            if top >= bottom: top = base_top
-            
-            panels.append(img.crop((left, top, right, bottom)))
+            # Additional Check: Make sure sorting resulted in 9 items
+            if len(sorted_rects) == 9:
+                method = "opencv"
+                # Crop with small inner margin (to remove black borders)
+                MARGIN_PCT = 0.02
+                for (x, y, w, h) in sorted_rects:
+                    m_x = int(w * MARGIN_PCT)
+                    m_y = int(h * MARGIN_PCT)
+                    crop_rect = (x + m_x, y + m_y, x + w - m_x, y + h - m_y)
+                    panels.append(img.crop(crop_rect))
+                
+                logger.info("Panel Crop: Successfully used OpenCV Smart Detection (9 panels)")
+                return panels
+
+    except Exception as e:
+        logger.warning(f"Panel Crop: OpenCV detection failed, falling back to manual. Error: {e}")
+
+    # --- METHOD 2: Fallback Manual Crop (Original Logic) ---
+    if method == "manual":
+        logger.info("Panel Crop: Using Manual 3x3 Grid Slicing (Fallback)")
+        w, h = img.size
+        cell_w = w // 3
+        cell_h = h // 3
+        
+        INNER_M = 0.035
+        OUTER_M = 0.05
+        
+        # Reset panels just in case
+        panels = []
+        for row in range(3):
+            for col in range(3):
+                base_left = col * cell_w
+                base_top = row * cell_h
+                base_right = base_left + cell_w
+                base_bottom = base_top + cell_h
+                
+                m_left = OUTER_M if col == 0 else INNER_M
+                m_top = OUTER_M if row == 0 else INNER_M
+                m_right = OUTER_M if col == 2 else INNER_M
+                m_bottom = OUTER_M if row == 2 else INNER_M
+                
+                left = base_left + int(cell_w * m_left)
+                top = base_top + int(cell_h * m_top)
+                right = base_right - int(cell_w * m_right)
+                bottom = base_bottom - int(cell_h * m_bottom)
+                
+                if left >= right: left = base_left
+                if top >= bottom: top = base_top
+                
+                panels.append(img.crop((left, top, right, bottom)))
+                
     return panels
 
 
