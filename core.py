@@ -23,6 +23,9 @@ from PIL import Image
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 
+import requests # For calling microservices
+
+
 
 
 # ============================================================
@@ -1036,19 +1039,49 @@ def generate_3x3_grid_image(prompt: str) -> Image.Image:
 
 
 # ============================================================
+# MICROSERVICE HELPER
+# ============================================================
+def call_smart_crop_service(grid_gcs_url: str, job_id: str, part_no: int) -> List[str]:
+    """
+    Call external Cloud Function to crop panels.
+    Returns: List of GCS public URLs for the panels.
+    """
+    # URL will be set via Environment Variable on deployment
+    svc_url = _env("SMART_CROP_SERVICE_URL", "")
+    
+    if not svc_url:
+        raise RuntimeError("Smart Crop Service URL not configured")
+        
+    payload = {
+        "image_url": grid_gcs_url,
+        "job_id": job_id,
+        "part_no": part_no,
+        "bucket_name": GCS_BUCKET_NAME
+    }
+    
+    # 5 minute timeout for heavy image processing
+    resp = requests.post(svc_url, json=payload, timeout=300)
+    resp.raise_for_status()
+    
+    data = resp.json()
+    if not data.get("ok"):
+        raise RuntimeError(f"Service returned error: {data.get('error')}")
+        
+    return data.get("panel_urls", [])
+
+
+# ============================================================
 # RENDER A PART
 # ============================================================
 def render_part_payload(script: Dict[str, Any], part_no: int, *, job_id: Optional[str] = None, style: Optional[str] = None) -> Dict[str, Any]:
     """
     Render a single part (9 panels in 3x3 grid).
     
-    FLOW:
+    FLOW (HYBRID):
     1. Generate full 3x3 grid image from AI
-    2. Split into 9 individual panels
-    3. Upload each panel to GCS
-    4. Return panel URLs for database storage
-    
-    Panel 1 (index 0) of Part 1 = Cover image
+    2. Try calling Smart Crop Microservice (OpenCV)
+    3. If service fails/missing, fallback to Local Manual Crop
+    4. Return panel URLs
     """
     validate_script_shape(script)
 
@@ -1068,11 +1101,14 @@ def render_part_payload(script: Dict[str, Any], part_no: int, *, job_id: Optiona
             prev_part_summary = summarize_part_for_continuity(prev_part)
 
     img_prompt = build_image_prompt_3x3(global_data, part, prev_part_summary)
+    
+    # 1. Generate GRID Image
     grid_img = generate_3x3_grid_image(img_prompt)
 
     # Save full grid to local disk (for preview/debug)
     grid_path: Optional[Path] = None
     grid_gcs_url: Optional[str] = None
+    
     if job_id:
         grid_path = _grid_png_path(job_id, int(part_no))
         try:
@@ -1081,21 +1117,41 @@ def render_part_payload(script: Dict[str, Any], part_no: int, *, job_id: Optiona
             logger.exception("Failed to save grid preview png: %s", str(grid_path))
             grid_path = None
         
-        # Also upload full grid to GCS
+        # Also upload full grid to GCS (Required for Smart Crop)
         grid_gcs_url = upload_grid_to_gcs(job_id, int(part_no), grid_img)
 
-    # Split grid into 9 panels
-    grid_panels = split_grid_3x3(grid_img)
-    panels_b64: List[str] = [b64_png(p) for p in grid_panels]
+    # 2. Crop Panels (Smart Service or Manual Fallback)
+    panel_urls = []
+    panels_b64 = [] # Will be populated only on fallback (or if we decide to download)
     
-    # Upload all panels to GCS in PARALLEL
-    if job_id:
-        panel_urls = upload_panels_parallel(job_id, int(part_no), grid_panels, max_workers=4)
-    else:
-        panel_urls = [None] * len(grid_panels)
-    
-    logger.info(f"Rendered part {part_no}: {len([u for u in panel_urls if u])} panels uploaded to GCS")
+    smart_crop_success = False
 
+    # TRY SMART CROP SERVICE
+    if job_id and grid_gcs_url:
+        try:
+             # logger.info(f"Attempting Smart Crop for Job {job_id} Part {part_no}...")
+             panel_urls = call_smart_crop_service(grid_gcs_url, job_id, int(part_no))
+             logger.info(f"Smart Crop Success: Job {job_id} Part {part_no} -> {len(panel_urls)} panels.")
+             smart_crop_success = True
+             
+             # panels_b64 is left empty []. 
+             # Frontend and PDF Generator must handle using URLs.
+        except Exception as e:
+             logger.warning(f"Smart Crop Service Failed/Skipped: {e}. Falling back to local manual crop.")
+             smart_crop_success = False
+    
+    # FALLBACK: LOCAL MANUAL CROP
+    if not smart_crop_success:
+        logger.info(f"Peforming Local Manual Crop (Fallback) for Job {job_id}")
+        grid_panels = split_grid_3x3(grid_img)
+        panels_b64 = [b64_png(p) for p in grid_panels]  # Populate base64 for fallback
+        
+        if job_id:
+            panel_urls = upload_panels_parallel(job_id, int(part_no), grid_panels, max_workers=4)
+        else:
+            panel_urls = [None] * len(grid_panels)
+    
+    logger.info(f"Rendered part {part_no}: {len([u for u in panel_urls if u])} panels available")
 
     return {
         "part_no": int(part_no),
@@ -1103,7 +1159,7 @@ def render_part_payload(script: Dict[str, Any], part_no: int, *, job_id: Optiona
         "grid": b64_png(grid_img),  # base64 for fallback/debug
         "grid_path": str(grid_path) if grid_path else None,
         "grid_gcs_url": grid_gcs_url,  # Full page GCS URL
-        "panels": panels_b64,  # base64 panels (for backward compat)
+        "panels": panels_b64,  # base64 panels (might be empty if smart crop used)
         "panel_urls": panel_urls,  # GCS URLs for each panel
         "meta": {
             "project_id": PROJECT_ID,
@@ -1410,31 +1466,64 @@ def start_render_all_job(script: Dict[str, Any], job_id: Optional[str] = None) -
 # PDF EXPORT — panel-by-panel (18 pages)
 # ============================================================
 def write_pdf_panel_by_panel(*, pdf_path: Path, panels_b64_ordered: List[str]) -> None:
+    """
+    Generate PDF from list of panels.
+    Input `panels_b64_ordered` can be:
+    - Base64 strings (Legacy)
+    - HTTP URLs (New Microservice flow)
+    """
     if not panels_b64_ordered:
         raise RuntimeError("No panels provided for PDF export")
 
     c = None
 
-    for b64 in panels_b64_ordered:
-        img_bytes = base64.b64decode(b64)
-        img = Image.open(BytesIO(img_bytes)).convert("RGB")
-        w, h = img.size
-
-        if c is None:
-            c = canvas.Canvas(str(pdf_path), pagesize=(w, h))
+    for item in panels_b64_ordered:
+        img_bytes = None
+        
+        # Check if URL
+        if item.startswith("http://") or item.startswith("https://"):
+            try:
+                # Download image
+                resp = requests.get(item, timeout=30)
+                if resp.status_code == 200:
+                    img_bytes = resp.content
+                else:
+                    logger.warning(f"PDF Gen: Failed to download panel {item}: {resp.status_code}")
+                    continue
+            except Exception as e:
+                 logger.warning(f"PDF Gen: Error downloading panel {item}: {e}")
+                 continue
         else:
-            c.setPageSize((w, h))
+            # Assume Base64
+            try:
+                img_bytes = base64.b64decode(item)
+            except Exception:
+               pass
+            
+        if not img_bytes:
+            continue
 
-        c.drawImage(
-            ImageReader(img),
-            0,
-            0,
-            width=w,
-            height=h,
-            preserveAspectRatio=True,
-            mask="auto",
-        )
-        c.showPage()
+        try:
+            img = Image.open(BytesIO(img_bytes)).convert("RGB")
+            w, h = img.size
+
+            if c is None:
+                c = canvas.Canvas(str(pdf_path), pagesize=(w, h))
+            else:
+                c.setPageSize((w, h))
+
+            c.drawImage(
+                ImageReader(img),
+                0,
+                0,
+                width=w,
+                height=h,
+                preserveAspectRatio=True,
+                mask="auto",
+            )
+            c.showPage()
+        except Exception as e:
+            logger.warning(f"PDF Gen: Failed to process image bytes: {e}")
 
     if c:
         c.save()

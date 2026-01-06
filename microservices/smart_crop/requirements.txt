@@ -1,0 +1,6 @@
+functions-framework
+opencv-python-headless
+numpy
+Pillow
+google-cloud-storage
+requests
