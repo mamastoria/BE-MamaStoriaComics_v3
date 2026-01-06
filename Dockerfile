@@ -1,5 +1,5 @@
-# Use slim for smaller image
-FROM python:3.11-slim
+# Use full image for better compatibility with OpenCV
+FROM python:3.11
 
 # Prevent Python from writing .pyc files & enable unbuffered logs
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     libgl1-mesa-glx \
     libglib2.0-0 \
- && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/*
 
 # Install Python deps first (better layer caching)
 COPY requirements.txt /app/requirements.txt
