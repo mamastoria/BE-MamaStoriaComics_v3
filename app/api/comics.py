@@ -38,6 +38,7 @@ async def list_comics(
     genre: Optional[str] = None,
     style: Optional[str] = None,
     q: Optional[str] = None,  # Changed from 'search' to 'q'
+    sort_by: Optional[str] = Query(None, regex="^(newest|popularity)$"),
     db: Session = Depends(get_db)
 ):
     """
@@ -48,6 +49,7 @@ async def list_comics(
     - **genre**: Filter by genre name
     - **style**: Filter by style name
     - **q**: Search query in title, synopsis, and tags
+    - **sort_by**: Sort order - 'newest' (default) or 'popularity' (by total_likes + total_views)
     """
     # Base query - only published comics
     query = db.query(Comic).filter(
@@ -70,8 +72,15 @@ async def list_comics(
             (Comic.tags.ilike(search_term))  # Added tags search
         )
     
-    # Order by views (most popular first)
-    query = query.order_by(Comic.total_views.desc())
+    # Apply sorting
+    if sort_by == "popularity":
+        # Sort by popularity (total_likes + total_views)
+        query = query.order_by(
+            (Comic.total_likes + Comic.total_views).desc()
+        )
+    else:
+        # Default: sort by newest (created_at)
+        query = query.order_by(Comic.created_at.desc())
     
     # Paginate
     page, per_page = get_pagination_params(page, per_page)
@@ -429,7 +438,7 @@ async def list_drafts(
     query = db.query(Comic).filter(
         Comic.user_id == current_user.id_users
         # Removed: Comic.title.is_(None) - now returns all comics for frontend filtering
-    ).order_by(Comic.updated_at.desc())
+    ).order_by(Comic.created_at.desc())
     
     page, per_page = get_pagination_params(page, per_page)
     items, total = paginate(query, page, per_page)

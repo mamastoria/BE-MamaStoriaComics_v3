@@ -311,7 +311,7 @@ class ComicService:
             return []
             
         similar = query.filter(or_(*criteria)).order_by(
-            Comic.total_views.desc()
+            Comic.created_at.desc()
         ).limit(limit).all()
         
         return similar
