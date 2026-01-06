@@ -152,6 +152,41 @@ async def startup_event():
             conn.execute(text("ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS account_number VARCHAR(255)"))
             conn.execute(text("ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS account_name VARCHAR(255)"))
             
+            # PATCH: Create follows table if not exists
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS follows (
+                    id SERIAL PRIMARY KEY,
+                    follower_id INTEGER NOT NULL,
+                    following_id INTEGER NOT NULL,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                    CONSTRAINT unique_follow UNIQUE (follower_id, following_id),
+                    CONSTRAINT fk_follows_follower FOREIGN KEY (follower_id) REFERENCES users(id_users) ON DELETE CASCADE,
+                    CONSTRAINT fk_follows_following FOREIGN KEY (following_id) REFERENCES users(id_users) ON DELETE CASCADE
+                )
+            """))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_follows_id ON follows (id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_follows_follower_id ON follows (follower_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_follows_following_id ON follows (following_id)"))
+            
+            # PATCH: Create comic_share table if not exists
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS comic_share (
+                    id SERIAL PRIMARY KEY,
+                    comic_id INTEGER NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                    CONSTRAINT fk_comic_share_comic FOREIGN KEY (comic_id) REFERENCES comics(id) ON DELETE CASCADE,
+                    CONSTRAINT fk_comic_share_user FOREIGN KEY (user_id) REFERENCES users(id_users) ON DELETE CASCADE
+                )
+            """))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_comic_share_id ON comic_share (id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_comic_share_comic_id ON comic_share (comic_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_comic_share_user_id ON comic_share (user_id)"))
+            
+            # PATCH: Add total_shares column to comics table
+            conn.execute(text("ALTER TABLE comics ADD COLUMN IF NOT EXISTS total_shares BIGINT DEFAULT 0 NOT NULL"))
+            
             # Commit changes
             try:
                 conn.commit()
