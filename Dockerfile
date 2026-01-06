@@ -16,7 +16,6 @@ ENV APP_ENV=production
 WORKDIR /app
 
 # System deps for Pillow (jpeg/png), ffmpeg for video, and CA certs
-# Added deps for OpenCV: libgl1, libglib2.0, libsm6, libxext6, libxrender
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libjpeg62-turbo-dev \
@@ -27,11 +26,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libopenjp2-7-dev \
     ca-certificates \
     ffmpeg \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python deps first (better layer caching)
