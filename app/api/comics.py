@@ -532,6 +532,65 @@ async def track_read(
     }
 
 
+@router.post("/comics/{id}/share", response_model=dict)
+async def track_share(
+    id: int,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user)
+):
+    """
+    Track comic share
+    
+    - **id**: Comic ID
+    
+    Increments share count and adds to user's share history if logged in
+    Returns updated total shares
+    """
+    comic = db.query(Comic).filter(Comic.id == id).first()
+    
+    if not comic:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comic not found"
+        )
+    
+    new_total = ComicService.track_comic_share(db, comic, current_user)
+    
+    return {
+        "ok": True,
+        "message": "Share tracked successfully",
+        "data": {
+            "total_shares": new_total
+        }
+    }
+
+
+@router.get("/comics/{id}/share-count", response_model=dict)
+async def get_share_count(
+    id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Get share count (and other stats)
+    """
+    comic = db.query(Comic).filter(Comic.id == id).first()
+    
+    if not comic:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comic not found"
+        )
+        
+    return {
+        "ok": True,
+        "data": {
+            "total_shares": comic.total_shares,
+            "total_views": comic.total_views,
+            "total_likes": comic.total_likes
+        }
+    }
+
+
 @router.get("/comics/{comic}/similar", response_model=dict)
 async def get_similar_comics(
     comic: int,

@@ -214,6 +214,58 @@ class ComicService:
                 db.add(view)
         
         db.commit()
+
+    @staticmethod
+    def track_comic_share(
+        db: Session,
+        comic: Comic,
+        user: Optional[User] = None
+    ) -> int:
+        """
+        Track comic share
+        
+        Args:
+            db: Database session
+            comic: Comic object
+            user: Optional user who shared the comic
+            
+        Returns:
+            New total share count
+        """
+        # Increment share count
+        comic.total_shares += 1
+        
+        # Add to share history if user is logged in
+        if user:
+            from app.models.comic import ComicShare
+            
+            # Check if already shared (optional: only allow 1 share count per user? 
+            # or allow multiple shares? Request implies insert/update total share.
+            # Usually shares are multiple times per user allowed on different platforms, 
+            # but tracking table implies unique record per (user, comic)?
+            # Let's assume we log every share action or unique?
+            # User said "mirip seperti comic_views". Comic views updates timestamp if exists. 
+            # I'll follow that pattern.
+            
+            existing = db.query(ComicShare).filter(
+                ComicShare.comic_id == comic.id,
+                ComicShare.user_id == user.id_users
+            ).first()
+            
+            if existing:
+                # Update timestamp
+                existing.updated_at = datetime.utcnow()
+            else:
+                # Create new share record
+                share = ComicShare(
+                    comic_id=comic.id,
+                    user_id=user.id_users
+                )
+                db.add(share)
+        
+        db.commit()
+        db.refresh(comic)
+        return comic.total_shares
     
     @staticmethod
     def get_similar_comics(

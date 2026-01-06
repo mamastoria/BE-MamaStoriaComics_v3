@@ -58,6 +58,7 @@ class Comic(Base):
     total_views = Column(BigInteger, default=0, nullable=False)
     total_likes = Column(BigInteger, default=0, nullable=False)
     total_comments = Column(BigInteger, default=0, nullable=False)
+    total_shares = Column(BigInteger, default=0, nullable=False)
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -121,6 +122,20 @@ class ComicView(Base):
     """Pivot table for comic read history"""
     
     __tablename__ = "comic_views"
+    
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    comic_id = Column(Integer, ForeignKey('comics.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey('users.id_users', ondelete='CASCADE'), nullable=False, index=True)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+# Pivot table for Comic Shares
+class ComicShare(Base):
+    """Pivot table for comic shares"""
+    
+    __tablename__ = "comic_share"
     
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     comic_id = Column(Integer, ForeignKey('comics.id', ondelete='CASCADE'), nullable=False, index=True)
