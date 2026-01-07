@@ -10,6 +10,8 @@ from app.models.subscription import SubscriptionPackage, Subscription, PaymentTr
 from app.models.notification import Notification, Banner, BannerComic
 from app.models.comic_request import ComicRequest
 from app.models.follow import Follow
+from app.models.referral import Referral
+from app.models.commission import Commission
 
 __all__ = [
     # User
@@ -47,5 +49,10 @@ __all__ = [
     
     # Request
     "ComicRequest",
+    
+    # Missing models
+    "Referral",
+    "Commission",
 ]
+
 
