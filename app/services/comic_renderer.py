@@ -87,21 +87,16 @@ def render_comic_images_task(comic_id: int, script_data: dict, style: str):
                 if db_panel:
                     db_panel.image_url = image_url
         
-        # Update comic status to COMPLETED
+        # Update comic record with PDF and cover
         comic_record = thread_db.query(Comic).filter(Comic.id == comic_id).first()
         if comic_record:
-            logger.info(f"Updating comic {comic_id} status from {comic_record.draft_job_status} to COMPLETED")
-            comic_record.draft_job_status = "COMPLETED"
+            logger.info(f"Updating comic {comic_id} with PDF and cover URLs")
             comic_record.pdf_url = f"/api/pdf/{comic_id}"
-            comic_record.preview_video_url = f"/viewer/{comic_id}"
             if cover_url:
                 comic_record.cover_url = cover_url
-            thread_db.flush()  # Ensure changes are sent to DB
+            thread_db.commit()
         else:
             logger.error(f"Comic record {comic_id} not found for status update!")
-        
-        thread_db.commit()
-        logger.info(f"Comic {comic_id} status committed to DB")
         
         # Generate PDF
         try:
@@ -110,6 +105,7 @@ def render_comic_images_task(comic_id: int, script_data: dict, style: str):
             logger.warning(f"PDF generation warning: {pdf_err}")
         
         # Generate Video automatically after images are ready
+        video_generated_successfully = False
         try:
             # Get panels with images for video
             panels_for_video = thread_db.query(ComicPanel).filter(
@@ -141,17 +137,36 @@ def render_comic_images_task(comic_id: int, script_data: dict, style: str):
                         comic_record.preview_video_url = output_path
                         thread_db.commit()
                     logger.info(f"Video generated and saved for comic {comic_id}: {output_path}")
+                    video_generated_successfully = True
                 else:
                     logger.error(f"Video generation returned None for comic {comic_id}")
+                    raise RuntimeError("Video generation returned None")
             else:
                 logger.warning(f"No panels found for video generation for comic {comic_id}")
+                raise RuntimeError("No panels found for video generation")
                 
         except Exception as video_err:
             logger.exception(f"Video generation FAILED for comic {comic_id}: {video_err}")
             logger.error(f"Video error traceback: {traceback.format_exc()}")
+            
+            # Update status to FAILED if video generation fails
+            if comic_record:
+                comic_record.draft_job_status = "FAILED"
+                thread_db.commit()
+                logger.error(f"Comic {comic_id} status set to FAILED due to video generation error")
+            
+            # Re-raise to prevent success notification
+            raise
         
+        # Only reach here if video generation succeeded
+        # Update comic status to COMPLETED
+        if comic_record and video_generated_successfully:
+            logger.info(f"Updating comic {comic_id} status to COMPLETED after successful video generation")
+            comic_record.draft_job_status = "COMPLETED"
+            thread_db.commit()
+            logger.info(f"Comic {comic_id} status committed to DB as COMPLETED")
         
-        # Notify user (Database + Push)
+        # Notify user (Database + Push) - Only after video generation succeeds
         try:
             # Re-query comic to ensure user relationship is loaded
             comic_notif = thread_db.query(Comic).filter(Comic.id == comic_id).first()
@@ -159,7 +174,7 @@ def render_comic_images_task(comic_id: int, script_data: dict, style: str):
                 from app.models.notification import Notification
                 from app.services.push_notification_service import send_push_notification
                 
-                # Create DB Notification
+                # Create DB Notification for comic creator
                 notif = Notification(
                     user_id=comic_notif.user_id,
                     type="success",
@@ -170,7 +185,7 @@ def render_comic_images_task(comic_id: int, script_data: dict, style: str):
                 thread_db.add(notif)
                 thread_db.commit()
 
-                # Push Notification via FCM
+                # Push Notification via FCM to creator
                 if comic_notif.user and comic_notif.user.fcm_token:
                     logger.info(f"Sending push notification to user {comic_notif.user_id}")
                     send_push_notification(
@@ -179,6 +194,58 @@ def render_comic_images_task(comic_id: int, script_data: dict, style: str):
                         body=f"Komik '{comic_notif.title or 'baru'}' sudah siap dibaca.",
                         data={"comic_id": str(comic_id), "type": "success"}
                     )
+                
+                # Notify all followers of the comic creator
+                try:
+                    from app.models.follow import Follow
+                    
+                    # Get all followers of the comic creator
+                    followers = thread_db.query(Follow).filter(
+                        Follow.following_id == comic_notif.user_id
+                    ).all()
+                    
+                    if followers:
+                        logger.info(f"Found {len(followers)} followers for user {comic_notif.user_id}")
+                        
+                        # Get creator name
+                        creator_name = comic_notif.user.full_name or comic_notif.user.username or "Seorang kreator"
+                        comic_title = comic_notif.title or "komik baru"
+                        
+                        for follow in followers:
+                            try:
+                                # Create notification for each follower
+                                follower_notif = Notification(
+                                    user_id=follow.follower_id,
+                                    type="info",
+                                    title=f"{creator_name} baru saja membuat karya {comic_title}, yuk baca!",
+                                    message=f"{creator_name} baru saja membuat karya {comic_title}, yuk baca!",
+                                    data=f'{{"comic_id": {comic_id}, "creator_id": {comic_notif.user_id}}}'
+                                )
+                                thread_db.add(follower_notif)
+                                
+                                # Send push notification to follower if they have FCM token
+                                from app.models.user import User
+                                follower_user = thread_db.query(User).filter(User.id_users == follow.follower_id).first()
+                                if follower_user and follower_user.fcm_token:
+                                    send_push_notification(
+                                        fcm_token=follower_user.fcm_token,
+                                        title=f"{creator_name} baru saja membuat karya {comic_title}, yuk baca!",
+                                        body=f"{creator_name} baru saja membuat karya {comic_title}, yuk baca!",
+                                        data={"comic_id": str(comic_id), "creator_id": str(comic_notif.user_id), "type": "info"}
+                                    )
+                                    logger.info(f"Sent follower notification to user {follow.follower_id}")
+                            except Exception as follower_err:
+                                logger.error(f"Failed to notify follower {follow.follower_id}: {follower_err}")
+                                continue
+                        
+                        thread_db.commit()
+                        logger.info(f"Sent notifications to {len(followers)} followers")
+                    else:
+                        logger.info(f"No followers found for user {comic_notif.user_id}")
+                        
+                except Exception as follower_notif_err:
+                    logger.error(f"Failed to send follower notifications for comic {comic_id}: {follower_notif_err}")
+                    
         except Exception as notif_err:
             logger.error(f"Failed to send notification for comic {comic_id}: {notif_err}")
 
@@ -192,7 +259,7 @@ def render_comic_images_task(comic_id: int, script_data: dict, style: str):
                 thread_db.rollback()
                 comic_record = thread_db.query(Comic).filter(Comic.id == comic_id).first()
                 if comic_record:
-                    comic_record.draft_job_status = "RENDER_FAILED"
+                    comic_record.draft_job_status = "FAILED"
                     thread_db.commit()
             except Exception as dberr:
                 logger.error(f"Failed to update RENDER_FAILED status: {dberr}")
