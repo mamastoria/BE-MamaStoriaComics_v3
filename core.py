@@ -926,7 +926,6 @@ DIALOGUE (speech bubbles, max 2):
 
     part_title = (part.get("part_title") or "").strip()
     part_summary = (part.get("part_summary") or "").strip()
-
     # SINGLE UNIFIED GRID RULE FOR ALL PARTS (1 and 2)
     grid_rules = """
 GRID LAYOUT RULES (CRITICAL):
@@ -973,15 +972,65 @@ CHARACTER CONSISTENCY (MANDATORY - HIGHEST PRIORITY):
 - Reference the CHARACTER BIBLE above for each character's fixed appearance.
 """.strip()
 
+    # STRICT 3x3 GRID REQUIREMENT - placed at the very beginning
+    strict_3x3_opening = """
+⚠️⚠️⚠️ MANDATORY GRID REQUIREMENT - READ THIS FIRST ⚠️⚠️⚠️
+THIS IMAGE MUST BE A PERFECT 3x3 GRID OF 9 EQUAL-SIZED PANELS.
+- 3 columns × 3 rows = 9 panels total
+- Each panel is EXACTLY 1/3 width and 1/3 height
+- ALL 9 panels MUST be the SAME SIZE - no exceptions
+- Panel 1 is NOT bigger than other panels
+- DO NOT merge any panels
+- DO NOT create 2x2, 2x3, or any other layout
+- ONLY 3x3 GRID IS ACCEPTABLE
+""".strip()
+
+    # Sacred character rules (prophets, companions, saints)
+    sacred_character_rules = """
+SACRED CHARACTER DEPICTION RULES (MANDATORY):
+- For prophets (Nabi), companions of prophets (Sahabat Nabi), and saints (Orang Suci):
+  * Their faces MUST be obscured/hidden with DIVINE LIGHT (bright white/golden glow)
+  * Show their silhouette, body, and clothing clearly
+  * Face area should emit radiant light that obscures facial features
+  * Use soft, ethereal glow effect around the head/face region
+  * Never show clear facial features for these sacred figures
+- Examples of sacred figures: Prophet Muhammad, Prophet Ibrahim, Prophet Musa, Prophet Isa, Abu Bakar, Umar, Utsman, Ali, Khadijah, etc.
+- When in doubt if a character is sacred, apply the light-obscured face treatment
+""".strip()
+
     continuity = f"Previous part summary: {prev_part_summary}" if prev_part_summary else "Previous part summary: (first part)"
     nuance_rules = _nuance_visual_rules(global_data)
 
+    # 3x3 reminder in the middle
+    grid_reminder_mid = """
+⚠️ REMINDER: 3x3 GRID CHECK ⚠️
+Before proceeding, verify: Are you creating EXACTLY 9 equal-sized panels in a 3×3 grid?
+If not, STOP and restart with the correct 3×3 layout.
+""".strip()
+
+    # 3x3 final check
+    grid_final_check = """
+⚠️⚠️⚠️ FINAL 3x3 GRID VERIFICATION ⚠️⚠️⚠️
+Before finalizing the image, check:
+□ Is the grid exactly 3 columns × 3 rows?
+□ Are all 9 panels the SAME SIZE (each 1/3 × 1/3)?
+□ Is Panel 1 the same size as Panel 9?
+□ Are there no merged or larger panels?
+If ANY answer is NO, the output is INVALID. Regenerate with correct 3×3 grid.
+""".strip()
+
     return f"""
+{strict_3x3_opening}
+
 Create ONE high-quality COMIC PAGE as a portrait phone-friendly image.
 
 {layout_rules}
 
+{grid_reminder_mid}
+
 {character_consistency_rules}
+
+{sacred_character_rules}
 
 STYLE (consistent across all panels):
 - style_id: {style.get("style_id","")}
@@ -1012,7 +1061,8 @@ PANELS (reading order left-to-right, top-to-bottom):
 QUALITY REQUIREMENTS (MANDATORY):
 - 2K ULTRA HD RESOLUTION, Extremely Detailed, Masterpiece.
 - Sharp focus, high fidelity, 8k texture quality.
-- PERFECT grid alignment with edge-to-edge panels (FULL BLEED).
+- PERFECT 3x3 grid alignment with edge-to-edge panels (FULL BLEED).
+- ALL 9 PANELS MUST BE IDENTICAL SIZE (each exactly 1/3 width × 1/3 height).
 - IDENTICAL character faces/outfits across all panels - this is CRITICAL.
 - Consistent art style and color palette throughout.
 
@@ -1022,6 +1072,8 @@ ANTI-WHITE-BORDER CHECK (CRITICAL - APPLIES TO ALL PARTS):
 - The panels must TOUCH the very edge of the image file.
 - If you see any white/light margin or border in your output, you have FAILED the task.
 - The image background color must extend to the edges - NO paper-white frames.
+
+{grid_final_check}
 """.strip()
 
 
