@@ -42,7 +42,8 @@ async def list_public_comics(
     # Base query - only published comics
     query = db.query(Comic).filter(
         Comic.title.isnot(None),
-        Comic.cover_url.isnot(None)
+        Comic.cover_url.isnot(None),
+        Comic.publisher.isnot(None)  # Only officially published comics
     )
     
     # Apply filters
@@ -103,8 +104,8 @@ async def get_public_comic_detail(
             detail="Comic not found"
         )
     
-    # Only show published comics (comics with title and cover)
-    if not comic.title or not comic.cover_url:
+    # Only show published comics (comics with title, cover, and publisher)
+    if not comic.title or not comic.cover_url or not comic.publisher:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Comic not found"

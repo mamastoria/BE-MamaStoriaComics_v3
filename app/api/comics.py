@@ -54,7 +54,8 @@ async def list_comics(
     # Base query - only published comics
     query = db.query(Comic).filter(
         Comic.title.isnot(None),
-        Comic.cover_url.isnot(None)
+        Comic.cover_url.isnot(None),
+        Comic.publisher.isnot(None)  # Only officially published comics
     )
     
     # Apply filters

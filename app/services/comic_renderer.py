@@ -179,7 +179,7 @@ def render_comic_images_task(comic_id: int, script_data: dict, style: str):
                     user_id=comic_notif.user_id,
                     type="success",
                     title="Komik Selesai! 🎉",
-                    message=f"Komik '{comic_notif.title or 'baru'}' sudah siap dibaca.",
+                    message=f"Komik '{comic_notif.title or 'baru'}' sudah siap dibaca. Klik tombol komik saya di profile untuk melihat daftar komik buatanmu.",
                     data=f'{{"comic_id": {comic_id}, "status": "success"}}'
                 )
                 thread_db.add(notif)
@@ -191,7 +191,7 @@ def render_comic_images_task(comic_id: int, script_data: dict, style: str):
                     send_push_notification(
                         fcm_token=comic_notif.user.fcm_token,
                         title="Komik Selesai! 🎉",
-                        body=f"Komik '{comic_notif.title or 'baru'}' sudah siap dibaca.",
+                        body=f"Komik '{comic_notif.title or 'baru'}' sudah siap dibaca. Klik tombol komik saya di profile untuk melihat daftar komik buatanmu.",
                         data={"comic_id": str(comic_id), "type": "success"}
                     )
                 

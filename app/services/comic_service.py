@@ -288,7 +288,8 @@ class ComicService:
         query = db.query(Comic).filter(
             Comic.id != comic.id,
             Comic.title.isnot(None),  # Only published comics
-            Comic.cover_url.isnot(None)
+            Comic.cover_url.isnot(None),
+            Comic.publisher.isnot(None)
         )
         
         criteria = []

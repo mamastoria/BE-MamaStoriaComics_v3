@@ -124,7 +124,7 @@ async def download_video(
                             "ffmpeg", "-y",
                             "-i", input_path,
                             "-i", str(watermark_path),
-                            "-filter_complex", "overlay=W-w-20:20",
+                            "-filter_complex", "[1]scale=50:-1[wm];[0][wm]overlay=W-w-20:H-h-20",
                             "-c:a", "copy",
                             "-preset", "fast", 
                             output_path
