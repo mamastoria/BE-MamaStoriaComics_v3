@@ -854,7 +854,21 @@ def _nuance_visual_rules(global_data: Dict[str, Any]) -> str:
 
 
 def build_image_prompt_3x3(global_data: Dict[str, Any], part: Dict[str, Any], prev_part_summary: str) -> str:
-    style = global_data.get("style", {}) if isinstance(global_data.get("style"), dict) else {}
+    # Extract style from global_data - fallback to COMIC_STYLES if AI-generated style is incomplete
+    raw_style = global_data.get("style", {}) if isinstance(global_data.get("style"), dict) else {}
+    style_id = raw_style.get("style_id", "") or DEFAULT_STYLE_ID
+    
+    # If style_id exists in COMIC_STYLES, use the original definition (more reliable than AI output)
+    if style_id in COMIC_STYLES:
+        style = COMIC_STYLES[style_id].copy()
+        style["style_id"] = style_id
+        logger.info(f"IMAGE PROMPT: Using style '{style_id}' from COMIC_STYLES")
+    else:
+        # Fallback to AI-generated style or defaults
+        style = raw_style if raw_style else COMIC_STYLES[DEFAULT_STYLE_ID].copy()
+        style["style_id"] = style_id or DEFAULT_STYLE_ID
+        logger.warning(f"IMAGE PROMPT: Style '{style_id}' not found, using fallback")
+    
     characters = global_data.get("characters", [])
     if not isinstance(characters, list):
         characters = []
