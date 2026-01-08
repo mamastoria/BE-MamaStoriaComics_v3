@@ -187,6 +187,10 @@ async def startup_event():
             
             # PATCH: Add total_shares column to comics table
             conn.execute(text("ALTER TABLE comics ADD COLUMN IF NOT EXISTS total_shares BIGINT DEFAULT 0 NOT NULL"))
+
+            # PATCH: Add parent_id to comments table for replies
+            conn.execute(text("ALTER TABLE comments ADD COLUMN IF NOT EXISTS parent_id INTEGER REFERENCES comments(id) ON DELETE CASCADE"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_comments_parent_id ON comments (parent_id)"))
             
             # Commit changes
             try:

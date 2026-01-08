@@ -3,9 +3,9 @@ Comments API endpoints
 Comic comments and reviews
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 import logging
-from typing import Optional
+from typing import Optional, List
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
@@ -27,6 +27,7 @@ class CommentCreate(BaseModel):
     """Schema for creating comment"""
     content: str = Field(..., min_length=1, max_length=1000)
     rating: Optional[int] = Field(None, ge=1, le=5)
+    parent_id: Optional[int] = None
 
 
 class CommentResponse(BaseModel):
@@ -36,12 +37,17 @@ class CommentResponse(BaseModel):
     user_id: int
     content: str
     rating: Optional[int]
+    parent_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
     user: Optional[UserPublic] = None
+    replies: List["CommentResponse"] = []
     
     class Config:
         from_attributes = True
+
+# Resolve forward reference
+CommentResponse.model_rebuild()
 
 
 @router.get("/comics/{comic}/review_comments", response_model=dict)
@@ -69,11 +75,13 @@ async def list_comments(
             detail="Comic not found"
         )
     
-    # Query comments
+    # Query comments (only top level)
     query = db.query(Comment).options(
-        joinedload(Comment.user)
+        joinedload(Comment.user),
+        selectinload(Comment.replies).joinedload(Comment.user)
     ).filter(
-        Comment.comic_id == comic
+        Comment.comic_id == comic,
+        Comment.parent_id == None
     ).order_by(Comment.created_at.desc())
     
     # Paginate
@@ -120,12 +128,21 @@ async def create_comment(
             detail="Comic not found"
         )
     
+    # Verify parent if specified
+    if comment_data.parent_id:
+        parent_comment = db.query(Comment).filter(Comment.id == comment_data.parent_id).first()
+        if not parent_comment:
+            raise HTTPException(status_code=404, detail="Parent comment not found")
+        if parent_comment.comic_id != comic:
+            raise HTTPException(status_code=400, detail="Parent comment belongs to a different comic")
+    
     # Create comment
     comment = Comment(
         comic_id=comic,
         user_id=current_user.id_users,
         content=comment_data.content,
-        rating=comment_data.rating
+        rating=comment_data.rating,
+        parent_id=comment_data.parent_id
     )
     
     db.add(comment)
@@ -167,7 +184,39 @@ async def create_comment(
                     data={"comic_id": str(comic), "comment_id": str(comment.id), "type": "new_comment"}
                 )
 
-        # 2. Check Milestones (Comments)
+        # 2. Notify Parent Comment Author (if reply)
+        if comment_data.parent_id:
+            parent_comment = db.query(Comment).filter(Comment.id == comment_data.parent_id).first() # Re-fetch to be safe or use local valid var
+            if parent_comment and parent_comment.user_id != current_user.id_users:
+                 # Check if we didn't already notify them as the comic owner (avoid double notif if author replies to their own comic's comment... wait. 
+                 # If A owns comic. B comments. A replies to B.
+                 # Comic Owner = A. Commenter = A. No comic owner notif.
+                 # Parent Owner = B. Notify B. -> OK.
+                 # If A owns comic. B comments. C replies to B.
+                 # Comic Owner = A. Notify A.
+                 # Parent Owner = B. Notify B. -> OK.
+                 
+                parent_author = parent_comment.user # Should be loaded if joined or lazy load
+                snippet = comment_data.content[:50] + "..." if len(comment_data.content) > 50 else comment_data.content
+                
+                notif_reply = Notification(
+                    user_id=parent_comment.user_id,
+                    type="reply_comment",
+                    title="Balasan baru untuk komentar anda! ↩️",
+                    message=f"{current_user.full_name or current_user.username} membalas: {snippet}",
+                    data=f'{{"comic_id": {comic}, "comment_id": {comment.id}, "parent_id": {parent_comment.id}}}'
+                )
+                db.add(notif_reply)
+                
+                if parent_author and parent_author.fcm_token:
+                     send_push_notification(
+                        fcm_token=parent_author.fcm_token,
+                        title="Balasan baru untuk komentar anda! ↩️",
+                        body=f"{current_user.full_name or current_user.username} membalas: {snippet}",
+                        data={"comic_id": str(comic), "comment_id": str(comment.id), "type": "reply_comment"}
+                    )
+
+        # 3. Check Milestones (Comments)
         milestones = [10, 50, 100, 500, 1000]
         if comic_obj.total_comments in milestones:
             # DB Notification

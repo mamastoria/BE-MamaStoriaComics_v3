@@ -22,10 +22,14 @@ class Comment(Base):
     
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Parent comment (for replies)
+    parent_id = Column(Integer, ForeignKey('comments.id', ondelete='CASCADE'), nullable=True)
     
     # Relationships
     comic = relationship("Comic", back_populates="comments")
     user = relationship("User", back_populates="comments")
+    replies = relationship("Comment", backref=relationship("Comment", remote_side=[id]), cascade="all, delete-orphan")
     
     def __repr__(self):
-        return f"<Comment(id={self.id}, comic_id={self.comic_id}, user_id={self.user_id})>"
+        return f"<Comment(id={self.id}, comic_id={self.comic_id}, user_id={self.user_id}, parent_id={self.parent_id})>"
