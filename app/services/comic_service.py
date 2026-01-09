@@ -57,7 +57,8 @@ class ComicService:
             page_count=page_count,
             genre=[str(genre.id) for genre in genres],  # Store as array of ID strings
             style=str(style_id),  # Store style ID as string for core.COMIC_STYLES matching
-            draft_job_status="PENDING"
+            draft_job_status="PENDING",
+            publisher=user.full_name or user.username
         )
         
         db.add(comic)

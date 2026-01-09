@@ -21,7 +21,8 @@ from app.schemas.comic import (
     ComicListItem,
     ComicDetail,
     ComicWithPanels,
-    DraftStatus
+    DraftStatus,
+    UpdateStatus
 )
 from app.services.comic_service import ComicService
 from app.utils.pagination import paginate, get_pagination_params
@@ -55,7 +56,8 @@ async def list_comics(
     query = db.query(Comic).filter(
         Comic.title.isnot(None),
         Comic.cover_url.isnot(None),
-        Comic.publisher.isnot(None)  # Only officially published comics
+        Comic.publisher.isnot(None),  # Only officially published comics
+        Comic.status == True # Only active comics
     )
     
     # Apply filters
@@ -517,6 +519,41 @@ async def publish_comic(
         "ok": True,
         "message": "Comic published successfully",
         "data": ComicDetail.model_validate(published_comic).model_dump()
+    }
+
+
+@router.patch("/comics/{comic}/status", response_model=dict)
+async def update_comic_status(
+    comic: int,
+    status_data: UpdateStatus,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Update comic status
+    
+    - **comic**: Comic ID
+    - **status**: New status (true/false)
+    """
+    comic_obj = db.query(Comic).filter(
+        Comic.id == comic,
+        Comic.user_id == current_user.id_users
+    ).first()
+    
+    if not comic_obj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comic not found or you don't have permission"
+        )
+    
+    comic_obj.status = status_data.status
+    db.commit()
+    db.refresh(comic_obj)
+    
+    return {
+        "ok": True,
+        "message": "Comic status updated successfully",
+        "data": ComicDetail.model_validate(comic_obj).model_dump()
     }
 
 

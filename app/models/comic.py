@@ -2,7 +2,7 @@
 Comic model - SQLAlchemy ORM
 Converted from Laravel Comic model
 """
-from sqlalchemy import Column, Integer, String, Text, DateTime, BigInteger, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Text, DateTime, BigInteger, ForeignKey, JSON, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
@@ -50,6 +50,7 @@ class Comic(Base):
     # Draft Job Status (for async processing)
     draft_job_id = Column(String, nullable=True)
     draft_job_status = Column(String, nullable=True)  # QUEUED, PROCESSING, COMPLETED, FAILED
+    status = Column(Boolean, default=False, nullable=True) # Default false as requested
     
     # Layout
     layout = Column(String, nullable=True)  # e.g., "portrait", "landscape"

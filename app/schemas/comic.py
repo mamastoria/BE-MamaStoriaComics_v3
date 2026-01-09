@@ -45,6 +45,11 @@ class PublishComic(BaseModel):
     synopsis: Optional[str] = None
 
 
+class UpdateStatus(BaseModel):
+    """Schema for updating comic status"""
+    status: bool = Field(..., description="New status value (True/False)")
+
+
 # ============ Response Schemas ============
 
 class ComicBase(BaseModel):
@@ -53,6 +58,7 @@ class ComicBase(BaseModel):
     user_id: int
     title: Optional[str]
     cover_url: Optional[str]
+    status: Optional[bool] = False
     
     model_config = ORMConfig
 
