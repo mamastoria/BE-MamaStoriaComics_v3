@@ -889,6 +889,7 @@ async def get_comic_panels(
             "preview_video_url": comic.preview_video_url,
             "publisher": comic.publisher,
             "status": status_str,
+            "status_publish": comic.status,  # Taken from comic.status as requested
             "total_panels": len(panels),
             "panels": panels
         }
