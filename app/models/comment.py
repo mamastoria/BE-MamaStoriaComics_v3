@@ -29,7 +29,10 @@ class Comment(Base):
     # Relationships
     comic = relationship("Comic", back_populates="comments")
     user = relationship("User", back_populates="comments")
-    replies = relationship("Comment", backref=relationship("Comment", remote_side=[id]), cascade="all, delete-orphan")
+    
+    # Self-referential relationship for replies
+    parent = relationship("Comment", remote_side=[id], back_populates="replies")
+    replies = relationship("Comment", back_populates="parent", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<Comment(id={self.id}, comic_id={self.comic_id}, user_id={self.user_id}, parent_id={self.parent_id})>"
