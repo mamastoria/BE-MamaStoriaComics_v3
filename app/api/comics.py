@@ -153,10 +153,16 @@ async def create_story_and_attributes(
             style_id=story_data.style_id
         )
         
-        # Get style name from DB
-        from app.models.master_data import Style
+        # Get style from DB - we pass the ID (as string) to core, not the name
+        from app.models.master_data import Style, Genre
         style = db.query(Style).filter(Style.id == story_data.style_id).first()
-        style_name = style.name if style else "manga"
+        style_id_str = str(story_data.style_id)  # Pass ID as string to core
+        style_name = style.name if style else "Cartoon"  # For logging/metadata only
+        
+        # Get genre IDs as string list for core.make_two_part_script
+        genre_ids_str = [str(gid) for gid in story_data.genre_ids]
+        
+        logger.info(f"Creating comic with style_id={style_id_str} ({style_name}), genres={genre_ids_str}")
         
         # GENERATE SCRIPT ONLY (not rendering images)
         # This is fast and can be done synchronously
@@ -176,13 +182,14 @@ async def create_story_and_attributes(
             comic.draft_job_status = "GENERATING_SCRIPT"
             db.commit()
             
-            logger.info(f"Generating script for comic {comic.id}...")
+            logger.info(f"Generating script for comic {comic.id} with style={style_id_str}, nuances={genre_ids_str}...")
             
             # Generate script (text only, no images)
+            # Pass style_id as string ID (e.g., "6" for Ghibli) and genre_ids as string list
             script = core.make_two_part_script(
                 story_data.story_idea, 
-                style_name, 
-                []  # nuances
+                style_id_str,     # Use ID string, not name
+                genre_ids_str     # Pass genre IDs from frontend
             )
             
             logger.info(f"Script generated for comic {comic.id}, creating draft panels...")
@@ -1074,11 +1081,45 @@ async def generate_comic(
             "main_characters_in_panel": panel.main_characters_on_page
         })
     
+    # Get style info - comic.style stores either style name or ID
+    # We need to pass style_id to core for proper rendering
+    style_value = comic.style or "2"  # Default to "2" (Cartoon)
+    
+    # Check if style_value is a name or ID
+    # If it's a name like "Ghibli", we need to find the ID
+    from app.models.master_data import Style
+    if style_value.isdigit():
+        style_id_str = style_value
+    else:
+        # It's a name, find the ID from database
+        style_record = db.query(Style).filter(Style.name == style_value).first()
+        style_id_str = str(style_record.id) if style_record else "2"
+    
+    # Get genre IDs from comic.genre field
+    genre_ids_str = []
+    if comic.genre and isinstance(comic.genre, list):
+        for g in comic.genre:
+            if isinstance(g, str) and g.isdigit():
+                genre_ids_str.append(g)
+            elif isinstance(g, dict):
+                gid = g.get("id") or g.get("key")
+                if gid:
+                    genre_ids_str.append(str(gid))
+    
+    logger.info(f"Generating images with style_id={style_id_str}, genres={genre_ids_str}")
+    
     # Build script structure expected by core.start_render_all_job
+    # Include style and nuances in global for build_image_prompt_3x3
     script = {
         "parts": [],
         "global": {
-            "comic_title": comic.title or "Untitled"
+            "comic_title": comic.title or "Untitled",
+            "style": {
+                "style_id": style_id_str  # This is what build_image_prompt_3x3 reads
+            },
+            "nuances": {
+                "selected_ids": genre_ids_str if genre_ids_str else ["4"]  # Default to Petualangan
+            }
         }
     }
     
@@ -1088,9 +1129,6 @@ async def generate_comic(
             "panels": parts_dict[part_no]
         })
     
-    # Get style name - Comic stores style as string directly, not as FK
-    style_name = comic.style or "manga"
-    
     # Update status to RENDERING
     comic.draft_job_status = "RENDERING"
     db.commit()
@@ -1098,7 +1136,7 @@ async def generate_comic(
     # Start background thread using service
     thread = threading.Thread(
         target=render_comic_images_task,
-        args=(comic.id, script, style_name),
+        args=(comic.id, script, style_id_str),  # Pass style_id_str instead of style_name
         daemon=True
     )
     thread.start()

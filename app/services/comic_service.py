@@ -50,12 +50,13 @@ class ComicService:
             raise ValueError("Invalid style ID")
         
         # Create comic
+        # Store style_id and genre IDs (as strings) for proper matching with core.COMIC_STYLES
         comic = Comic(
             user_id=user.id_users,
             story_idea=story_idea,
             page_count=page_count,
-            genre=[genre.name for genre in genres],  # Store as array of names
-            style=style.name,
+            genre=[str(genre.id) for genre in genres],  # Store as array of ID strings
+            style=str(style_id),  # Store style ID as string for core.COMIC_STYLES matching
             draft_job_status="PENDING"
         )
         
