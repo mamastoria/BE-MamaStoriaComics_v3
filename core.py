@@ -300,9 +300,141 @@ def _cleanup_preview_files_from_job(job: Dict[str, Any]) -> None:
 
 
 # ============================================================
-# COMIC STYLES
+# COMIC STYLES - Synced with production database
 # ============================================================
+# Style keys can be either string ID (e.g., "1", "2") or legacy keys (e.g., "modern_clean")
+# Frontend sends numeric IDs from database, we map them to visual descriptors
 COMIC_STYLES: Dict[str, Dict[str, str]] = {
+    # === Database ID-based styles (from production) ===
+    "1": {
+        "label": "Realistic",
+        "art_style": "photorealistic comic illustration, detailed faces, lifelike proportions, realistic lighting and shadows",
+        "color_mood": "natural colors, realistic skin tones, subtle gradients, cinematic lighting",
+        "line_style": "fine detailed lines, realistic textures, minimal outlines",
+        "camera": "realistic perspective, natural composition, portrait-like framing",
+        "notes": "Best for realistic storytelling, drama, and mature themes.",
+    },
+    "2": {
+        "label": "Cartoon",
+        "art_style": "classic cartoon style, exaggerated expressions, rounded shapes, bouncy proportions",
+        "color_mood": "bright vibrant colors, flat shading, cheerful palette",
+        "line_style": "bold clean outlines, smooth curves, thick strokes",
+        "camera": "dynamic poses, exaggerated angles, fun compositions",
+        "notes": "Perfect for comedy, children's stories, and lighthearted content.",
+    },
+    "3": {
+        "label": "Semi-Realistic",
+        "art_style": "semi-realistic illustration, stylized faces with realistic proportions, detailed backgrounds",
+        "color_mood": "balanced colors, realistic lighting with artistic flair, soft shadows",
+        "line_style": "medium weight lines, blend of realistic and stylized",
+        "camera": "cinematic framing, balanced compositions, clear focal points",
+        "notes": "Great balance between realism and stylization.",
+    },
+    "4": {
+        "label": "Manga",
+        "art_style": "Japanese manga style, expressive big eyes, dynamic speed lines, halftone shading",
+        "color_mood": "black and white with screentones, high contrast, dramatic shadows",
+        "line_style": "fine manga inking, varied line weight, detailed hair",
+        "camera": "dramatic angles, action-ready panels, emotional close-ups",
+        "notes": "Authentic manga look; great for action, romance, and drama.",
+    },
+    "5": {
+        "label": "American Style",
+        "art_style": "American comic book style, heroic proportions, dynamic poses, detailed musculature",
+        "color_mood": "bold saturated colors, dramatic lighting, high contrast",
+        "line_style": "bold ink outlines, classic crosshatching, strong shadows",
+        "camera": "hero shots, dramatic low angles, action compositions",
+        "notes": "Classic superhero comic aesthetic.",
+    },
+    "6": {
+        "label": "Ghibli",
+        "art_style": "Studio Ghibli inspired, soft watercolor feel, detailed backgrounds, warm nostalgic atmosphere",
+        "color_mood": "soft pastel palette, warm golden lighting, dreamy atmosphere",
+        "line_style": "gentle pencil-like lines, organic shapes, flowing hair",
+        "camera": "wide scenic shots, peaceful compositions, nature-focused framing",
+        "notes": "Perfect for magical, heartwarming family stories.",
+    },
+    "7": {
+        "label": "Disney Style",
+        "art_style": "Disney animation style, expressive characters, appealing design, magical feel",
+        "color_mood": "vibrant rich colors, magical lighting, sparkle effects",
+        "line_style": "smooth flowing lines, elegant curves, clean shapes",
+        "camera": "cinematic framing, character-focused, emotional moments",
+        "notes": "Magical fairy tale aesthetic, great for princess and adventure stories.",
+    },
+    "8": {
+        "label": "Chibi Style",
+        "art_style": "chibi/super-deformed style, oversized heads, tiny bodies, extremely cute expressions",
+        "color_mood": "bright kawaii colors, pink and pastel palette, sparkles",
+        "line_style": "simple clean lines, minimal details, rounded shapes",
+        "camera": "cute poses, comedic angles, expressive reactions",
+        "notes": "Super cute style for comedy and slice of life.",
+    },
+    "9": {
+        "label": "Noir Style",
+        "art_style": "film noir style, dramatic shadows, moody atmosphere, detective aesthetic",
+        "color_mood": "black and white or sepia, heavy shadows, high contrast, dramatic lighting",
+        "line_style": "bold shadows, stark contrasts, minimal mid-tones",
+        "camera": "dutch angles, dramatic lighting, mysterious compositions",
+        "notes": "Perfect for mystery and thriller stories.",
+    },
+    "10": {
+        "label": "Watercolor Style",
+        "art_style": "watercolor storybook illustration, soft washes, hand-painted feel, artistic textures",
+        "color_mood": "pastel warm colors, soft gradients, paper texture visible",
+        "line_style": "gentle sketch lines, painterly edges, flowing washes",
+        "camera": "storybook framing, calm peaceful compositions",
+        "notes": "Soft and emotional, perfect for family and bedtime stories.",
+    },
+    "11": {
+        "label": "Pixel Art",
+        "art_style": "retro pixel art style, 16-bit aesthetic, blocky shapes, nostalgic gaming look",
+        "color_mood": "limited color palette, retro game colors, dithering patterns",
+        "line_style": "pixelated edges, no anti-aliasing, sharp pixels",
+        "camera": "side-scrolling game view, classic game compositions",
+        "notes": "Nostalgic gaming aesthetic, great for adventure stories.",
+    },
+    "12": {
+        "label": "Graffiti Style",
+        "art_style": "urban graffiti art style, street art aesthetic, bold tags, spray paint effects",
+        "color_mood": "vibrant neon colors, urban palette, spray paint gradients",
+        "line_style": "bold graffiti outlines, dripping paint, raw edges",
+        "camera": "street-level perspective, urban compositions, dynamic angles",
+        "notes": "Edgy urban style, great for teen and street stories.",
+    },
+    "13": {
+        "label": "Minimalist Style",
+        "art_style": "minimalist illustration, simple shapes, clean design, essential elements only",
+        "color_mood": "limited color palette, flat colors, lots of white space",
+        "line_style": "simple thin lines, geometric shapes, clean edges",
+        "camera": "clean compositions, focused framing, simple backgrounds",
+        "notes": "Clean modern aesthetic, easy to read on mobile.",
+    },
+    "14": {
+        "label": "Fantasy Style",
+        "art_style": "epic fantasy illustration, magical atmosphere, detailed environments, mythical creatures",
+        "color_mood": "rich jewel tones, magical glows, ethereal lighting",
+        "line_style": "detailed linework, ornate patterns, flowing designs",
+        "camera": "epic wide shots, dramatic landscapes, mystical framing",
+        "notes": "Perfect for fantasy adventure and magical stories.",
+    },
+    "15": {
+        "label": "Romance Style",
+        "art_style": "shoujo manga romance style, beautiful characters, sparkly atmosphere, dreamy feel",
+        "color_mood": "soft pink and pastel palette, rose petals, glowing lighting",
+        "line_style": "delicate fine lines, flowing hair, soft features",
+        "camera": "romantic close-ups, emotional moments, soft focus",
+        "notes": "Perfect for love stories and romantic drama.",
+    },
+    "16": {
+        "label": "Cartoon 3D",
+        "art_style": "3D cartoon animation style, Pixar-like characters, rounded shapes, appealing design",
+        "color_mood": "vibrant 3D lighting, soft subsurface scattering, cheerful colors",
+        "line_style": "no outlines, 3D render with clean edges, smooth surfaces",
+        "camera": "3D camera angles, cinematic depth of field, character focus",
+        "notes": "Modern 3D animation look, family-friendly.",
+    },
+    # === Legacy keys for backward compatibility ===
     "modern_clean": {
         "label": "Modern Clean (default)",
         "art_style": "clean modern comic, crisp shapes, readable facial expressions",
@@ -341,23 +473,90 @@ COMIC_STYLES: Dict[str, Dict[str, str]] = {
         "color_mood": "limited palette, slightly desaturated, print texture",
         "line_style": "bold ink outlines, classic crosshatching",
         "camera": "classic hero shots, strong silhouettes",
-        "notes": "Keren buat poster panel #1 yang “buku cerita klasik”.",
+        "notes": "Keren buat poster panel #1 yang 'buku cerita klasik'.",
     },
 }
-DEFAULT_STYLE_ID = "modern_clean"
+DEFAULT_STYLE_ID = "2"  # Cartoon as default (most versatile for family stories)
 
 
 def get_style(style_id: Optional[str]) -> Tuple[str, Dict[str, str]]:
-    sid = (style_id or "").strip() or DEFAULT_STYLE_ID
+    """
+    Get style configuration by ID or key.
+    
+    Args:
+        style_id: Can be numeric ID from database (e.g., "1", "2", 1, 2) 
+                  or legacy key (e.g., "modern_clean", "manga_bw")
+    
+    Returns:
+        Tuple of (style_id, style_config_dict)
+    """
+    # Convert to string and strip whitespace
+    sid = str(style_id or "").strip() or DEFAULT_STYLE_ID
+    
+    # Check if style exists
     if sid not in COMIC_STYLES:
+        logger.warning(f"Style '{sid}' not found, falling back to default '{DEFAULT_STYLE_ID}'")
         sid = DEFAULT_STYLE_ID
+    
     return sid, COMIC_STYLES[sid]
 
 
 # ============================================================
-# COMIC NUANCES
+# COMIC NUANCES / GENRES - Synced with production database
 # ============================================================
+# Genre keys can be either string ID (e.g., "1", "2") or legacy keys (e.g., "comedy")
+# Frontend sends numeric IDs from database, we map them to labels and rules
 COMIC_NUANCES: Dict[str, Dict[str, str]] = {
+    # === Database ID-based genres (from production) ===
+    "1": {
+        "label": "Fiksi Keluarga",
+        "description": "Cerita tentang keluarga, hubungan orangtua-anak, nilai-nilai keluarga",
+    },
+    "2": {
+        "label": "Slice of Life",
+        "description": "Cerita kehidupan sehari-hari yang relatable dan menghangatkan hati",
+    },
+    "3": {
+        "label": "Komedi",
+        "description": "Cerita lucu dengan humor visual dan dialog yang menghibur",
+    },
+    "4": {
+        "label": "Petualangan",
+        "description": "Cerita eksplorasi dengan tantangan dan tujuan yang seru",
+    },
+    "5": {
+        "label": "Fabel",
+        "description": "Cerita dengan karakter hewan yang mengajarkan nilai moral",
+    },
+    "6": {
+        "label": "Fantasi",
+        "description": "Cerita dengan elemen magis, dunia imajinatif, dan makhluk ajaib",
+    },
+    "7": {
+        "label": "Misteri Ringan",
+        "description": "Cerita dengan teka-teki dan petunjuk yang seru dipecahkan",
+    },
+    "8": {
+        "label": "Drama Inspiratif",
+        "description": "Cerita emosional dengan pesan moral dan inspirasi",
+    },
+    "9": {
+        "label": "Edukasi",
+        "description": "Cerita yang menyisipkan pelajaran dan fakta menarik",
+    },
+    "10": {
+        "label": "Sejarah/Legenda",
+        "description": "Cerita berdasarkan sejarah atau legenda lokal",
+    },
+    "11": {
+        "label": "Superhero Keluarga",
+        "description": "Cerita superhero yang family-friendly dengan nilai kepahlawanan",
+    },
+    "12": {
+        "label": "Komik Kuliner & Lifestyle",
+        "description": "Cerita tentang makanan, memasak, atau gaya hidup",
+    },
+    # === Legacy keys for backward compatibility ===
     "comedy": {"label": "Komedi"},
     "adventure": {"label": "Petualangan"},
     "education": {"label": "Edukasi"},
@@ -365,14 +564,22 @@ COMIC_NUANCES: Dict[str, Dict[str, str]] = {
     "mystery": {"label": "Misteri"},
     "horror_light": {"label": "Horror Ringan"},
     "romance_light": {"label": "Romantis Ringan"},
+    # === Mapping from database ID to legacy key for rules ===
+    "family_fiction": {"label": "Fiksi Keluarga"},
+    "slice_of_life": {"label": "Slice of Life"},
+    "fable": {"label": "Fabel"},
+    "fantasy": {"label": "Fantasi"},
+    "history_legend": {"label": "Sejarah/Legenda"},
+    "superhero_family": {"label": "Superhero Keluarga"},
+    "culinary_lifestyle": {"label": "Komik Kuliner & Lifestyle"},
 }
-DEFAULT_NUANCES: List[str] = ["adventure"]
+DEFAULT_NUANCES: List[str] = ["4"]  # Petualangan as default
 
 
 def normalize_nuances(nuances: Optional[List[str]]) -> List[str]:
     chosen: List[str] = []
     for nid in (nuances or []):
-        nid = (nid or "").strip()
+        nid = str(nid or "").strip()
         if nid and nid in COMIC_NUANCES and nid not in chosen:
             chosen.append(nid)
     if not chosen:
@@ -388,25 +595,71 @@ def nuance_label_summary(nuances: List[str]) -> str:
 
 
 def nuance_rules_text(nuances: List[str]) -> str:
+    """Generate storytelling rules based on selected genres/nuances."""
     rules = []
-    if "comedy" in nuances:
+    
+    # Map database IDs to rule generators
+    nuance_set = set(nuances)
+    
+    # Comedy rules (ID: 3 or legacy "comedy")
+    if "3" in nuance_set or "comedy" in nuance_set:
         rules.append("- Sisipkan humor visual dan dialog singkat yang lucu (tanpa mengejek).")
-    if "adventure" in nuances:
+    
+    # Adventure rules (ID: 4 or legacy "adventure")
+    if "4" in nuance_set or "adventure" in nuance_set:
         rules.append("- Pacing cepat, ada tantangan/tujuan kecil, rasa eksplorasi terasa.")
-    if "education" in nuances:
+    
+    # Education rules (ID: 9 or legacy "education")
+    if "9" in nuance_set or "education" in nuance_set:
         rules.append("- Sisipkan pelajaran/fakta sederhana yang relevan di beberapa panel.")
-    if "drama" in nuances:
+    
+    # Drama rules (ID: 8 or legacy "drama")
+    if "8" in nuance_set or "drama" in nuance_set:
         rules.append("- Emosi & relasi terasa kuat; momen hening/haru diperjelas.")
-    if "mystery" in nuances:
+    
+    # Mystery rules (ID: 7 or legacy "mystery")
+    if "7" in nuance_set or "mystery" in nuance_set:
         rules.append("- Tambahkan petunjuk kecil (clue) di panel_context; rasa misteri konsisten.")
-    if "horror_light" in nuances:
+    
+    # Horror light rules (legacy only)
+    if "horror_light" in nuance_set:
         rules.append("- Atmosfer spooky-cute, tanpa gore/trauma, tetap playful.")
-    if "romance_light" in nuances:
+    
+    # Romance light rules (legacy only)
+    if "romance_light" in nuance_set:
         rules.append("- Momen manis/awkward-cute, gesture halus, tetap family-friendly.")
-    if "romance_light" in nuances:
-        rules.append("- Momen manis/awkward-cute, gesture halus, tetap family-friendly.")
+    
+    # Family Fiction rules (ID: 1)
+    if "1" in nuance_set or "family_fiction" in nuance_set:
+        rules.append("- Fokus pada hubungan keluarga yang hangat; nilai-nilai keluarga harus terasa.")
+    
+    # Slice of Life rules (ID: 2)
+    if "2" in nuance_set or "slice_of_life" in nuance_set:
+        rules.append("- Momen kehidupan sehari-hari yang relatable; detail kecil yang menghangatkan.")
+    
+    # Fable rules (ID: 5)
+    if "5" in nuance_set or "fable" in nuance_set:
+        rules.append("- Karakter hewan dengan sifat manusia; ada pesan moral jelas di akhir.")
+    
+    # Fantasy rules (ID: 6)
+    if "6" in nuance_set or "fantasy" in nuance_set:
+        rules.append("- Elemen magis dan dunia fantasi; visual yang imajinatif dan menakjubkan.")
+    
+    # History/Legend rules (ID: 10)
+    if "10" in nuance_set or "history_legend" in nuance_set:
+        rules.append("- Elemen sejarah/legenda yang akurat; kostum dan setting sesuai era.")
+    
+    # Superhero Family rules (ID: 11)
+    if "11" in nuance_set or "superhero_family" in nuance_set:
+        rules.append("- Aksi superhero yang family-friendly; nilai kepahlawanan dan keberanian.")
+    
+    # Culinary/Lifestyle rules (ID: 12)
+    if "12" in nuance_set or "culinary_lifestyle" in nuance_set:
+        rules.append("- Detail makanan/kuliner yang menggugah selera; visual masakan yang menarik.")
+    
     if not rules:
         rules.append("- Nuansa harus terasa di narasi, dialog, pacing, dan visual.")
+    
     return "\n".join(rules)
 
 
