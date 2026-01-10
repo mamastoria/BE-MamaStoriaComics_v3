@@ -89,6 +89,19 @@ async def register(
         )
 
 
+@router.get("/login")
+async def login_page_info():
+    """Information for users accessing login via GET"""
+    return {
+        "ok": True,
+        "message": "This is a REST API. Please use POST /api/v1/auth/login with JSON body to log in.",
+        "schema": {
+            "identifier": "email_or_phone",
+            "password": "your_password"
+        }
+    }
+
+
 @router.post("/login", response_model=dict)
 async def login(
     credentials: UserLogin,
