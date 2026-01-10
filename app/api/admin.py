@@ -13,14 +13,14 @@ logger = logging.getLogger("admin_api")
 router = APIRouter(prefix="/api/v1/admin", tags=["Admin"])
 
 
-# Try to import Google Cloud Logging
-try:
+# Lazy loading for Google Cloud Logging
+CLOUD_LOGGING_AVAILABLE = None # Will be determined at runtime
+
+
+def _get_logging_client():
     from google.cloud import logging as cloud_logging
     from google.cloud.logging_v2 import DESCENDING
-    CLOUD_LOGGING_AVAILABLE = True
-except ImportError:
-    CLOUD_LOGGING_AVAILABLE = False
-    logger.warning("google-cloud-logging not installed, using mock data")
+    return cloud_logging.Client(), DESCENDING
 
 
 def parse_log_for_performance(entries: list) -> dict:
@@ -121,7 +121,11 @@ async def get_cloud_logs(
     Fetch logs from Google Cloud Logging.
     """
     
-    if not CLOUD_LOGGING_AVAILABLE:
+    # Try to get client
+    # Try to get client
+    client, DESCENDING = _get_logging_client()
+    
+    if not client:
         # Return mock data for local testing
         return {
             "success": True,
@@ -138,7 +142,6 @@ async def get_cloud_logs(
         }
     
     try:
-        client = cloud_logging.Client()
         
         # Build filter
         time_filter = (datetime.utcnow() - timedelta(hours=hours)).isoformat() + "Z"
@@ -186,34 +189,36 @@ async def get_performance_metrics(
     Returns timing data for each job/comic.
     """
     
-    if not CLOUD_LOGGING_AVAILABLE:
-        # Return sample mock data
-        return {
-            "success": True,
-            "source": "mock",
-            "summary": {
-                "total_jobs": 3,
-                "completed": 2,
-                "failed": 1,
-                "avg_duration_seconds": 95.5,
-                "min_duration_seconds": 78.2,
-                "max_duration_seconds": 112.8
-            },
-            "jobs": [
-                {
-                    "job_id": "122",
-                    "status": "completed",
-                    "duration_seconds": 95.5,
-                    "start_time": "2026-01-10T16:30:00Z",
-                    "end_time": "2026-01-10T16:31:35Z",
-                    "steps": []
-                }
-            ]
-        }
+
     
     try:
-        client = cloud_logging.Client()
+        client, DESCENDING = _get_logging_client()
         
+        if not client:
+             # Return sample mock data
+            return {
+                "success": True,
+                "source": "mock",
+                "summary": {
+                    "total_jobs": 3,
+                    "completed": 2,
+                    "failed": 1,
+                    "avg_duration_seconds": 95.5,
+                    "min_duration_seconds": 78.2,
+                    "max_duration_seconds": 112.8
+                },
+                "jobs": [
+                    {
+                        "job_id": "122",
+                        "status": "completed",
+                        "duration_seconds": 95.5,
+                        "start_time": "2026-01-10T16:30:00Z",
+                        "end_time": "2026-01-10T16:31:35Z",
+                        "steps": []
+                    }
+                ]
+            }
+
         time_filter = (datetime.utcnow() - timedelta(hours=hours)).isoformat() + "Z"
         
         # Query for render-related logs
@@ -281,16 +286,17 @@ async def get_video_generation_logs(
     Get video generation specific logs.
     """
     
-    if not CLOUD_LOGGING_AVAILABLE:
-        return {
-            "success": True,
-            "source": "mock",
-            "entries": [],
-            "count": 0
-        }
+
     
     try:
-        client = cloud_logging.Client()
+        client, DESCENDING = _get_logging_client()
+        if not client:
+             return {
+                "success": True,
+                "source": "mock",
+                "entries": [],
+                "count": 0
+             }
         
         time_filter = (datetime.utcnow() - timedelta(hours=hours)).isoformat() + "Z"
         
