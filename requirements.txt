@@ -29,6 +29,7 @@ google-cloud-aiplatform==1.71.1
 google-cloud-tasks==2.16.0
 google-auth>=2.35.0,<3.0.0
 google-api-python-client==2.149.0
+google-cloud-logging==3.10.0
 
 # Redis (for caching & job status)
 redis>=5.0.0
