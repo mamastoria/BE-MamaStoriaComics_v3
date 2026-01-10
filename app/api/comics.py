@@ -446,8 +446,8 @@ async def list_drafts(
     Returns list of user's unpublished comics
     """
     query = db.query(Comic).filter(
-        Comic.user_id == current_user.id_users
-        # Removed: Comic.title.is_(None) - now returns all comics for frontend filtering
+        Comic.user_id == current_user.id_users,
+        Comic.status == False
     ).order_by(Comic.created_at.desc())
     
     page, per_page = get_pagination_params(page, per_page)
