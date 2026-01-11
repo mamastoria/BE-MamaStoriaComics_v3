@@ -36,7 +36,7 @@ steps:
       - "--add-cloudsql-instances"
       - "$PROJECT_ID:asia-southeast2:cloudsql-nanobanana-dev"
       - "--memory"
-      - "1Gi"
+      - "2Gi"
       - "--timeout"
       - "600"
 
