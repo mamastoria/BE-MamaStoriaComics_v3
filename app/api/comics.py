@@ -279,7 +279,9 @@ async def create_story_and_attributes(
             comic.keywords = keywords_list if keywords_list else None
             comic.mood = ai_mood or None
             comic.layout = "portrait"  # Default to portrait for 9-panel grid
-            comic.publisher = None  # Will be set on publish
+            
+            # Set publisher to current user's name
+            comic.publisher = current_user.username or current_user.full_name
             
             # Tags from keywords (for search)
             if keywords_list:
@@ -288,7 +290,7 @@ async def create_story_and_attributes(
             db.commit()
             db.refresh(comic)
             
-            logger.info(f"Comic {comic.id}: Script ready with {panel_counter} panels. Title: '{ai_title}'")
+            logger.info(f"Comic {comic.id}: Script ready with {panel_counter} panels. Title: '{ai_title}', Publisher: '{comic.publisher}'")
             
         except Exception as e:
             logger.exception(f"Script generation failed for comic {comic.id}: {e}")
