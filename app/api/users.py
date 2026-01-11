@@ -2,7 +2,7 @@
 User Management API endpoints
 Profile, password management, credits, etc.
 """
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
 from sqlalchemy.orm import Session
 from typing import Optional
 
@@ -546,36 +546,25 @@ async def update_kredit(
 @router.post("/profile/kredit/add", response_model=dict)
 async def add_user_kredit(
     kredit_data: UserKreditAmount,
-    current_user: User = Depends(get_current_user),
+    user_id: int = Query(..., description="User ID to add credits to"),
     db: Session = Depends(get_db)
 ):
     """
-    Add credits to current user's account (SELF-SERVICE ONLY)
+    Add credits to a specific user account
+    **Public Endpoint**: Does not require authentication header.
     
+    - **user_id**: Target user ID
     - **amount**: Amount to add
-    - **operation**: Must be "add" (subtract not allowed for users)
     
-    SECURITY: This endpoint ONLY modifies the logged-in user's own account.
-    User cannot specify target user_id. Credits are added to the account
-    associated with the JWT token.
-    
-    Use case: Called after successful payment to add purchased credits.
+    Use case: Called by admin systems or during registration/setup.
     """
-    # SECURITY: Only fetch and update the authenticated user's own account
-    # current_user comes from JWT token, cannot be manipulated
-    user = db.query(User).filter(User.id_users == current_user.id_users).with_for_update().first()
+    # Fetch user by ID
+    user = db.query(User).filter(User.id_users == user_id).with_for_update().first()
     
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # Verify we're updating the correct user (double-check security)
-    if user.id_users != current_user.id_users:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only modify your own account"
-        )
-    
-    # Add credits to authenticated user's account
+    # Add credits
     user.kredit += kredit_data.amount
     
     db.add(user)
@@ -586,7 +575,9 @@ async def add_user_kredit(
         "ok": True,
         "message": "Credits added successfully",
         "data": {
-            "current_kredit": user.kredit
+            "user_id": user.id_users,
+            "current_kredit": user.kredit,
+            "added_amount": kredit_data.amount
         }
     }
 

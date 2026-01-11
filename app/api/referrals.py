@@ -151,30 +151,45 @@ async def create_referral(
 
 @router.get("/referrals/check-parent", response_model=dict)
 async def check_parent_referral(
-    current_user: User = Depends(get_current_user),
+    user_id: int = Query(..., description="User ID to check"),
     db: Session = Depends(get_db)
 ):
     """
-    Check if the current user has a parent referrer (was referred by someone)
+    Check if the specific user has a parent referrer (was referred by someone)
+    **Public Endpoint**: Does not require authentication header.
     
     Returns details of the referrer if exists, otherwise null
     """
-    if not current_user.referrals_for:
+    # 0. Get the user
+    user = db.query(User).filter(User.id_users == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    if not user.referrals_for:
         return {
             "ok": True,
-            "data": False
+            "data": None
         }
         
     # Find the referrer user using the referral code
-    referrer = db.query(User).filter(User.referral_code_id == current_user.referrals_for).first()
+    referrer = db.query(User).filter(User.referral_code_id == user.referrals_for).first()
     
     if not referrer:
         return {
             "ok": True,
-            "data": False
+            "data": None
         }
         
     return {
         "ok": True,
-        "data": True
+        "data": {
+            "id_users": referrer.id_users,
+            "full_name": referrer.full_name,
+            "username": referrer.username,
+            "referral_code": referrer.referral_code_id,
+            "profile_photo_path": referrer.profile_photo_path
+        }
     }
