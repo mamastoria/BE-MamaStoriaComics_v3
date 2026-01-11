@@ -24,6 +24,7 @@ except ImportError:
 
 from app.core.database import get_db
 from app.models.comic import Comic
+from app.models.notification import Notification
 
 router = APIRouter()
 logger = logging.getLogger("nanobanana_worker")
@@ -143,6 +144,20 @@ async def handle_generate_comic_task(
         comic.draft_job_status = "COMPLETED"
         comic.pdf_url = f"/api/pdf/{job_id}" 
         comic.preview_video_url = f"/viewer/{job_id}"
+        
+        # Ensure cover_url is set
+        if not comic.cover_url:
+             comic.cover_url = core.get_cover_url(job_id)
+
+        # Create notification
+        new_notif = Notification(
+            user_id=comic.user_id,
+            type="create",
+            title="Comic Created",
+            message=f"Your comic '{comic.title}' has been successfully created.",
+            img_url=comic.cover_url
+        )
+        db.add(new_notif)
         
         # Try to generate PDF to ensure file exists
         try:

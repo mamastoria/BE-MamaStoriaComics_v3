@@ -13,6 +13,7 @@ class CommissionCreate(BaseModel):
     """Schema for creating a commission"""
     id_user: int = Field(..., description="User ID")
     kredit: Optional[int] = Field(None, description="Commission credit amount")
+    type: Optional[str] = Field(None, description="Commission type")
     keterangan: Optional[str] = Field(None, description="Commission description")
 
 
@@ -23,6 +24,7 @@ class CommissionBase(BaseModel):
     id: int
     id_user: int
     kredit: Optional[int]
+    type: Optional[str]
     keterangan: Optional[str]
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

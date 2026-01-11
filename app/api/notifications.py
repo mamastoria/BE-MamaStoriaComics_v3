@@ -27,6 +27,7 @@ class NotificationCreate(BaseModel):
     type: str
     title: str
     message: str
+    img_url: Optional[str] = None
     data: Optional[str] = None
 
 
@@ -36,6 +37,7 @@ class NotificationResponse(BaseModel):
     type: str
     title: str
     message: str
+    img_url: Optional[str] = None
     data: Optional[str]
     read_at: Optional[datetime]
     created_at: datetime
@@ -56,6 +58,7 @@ async def create_notification(
     - **type**: Notification type (comment, like, milestone, etc.)
     - **title**: Notification title
     - **message**: Notification message
+    - **img_url**: Optional image URL
     - **data**: Optional JSON data
     """
     # Check if target user exists
@@ -72,6 +75,7 @@ async def create_notification(
         type=notification_data.type,
         title=notification_data.title,
         message=notification_data.message,
+        img_url=notification_data.img_url,
         data=notification_data.data
     )
 

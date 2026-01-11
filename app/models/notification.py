@@ -18,6 +18,7 @@ class Notification(Base):
     type = Column(String, nullable=False)  # comment, like, milestone, etc.
     title = Column(String, nullable=False)
     message = Column(Text, nullable=False)
+    img_url = Column(String, nullable=True)
     data = Column(Text, nullable=True)  # JSON data
     
     read_at = Column(DateTime(timezone=True), nullable=True)

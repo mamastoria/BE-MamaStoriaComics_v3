@@ -62,6 +62,7 @@ async def add_commission(
 
     - **id_user**: User ID
     - **kredit**: Commission credit amount
+    - **type**: Commission type
     - **keterangan**: Commission description
     """
     # Check if user exists
@@ -76,6 +77,7 @@ async def add_commission(
     new_commission = Commission(
         id_user=commission_data.id_user,
         kredit=commission_data.kredit,
+        type=commission_data.type,
         keterangan=commission_data.keterangan
     )
 
