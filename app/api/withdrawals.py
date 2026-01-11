@@ -5,6 +5,8 @@ List and add withdrawals
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import Optional
+from datetime import date
+from sqlalchemy.sql import func
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
@@ -24,6 +26,8 @@ async def list_withdrawals(
     id_user: int,
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -33,8 +37,15 @@ async def list_withdrawals(
     - **id_user**: User ID (required)
     - **page**: Page number
     - **per_page**: Items per page
+    - **start_date**: Filter by start date (YYYY-MM-DD)
+    - **end_date**: Filter by end date (YYYY-MM-DD)
     """
     query = db.query(Withdrawal).filter(Withdrawal.id_user == id_user)
+
+    if start_date:
+        query = query.filter(func.date(Withdrawal.created_at) >= start_date)
+    if end_date:
+        query = query.filter(func.date(Withdrawal.created_at) <= end_date)
 
     # Calculate total withdrawal for the user (before pagination)
     from sqlalchemy import func

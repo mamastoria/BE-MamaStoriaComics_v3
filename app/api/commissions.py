@@ -4,6 +4,7 @@ List and add commissions
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from datetime import date
 from typing import Optional
 
 from app.core.database import get_db
@@ -17,6 +18,7 @@ router = APIRouter()
 
 from app.utils.pagination import paginate, get_pagination_params
 from app.utils.responses import paginated_response
+from sqlalchemy.sql import func
 from fastapi import Query
 
 @router.get("/commissions", response_model=dict)
@@ -24,6 +26,8 @@ async def list_commissions(
     id_user: int,
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -33,12 +37,26 @@ async def list_commissions(
     - **id_user**: User ID (required)
     - **page**: Page number
     - **per_page**: Items per page
+    - **start_date**: Filter by start date (YYYY-MM-DD)
+    - **end_date**: Filter by end date (YYYY-MM-DD)
     """
     query = db.query(Commission).filter(Commission.id_user == id_user)
 
+    if start_date:
+        query = query.filter(func.date(Commission.created_at) >= start_date)
+    if end_date:
+        query = query.filter(func.date(Commission.created_at) <= end_date)
+
     # Calculate total commission for the user (before pagination)
     from sqlalchemy import func
-    total_commission = db.query(func.sum(Commission.kredit)).filter(Commission.id_user == id_user).scalar() or 0
+    total_commission_query = db.query(func.sum(Commission.kredit)).filter(Commission.id_user == id_user) # Logic for total sum should ideally respect filters too, but often "Total Commission" means "Life time total".
+    # However, if I filter the list, the "total_commission" usually refers to the User's balance or total earnings ever.
+    # The request says "filter by created at on list commisi".
+    # Usually the summary total behaves independently, but let's stick to the user Request to filter the LIST.
+    # The current code calculates `total_commission` with `filter(Commission.id_user == id_user)`.
+    # I will KEEP the total commission calculation UNFILTERED unless instructed otherwise, assuming it displays the "Total Earnings" card on top of the list.
+    
+    total_commission = total_commission_query.scalar() or 0
     
     # Paginate
     page, per_page = get_pagination_params(page, per_page)

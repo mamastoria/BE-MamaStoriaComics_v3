@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 from typing import Optional
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
+from sqlalchemy.sql import func
 from pydantic import BaseModel, Field, ConfigDict
 
 from app.core.database import get_db
@@ -646,6 +647,8 @@ async def get_subscription_status(
 async def get_payment_history(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -661,6 +664,12 @@ async def get_payment_history(
         PaymentTransaction.user_id == current_user.id_users
     ).order_by(PaymentTransaction.created_at.desc())
     
+    # Filter by date
+    if start_date:
+        query = query.filter(func.date(PaymentTransaction.created_at) >= start_date)
+    if end_date:
+        query = query.filter(func.date(PaymentTransaction.created_at) <= end_date)
+
     # Paginate
     page, per_page = get_pagination_params(page, per_page)
     items, total = paginate(query, page, per_page)
