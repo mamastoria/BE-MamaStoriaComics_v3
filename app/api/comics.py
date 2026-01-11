@@ -76,9 +76,9 @@ async def list_comics(
     
     # Apply sorting
     if sort_by == "popularity":
-        # Sort by popularity (total_likes + total_views)
+        # Sort by popularity (total_likes + total_views + total_comments + total_shares)
         query = query.order_by(
-            (Comic.total_likes + Comic.total_views).desc()
+            (Comic.total_likes + Comic.total_views + Comic.total_comments + Comic.total_shares).desc()
         )
     else:
         # Default: sort by newest (created_at)
