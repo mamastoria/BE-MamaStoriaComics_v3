@@ -207,9 +207,18 @@ async def startup_event():
                 # In some configs commit might be auto
                 pass
             
+            print("Startup DB patching completed.")
+
     except Exception as e:
-        print(f"Database schema patch warning: {e}")
-        # Don't inhibit startup, maybe columns exist or DB connection failed
+        print(f"CRITICAL WARNING: Database schema patch failed: {e}")
+        # We print the traceback to help debugging
+        import traceback
+        traceback.print_exc()
+        # IMPORTANT: We DO NOT raise the exception here. 
+        # We allow the app to start even if DB patching fails, so that /health endpoints work 
+        # and we can debug via Cloud Logging.
+    
+    print("Application startup event finished.")
 
 
 if __name__ == "__main__":
