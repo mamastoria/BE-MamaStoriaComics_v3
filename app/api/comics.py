@@ -56,7 +56,6 @@ async def list_comics(
     query = db.query(Comic).filter(
         Comic.title.isnot(None),
         Comic.cover_url.isnot(None),
-        Comic.publisher.isnot(None),  # Only officially published comics
         Comic.status == True # Only active comics
     )
     
