@@ -339,6 +339,8 @@ def process_image_jobs(db: Session) -> Dict[str, Any]:
                 }
                 for p in part_panels:
                     part_data["panels"].append({
+                        "panel_no": p.panel_number,
+                        "panel_title": "",
                         "panel_context": p.description or p.page_description,
                         "narration": p.narration or p.page_narration,
                         "dialogues": p.dialogues or [],
