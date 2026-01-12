@@ -104,7 +104,7 @@ async def db_health_check():
 
 
 # Import routers
-from app.api import auth, master_data, users, comics, comments, likes, history, subscriptions, notifications, analytics, comic_generator, commissions, withdrawals, referrals, worker, comic_requests, downloads, config_app, follows, public, admin
+from app.api import auth, master_data, users, comics, comments, likes, history, subscriptions, notifications, analytics, comic_generator, commissions, withdrawals, referrals, worker, comic_requests, downloads, config_app, follows, public, admin, jobs
 
 # Include routers
 app.include_router(comic_generator.router, tags=["Comic Generator"]) # Mixed paths (api + viewer)
@@ -127,6 +127,7 @@ app.include_router(downloads.router, prefix="/api/v1", tags=["Downloads"])
 app.include_router(config_app.router, prefix="/api/v1", tags=["Configs"])
 app.include_router(follows.router, prefix="/api/v1", tags=["Follows"])
 app.include_router(worker.router, prefix="/tasks", tags=["Worker"])
+app.include_router(jobs.router, tags=["Job Queue"])  # Database-driven job queue
 app.include_router(admin.router, tags=["Admin"])  # Admin endpoints with prefix in router
 
 

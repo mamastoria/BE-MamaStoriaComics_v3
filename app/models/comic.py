@@ -62,6 +62,17 @@ class Comic(Base):
     video_started_at = Column(DateTime(timezone=True), nullable=True)
     video_completed_at = Column(DateTime(timezone=True), nullable=True)
     
+    # Job Queue Retry Tracking
+    script_retry_count = Column(Integer, default=0, nullable=False, server_default='0')
+    image_retry_count = Column(Integer, default=0, nullable=False, server_default='0')
+    video_retry_count = Column(Integer, default=0, nullable=False, server_default='0')
+    last_error_message = Column(Text, nullable=True)
+    last_error_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Job Locking (prevent race conditions)
+    locked_by = Column(String(100), nullable=True)
+    locked_at = Column(DateTime(timezone=True), nullable=True)
+    
     # Layout
     layout = Column(String, nullable=True)  # e.g., "portrait", "landscape"
     
