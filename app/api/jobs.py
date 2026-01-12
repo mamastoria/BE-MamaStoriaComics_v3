@@ -130,3 +130,57 @@ async def job_health():
         "status": "healthy",
         "service": "job-processor"
     }
+
+
+@router.post("/migrate")
+async def run_migration(db: Session = Depends(get_db)):
+    """
+    Run database migration to add job queue columns
+    
+    This adds the new columns needed for the job queue system
+    """
+    from sqlalchemy import text
+    
+    results = []
+    
+    # Columns to add
+    columns = [
+        ("script_retry_count", "INTEGER DEFAULT 0"),
+        ("image_retry_count", "INTEGER DEFAULT 0"),
+        ("video_retry_count", "INTEGER DEFAULT 0"),
+        ("last_error_message", "TEXT"),
+        ("last_error_at", "TIMESTAMP WITH TIME ZONE"),
+        ("locked_by", "VARCHAR(100)"),
+        ("locked_at", "TIMESTAMP WITH TIME ZONE"),
+        ("script_started_at", "TIMESTAMP WITH TIME ZONE"),
+        ("script_completed_at", "TIMESTAMP WITH TIME ZONE"),
+        ("render_started_at", "TIMESTAMP WITH TIME ZONE"),
+        ("render_completed_at", "TIMESTAMP WITH TIME ZONE"),
+        ("clipping_started_at", "TIMESTAMP WITH TIME ZONE"),
+        ("clipping_completed_at", "TIMESTAMP WITH TIME ZONE"),
+        ("video_started_at", "TIMESTAMP WITH TIME ZONE"),
+        ("video_completed_at", "TIMESTAMP WITH TIME ZONE"),
+    ]
+    
+    try:
+        for col_name, col_type in columns:
+            try:
+                sql = f"ALTER TABLE comics ADD COLUMN IF NOT EXISTS {col_name} {col_type}"
+                db.execute(text(sql))
+                results.append({"column": col_name, "status": "added"})
+            except Exception as e:
+                if "already exists" in str(e).lower():
+                    results.append({"column": col_name, "status": "exists"})
+                else:
+                    results.append({"column": col_name, "status": "error", "error": str(e)[:100]})
+        
+        db.commit()
+        
+        return {
+            "ok": True,
+            "message": "Migration completed",
+            "columns": results
+        }
+    except Exception as e:
+        logger.error(f"Migration error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
