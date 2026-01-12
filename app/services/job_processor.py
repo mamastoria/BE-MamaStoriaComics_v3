@@ -436,6 +436,17 @@ def get_pending_video_jobs(db: Session, limit: int = 1) -> List[Comic]:
     timeout = JOB_CONFIG["video"]["lock_timeout_minutes"]
     lock_expiry = datetime.now() - timedelta(minutes=timeout)
     
+    # Enforce global concurrency limit for videos (async tasks)
+    busy_count = db.query(Comic).filter(
+        Comic.draft_job_status == 'PROCESSING',
+        Comic.locked_by.isnot(None),
+        Comic.locked_at >= lock_expiry
+    ).count()
+    
+    if busy_count >= limit:
+        logger.info(f"Video queue full ({busy_count} active >= limit {limit}), skipping pickup")
+        return []
+    
     jobs = db.query(Comic).filter(
         and_(
             Comic.draft_job_status == 'PROCESSING',
@@ -516,9 +527,8 @@ def process_video_jobs(db: Session) -> Dict[str, Any]:
                 
                 if task_name:
                     logger.info(f"[{worker_id}] Video queued to worker for comic #{comic.id}")
-                    # Keep status as PROCESSING, unlock, let video worker handle it
-                    comic.locked_by = None
-                    comic.locked_at = None
+                    # Keep status as PROCESSING and KEEP LOCKED to enforce concurrency limit
+                    # It will be unlocked by timeout (30m) or when worker updates status to COMPLETED
                     db.commit()
                     
                     results["processed"] += 1
