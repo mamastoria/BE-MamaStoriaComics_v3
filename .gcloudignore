@@ -1,0 +1,11 @@
+.git
+.gitignore
+.venv
+__pycache__
+*.pyc
+.env
+.env.example
+cloud_sql_proxy.exe
+/generated/
+/exports/
+/docs/

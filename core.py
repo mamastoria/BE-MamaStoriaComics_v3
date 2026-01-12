@@ -205,7 +205,7 @@ def upload_panels_parallel(
     job_id: str,
     part_no: int,
     panel_images: List[Image.Image],
-    max_workers: int = 4
+    max_workers: int = 9  # OPTIMIZED: Increased from 4 to 9 (one per panel)
 ) -> List[Optional[str]]:
     """
     Upload multiple panels in PARALLEL for faster processing.
@@ -1331,6 +1331,8 @@ ANTI-WHITE-BORDER CHECK (CRITICAL - APPLIES TO ALL PARTS):
 
 
 def generate_3x3_grid_image(prompt: str) -> Image.Image:
+    """Generate 3x3 grid image from AI model with timing logs."""
+    ai_start = time.time()
     logger.info("IMAGE: calling %s (regional) [Option B text inside image]", IMAGE_MODEL)
 
     data = vertex_generate_content(
@@ -1341,8 +1343,11 @@ def generate_3x3_grid_image(prompt: str) -> Image.Image:
             "candidateCount": 1,
             "responseModalities": ["IMAGE"],
         },
-        timeout_s=240,
+        timeout_s=180,  # OPTIMIZED: Reduced from 240s to 180s
     )
+    
+    ai_elapsed = time.time() - ai_start
+    logger.info(f"IMAGE: AI generation completed in {ai_elapsed:.1f}s")
 
     imgs = extract_inline_images_from_response(data)
     if not imgs:
@@ -1365,6 +1370,8 @@ def call_smart_crop_service(grid_gcs_url: str, job_id: str, part_no: int) -> Lis
     Call external Cloud Function to crop panels.
     Returns: List of GCS public URLs for the panels.
     """
+    crop_start = time.time()
+    
     # URL will be set via Environment Variable on deployment
     svc_url = _env("SMART_CROP_SERVICE_URL", "")
     
@@ -1378,13 +1385,16 @@ def call_smart_crop_service(grid_gcs_url: str, job_id: str, part_no: int) -> Lis
         "bucket_name": GCS_BUCKET_NAME
     }
     
-    # 5 minute timeout for heavy image processing
-    resp = requests.post(svc_url, json=payload, timeout=300)
+    # OPTIMIZED: Reduced timeout from 300s to 120s
+    resp = requests.post(svc_url, json=payload, timeout=120)
     resp.raise_for_status()
     
     data = resp.json()
     if not data.get("ok"):
         raise RuntimeError(f"Service returned error: {data.get('error')}")
+    
+    crop_elapsed = time.time() - crop_start
+    logger.info(f"Smart Crop completed in {crop_elapsed:.1f}s for part {part_no}")
         
     return data.get("panel_urls", [])
 
@@ -1396,12 +1406,15 @@ def render_part_payload(script: Dict[str, Any], part_no: int, *, job_id: Optiona
     """
     Render a single part (9 panels in 3x3 grid).
     
-    FLOW (HYBRID):
+    FLOW (HYBRID + OPTIMIZED):
     1. Generate full 3x3 grid image from AI
     2. Try calling Smart Crop Microservice (OpenCV)
     3. If service fails/missing, fallback to Local Manual Crop
     4. Return panel URLs
     """
+    part_start_time = time.time()
+    logger.info(f"PART {part_no}: Starting render pipeline...")
+    
     validate_script_shape(script)
 
     global_data = script.get("global", {}) if isinstance(script.get("global"), dict) else {}
@@ -1419,9 +1432,11 @@ def render_part_payload(script: Dict[str, Any], part_no: int, *, job_id: Optiona
         if prev_part:
             prev_part_summary = summarize_part_for_continuity(prev_part)
 
+    logger.info(f"PART {part_no}: Building image prompt...")
     img_prompt = build_image_prompt_3x3(global_data, part, prev_part_summary)
     
     # 1. Generate GRID Image
+    logger.info(f"PART {part_no}: Generating 3x3 grid image via AI...")
     grid_img = generate_3x3_grid_image(img_prompt)
 
     # Save full grid to local disk (for preview/debug)
@@ -1461,16 +1476,23 @@ def render_part_payload(script: Dict[str, Any], part_no: int, *, job_id: Optiona
     
     # FALLBACK: LOCAL MANUAL CROP
     if not smart_crop_success:
-        logger.info(f"Peforming Local Manual Crop (Fallback) for Job {job_id}")
+        logger.info(f"Performing Local Manual Crop (Fallback) for Job {job_id}")
+        crop_start = time.time()
         grid_panels = split_grid_3x3(grid_img)
         panels_b64 = [b64_png(p) for p in grid_panels]  # Populate base64 for fallback
+        logger.info(f"Local crop completed in {time.time() - crop_start:.1f}s")
         
         if job_id:
-            panel_urls = upload_panels_parallel(job_id, int(part_no), grid_panels, max_workers=4)
+            upload_start = time.time()
+            panel_urls = upload_panels_parallel(job_id, int(part_no), grid_panels, max_workers=9)  # OPTIMIZED: 9 workers
+            logger.info(f"Panel upload completed in {time.time() - upload_start:.1f}s")
         else:
             panel_urls = [None] * len(grid_panels)
     
-    logger.info(f"Rendered part {part_no}: {len([u for u in panel_urls if u])} panels available")
+    # Log final timing summary
+    part_elapsed = time.time() - part_start_time
+    successful_panels = len([u for u in panel_urls if u])
+    logger.info(f"PART {part_no}: COMPLETED in {part_elapsed:.1f}s ({successful_panels}/9 panels)")
 
     return {
         "part_no": int(part_no),
@@ -1480,6 +1502,7 @@ def render_part_payload(script: Dict[str, Any], part_no: int, *, job_id: Optiona
         "grid_gcs_url": grid_gcs_url,  # Full page GCS URL
         "panels": panels_b64,  # base64 panels (might be empty if smart crop used)
         "panel_urls": panel_urls,  # GCS URLs for each panel
+        "render_time_seconds": round(part_elapsed, 1),  # ADDED: timing info
         "meta": {
             "project_id": PROJECT_ID,
             "vertex_location": VERTEX_LOCATION,
@@ -1702,11 +1725,11 @@ def _render_job_worker(job_id: str, script: Dict[str, Any]) -> None:
     
     try:
         _job_set(job_id, {"status": "rendering_parallel", "error": None})
-        logger.info(f"JOB {job_id}: Starting PARALLEL rendering of Part 1 and Part 2...")
+        logger.info(f"JOB {job_id}: Starting OPTIMIZED PARALLEL rendering of Part 1 and Part 2...")
         
         start_time = time.time()
         
-        # Render Part 1 and Part 2 in parallel
+        # OPTIMIZED: Render Part 1 and Part 2 in parallel with better timeout handling
         with concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="render") as executor:
             future1 = executor.submit(render_part_payload, script, 1, job_id=job_id)
             future2 = executor.submit(render_part_payload, script, 2, job_id=job_id)

@@ -52,6 +52,16 @@ class Comic(Base):
     draft_job_status = Column(String, nullable=True)  # QUEUED, PROCESSING, COMPLETED, FAILED
     status = Column(Boolean, default=False, nullable=True) # Default false as requested
     
+    # Generation Timing (for performance monitoring)
+    script_started_at = Column(DateTime(timezone=True), nullable=True)
+    script_completed_at = Column(DateTime(timezone=True), nullable=True)
+    render_started_at = Column(DateTime(timezone=True), nullable=True)
+    render_completed_at = Column(DateTime(timezone=True), nullable=True)
+    clipping_started_at = Column(DateTime(timezone=True), nullable=True)
+    clipping_completed_at = Column(DateTime(timezone=True), nullable=True)
+    video_started_at = Column(DateTime(timezone=True), nullable=True)
+    video_completed_at = Column(DateTime(timezone=True), nullable=True)
+    
     # Layout
     layout = Column(String, nullable=True)  # e.g., "portrait", "landscape"
     

@@ -1,0 +1,108 @@
+{
+  "timestamp": "2026-01-10T14:55:38.067953",
+  "base_url": "https://nanobanana-backend-1089713441636.asia-southeast2.run.app",
+  "summary": {
+    "total": 12,
+    "passed": 12,
+    "failed": 0,
+    "success_rate": 100.0
+  },
+  "results": [
+    {
+      "name": "Health Check",
+      "endpoint": "/health",
+      "method": "GET",
+      "status": 200,
+      "time_ms": 9221.8,
+      "success": true
+    },
+    {
+      "name": "List Styles",
+      "endpoint": "/api/v1/styles",
+      "method": "GET",
+      "status": 200,
+      "time_ms": 248.59,
+      "success": true
+    },
+    {
+      "name": "List Genres",
+      "endpoint": "/api/v1/genres",
+      "method": "GET",
+      "status": 200,
+      "time_ms": 123.62,
+      "success": true
+    },
+    {
+      "name": "List Comics",
+      "endpoint": "/api/v1/comics?page=1&per_page=10",
+      "method": "GET",
+      "status": 200,
+      "time_ms": 154.02,
+      "success": true
+    },
+    {
+      "name": "List Characters",
+      "endpoint": "/api/v1/characters",
+      "method": "GET",
+      "status": 200,
+      "time_ms": 115.76,
+      "success": true
+    },
+    {
+      "name": "List Backgrounds",
+      "endpoint": "/api/v1/backgrounds",
+      "method": "GET",
+      "status": 200,
+      "time_ms": 114.83,
+      "success": true
+    },
+    {
+      "name": "Comic 118 Detail",
+      "endpoint": "/api/v1/comics/118",
+      "method": "GET",
+      "status": 200,
+      "time_ms": 115.53,
+      "success": true
+    },
+    {
+      "name": "Comic 118 Panels",
+      "endpoint": "/api/v1/comics/118/panels",
+      "method": "GET",
+      "status": 200,
+      "time_ms": 100.83,
+      "success": true
+    },
+    {
+      "name": "Comic 113 Detail",
+      "endpoint": "/api/v1/comics/113",
+      "method": "GET",
+      "status": 200,
+      "time_ms": 101.08,
+      "success": true
+    },
+    {
+      "name": "Comic 113 Panels",
+      "endpoint": "/api/v1/comics/113/panels",
+      "method": "GET",
+      "status": 200,
+      "time_ms": 120.0,
+      "success": true
+    },
+    {
+      "name": "Comic 112 Detail",
+      "endpoint": "/api/v1/comics/112",
+      "method": "GET",
+      "status": 200,
+      "time_ms": 130.43,
+      "success": true
+    },
+    {
+      "name": "Comic 112 Panels",
+      "endpoint": "/api/v1/comics/112/panels",
+      "method": "GET",
+      "status": 200,
+      "time_ms": 98.14,
+      "success": true
+    }
+  ]
+}

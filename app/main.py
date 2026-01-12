@@ -199,13 +199,13 @@ async def startup_event():
     #         conn.execute(text("ALTER TABLE comments ADD COLUMN IF NOT EXISTS parent_id INTEGER REFERENCES comments(id) ON DELETE CASCADE"))
     #         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_comments_parent_id ON comments (parent_id)"))
             
-    #         # Commit changes
-    #         try:
-    #             conn.commit()
-    #             print("Database schema patched successfully (added missing columns to payment_transactions)")
-    #         except Exception:
-    #             # In some configs commit might be auto
-    #             pass
+            # Commit changes
+            try:
+                conn.commit()
+                print("Database schema patched successfully (added missing columns)")
+            except Exception:
+                # In some configs commit might be auto
+                pass
             
     #         print("Startup DB patching completed.")
 

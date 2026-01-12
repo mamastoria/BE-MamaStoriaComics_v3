@@ -328,3 +328,334 @@ async def get_video_generation_logs(
     except Exception as e:
         logger.exception("Failed to fetch video logs")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/comics/generation-stats")
+async def get_comic_generation_stats(
+    hours: int = Query(24, ge=1, le=168),
+    limit: int = Query(50, ge=1, le=200)
+):
+    """
+    Get detailed comic generation statistics with timing breakdown.
+    Returns data for monitoring who created comics and how long each step took.
+    """
+    from app.core.database import get_session_local
+    from app.models.comic import Comic
+    from app.models.user import User
+    from app.models.master_data import Style, Genre
+    
+    SessionLocal = get_session_local()
+    db = SessionLocal()
+    
+    try:
+        # Get comics created in the last N hours
+        cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+        
+        comics = db.query(Comic).filter(
+            Comic.created_at >= cutoff_time
+        ).order_by(Comic.created_at.desc()).limit(limit).all()
+        
+        results = []
+        
+        for comic in comics:
+            # Get user info
+            user = db.query(User).filter(User.id_users == comic.user_id).first()
+            user_name = user.full_name if user else f"User {comic.user_id}"
+            user_email = user.email if user else None
+            
+            # Get style name
+            style_name = "Unknown"
+            if comic.style:
+                try:
+                    style = db.query(Style).filter(Style.id == int(comic.style)).first()
+                    style_name = style.name if style else comic.style
+                except:
+                    style_name = comic.style
+            
+            # Get genre names
+            genre_names = []
+            if comic.genre:
+                for genre_id in comic.genre:
+                    try:
+                        genre = db.query(Genre).filter(Genre.id == int(genre_id)).first()
+                        if genre:
+                            genre_names.append(genre.name)
+                    except:
+                        pass
+            
+            # Calculate durations for each step
+            def calc_duration(start, end):
+                if start and end:
+                    delta = end - start
+                    return round(delta.total_seconds(), 1)
+                return None
+            
+            script_duration = calc_duration(comic.script_started_at, comic.script_completed_at)
+            render_duration = calc_duration(comic.render_started_at, comic.render_completed_at)
+            clipping_duration = calc_duration(comic.clipping_started_at, comic.clipping_completed_at)
+            video_duration = calc_duration(comic.video_started_at, comic.video_completed_at)
+            
+            # Total duration from script start to video complete
+            total_duration = None
+            if comic.script_started_at and comic.video_completed_at:
+                total_duration = calc_duration(comic.script_started_at, comic.video_completed_at)
+            elif comic.script_started_at and comic.render_completed_at:
+                total_duration = calc_duration(comic.script_started_at, comic.render_completed_at)
+            
+            results.append({
+                "comic_id": comic.id,
+                "created_at": comic.created_at.isoformat() if comic.created_at else None,
+                "user": {
+                    "id": comic.user_id,
+                    "name": user_name,
+                    "email": user_email
+                },
+                "title": comic.title or "Untitled",
+                "style": style_name,
+                "genres": genre_names,
+                "story_idea": comic.story_idea[:200] if comic.story_idea else None,
+                "status": comic.draft_job_status or "PENDING",
+                "timing": {
+                    "script": {
+                        "started_at": comic.script_started_at.isoformat() if comic.script_started_at else None,
+                        "completed_at": comic.script_completed_at.isoformat() if comic.script_completed_at else None,
+                        "duration_seconds": script_duration
+                    },
+                    "render": {
+                        "started_at": comic.render_started_at.isoformat() if comic.render_started_at else None,
+                        "completed_at": comic.render_completed_at.isoformat() if comic.render_completed_at else None,
+                        "duration_seconds": render_duration
+                    },
+                    "clipping": {
+                        "started_at": comic.clipping_started_at.isoformat() if comic.clipping_started_at else None,
+                        "completed_at": comic.clipping_completed_at.isoformat() if comic.clipping_completed_at else None,
+                        "duration_seconds": clipping_duration
+                    },
+                    "video": {
+                        "started_at": comic.video_started_at.isoformat() if comic.video_started_at else None,
+                        "completed_at": comic.video_completed_at.isoformat() if comic.video_completed_at else None,
+                        "duration_seconds": video_duration
+                    },
+                    "total_duration_seconds": total_duration
+                }
+            })
+        
+        # Calculate summary stats
+        completed = [r for r in results if r["status"] == "COMPLETED"]
+        
+        def avg_duration(key):
+            durations = [r["timing"][key]["duration_seconds"] for r in completed if r["timing"][key]["duration_seconds"]]
+            return round(sum(durations) / len(durations), 1) if durations else None
+        
+        total_durations = [r["timing"]["total_duration_seconds"] for r in completed if r["timing"]["total_duration_seconds"]]
+        
+        summary = {
+            "total_comics": len(results),
+            "completed": len(completed),
+            "failed": len([r for r in results if r["status"] == "FAILED"]),
+            "in_progress": len([r for r in results if r["status"] in ["GENERATING_SCRIPT", "SCRIPT_READY", "RENDERING", "PROCESSING"]]),
+            "avg_script_duration": avg_duration("script"),
+            "avg_render_duration": avg_duration("render"),
+            "avg_clipping_duration": avg_duration("clipping"),
+            "avg_video_duration": avg_duration("video"),
+            "avg_total_duration": round(sum(total_durations) / len(total_durations), 1) if total_durations else None
+        }
+        
+        return {
+            "success": True,
+            "summary": summary,
+            "comics": results
+        }
+        
+    except Exception as e:
+        logger.exception("Failed to get generation stats")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+
+@router.post("/db-patch-timing")
+async def patch_database_timing_columns():
+    """
+    Manually patch database to include timing columns.
+    Run this once after deployment.
+    """
+    from app.core.database import get_engine
+    from sqlalchemy import text
+    
+    engine = get_engine()
+    try:
+        with engine.connect() as conn:
+            # We use generic text execution.
+            # Depending on DB dialect, syntax might slightly differ but TIMESTAMP usually works.
+            # Postgres supports TIMESTAMP WITH TIME ZONE. MySQL just TIMESTAMP / DATETIME.
+            # Since requirements specify pg8000, we strictly use Postgres syntax.
+            
+            columns = [
+                "script_started_at", "script_completed_at", 
+                "render_started_at", "render_completed_at", 
+                "clipping_started_at", "clipping_completed_at", 
+                "video_started_at", "video_completed_at"
+            ]
+            
+            for col in columns:
+                try:
+                    conn.execute(text(f"ALTER TABLE comics ADD COLUMN IF NOT EXISTS {col} TIMESTAMP WITH TIME ZONE"))
+                except Exception as e:
+                    logger.warning(f"Error adding {col}: {e}")
+            
+            conn.commit()
+            return {"success": True, "message": "Timing columns added successfully (or already existed)"}
+    except Exception as e:
+        logger.exception("DB Patch failed connection")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/test-users")
+async def get_test_users(limit: int = Query(10, ge=1, le=50)):
+    """
+    Get list of test users for load testing purposes.
+    Returns users with phone numbers (no passwords).
+    """
+    from app.core.database import get_session_local
+    from app.models.user import User
+    
+    SessionLocal = get_session_local()
+    db = SessionLocal()
+    
+    try:
+        users = db.query(User).limit(limit).all()
+        
+        result = []
+        for user in users:
+            result.append({
+                "id": user.id_users,
+                "full_name": user.full_name,
+                "phone_number": user.phone_number,
+                "email": user.email,
+                "kredit": user.kredit,
+                "is_verified": user.is_verified
+            })
+        
+        return {
+            "success": True,
+            "users": result,
+            "total": len(result),
+            "note": "Use phone_number and password to login for load testing"
+        }
+    except Exception as e:
+        logger.exception("Failed to get test users")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+
+@router.post("/create-test-user")
+async def create_test_user(
+    phone_number: str = Query(..., description="Phone number for login"),
+    password: str = Query("loadtest123", description="Password for login"),
+    full_name: str = Query("Load Test User", description="User's full name"),
+    kredit: int = Query(10000, description="Initial credits")
+):
+    """
+    Create a new test user for load testing purposes.
+    """
+    from app.core.database import get_session_local
+    from app.models.user import User
+    import bcrypt
+    import secrets
+    
+    SessionLocal = get_session_local()
+    db = SessionLocal()
+    
+    try:
+        # Check if phone number already exists
+        existing = db.query(User).filter(User.phone_number == phone_number).first()
+        if existing:
+            # Update existing user's credit
+            existing.kredit = kredit
+            db.commit()
+            return {
+                "success": True,
+                "message": "User already exists, credits updated",
+                "user": {
+                    "id": existing.id_users,
+                    "phone_number": existing.phone_number,
+                    "full_name": existing.full_name,
+                    "kredit": existing.kredit
+                }
+            }
+        
+        # Hash password
+        password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        
+        # Generate referral code
+        referral_code = secrets.token_hex(4).upper()
+        
+        # Create new user
+        new_user = User(
+            phone_number=phone_number,
+            password=password_hash,
+            full_name=full_name,
+            kredit=kredit,
+            is_verified=True,
+            referral_code_id=referral_code,
+            role="creator"
+        )
+        
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        
+        return {
+            "success": True,
+            "message": "Test user created successfully",
+            "user": {
+                "id": new_user.id_users,
+                "phone_number": new_user.phone_number,
+                "full_name": new_user.full_name,
+                "kredit": new_user.kredit,
+                "password": password  # Return plain password for testing
+            }
+        }
+    except Exception as e:
+        db.rollback()
+        logger.exception("Failed to create test user")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+
+
+@router.post("/comics/{comic_id}/force-fail")
+async def force_fail_comic(comic_id: int):
+    """
+    Force fail a stuck comic job. Useful for clearing stuck jobs in monitoring.
+    """
+    from app.core.database import get_session_local
+    from app.models.comic import Comic
+    
+    SessionLocal = get_session_local()
+    db = SessionLocal()
+    
+    try:
+        comic = db.query(Comic).filter(Comic.id == comic_id).first()
+        if not comic:
+            raise HTTPException(status_code=404, detail="Comic not found")
+            
+        previous_status = comic.draft_job_status
+        comic.draft_job_status = "FAILED"
+        
+        db.commit()
+        return {
+            "success": True, 
+            "message": f"Comic {comic_id} forced to FAILED status (was {previous_status})",
+            "comic_id": comic_id,
+            "previous_status": previous_status,
+            "new_status": "FAILED"
+        }
+    except Exception as e:
+        logger.exception(f"Failed to force fail comic {comic_id}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()

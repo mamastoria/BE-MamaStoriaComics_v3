@@ -180,7 +180,9 @@ async def create_story_and_attributes(
             from app.models.comic_panel import ComicPanel
             
             # Update status to generating script
+            from datetime import datetime
             comic.draft_job_status = "GENERATING_SCRIPT"
+            comic.script_started_at = datetime.now()
             db.commit()
             
             logger.info(f"Generating script for comic {comic.id} with style={style_id_str}, nuances={genre_ids_str}...")
@@ -272,6 +274,7 @@ async def create_story_and_attributes(
             # Update comic with all extracted data
             comic.draft_job_status = "SCRIPT_READY"
             comic.draft_job_id = str(comic.id)  # Job ID = Comic ID
+            comic.script_completed_at = datetime.now()
             comic.title = ai_title or story_data.story_idea[:100]  # Use title or fallback
             comic.summary = ai_title or story_data.story_idea[:100]
             comic.synopsis = ai_synopsis
@@ -1068,10 +1071,11 @@ async def generate_comic(
     
     This takes the user-edited draft panels and renders actual images.
     Should only be called after user has reviewed and approved the draft.
+    
+    Now uses dedicated worker via Cloud Tasks for isolated processing (1 part = 1 job).
+    Falls back to in-process rendering if queue fails.
     """
     from app.models.comic_panel import ComicPanel
-    import threading
-    from app.services.comic_renderer import render_comic_images_task
     
     comic = db.query(Comic).filter(
         Comic.id == id,
@@ -1168,25 +1172,26 @@ async def generate_comic(
             "panels": parts_dict[part_no]
         })
     
-    # Update status to RENDERING
-    comic.draft_job_status = "RENDERING"
-    db.commit()
+    # Use queue_render_to_worker for dedicated worker processing
+    # This queues each part to Cloud Tasks for isolated processing (1 job = 1 part)
+    # Falls back to in-process rendering if queue fails
+    from app.services.comic_renderer import queue_render_to_worker
     
-    # Start background thread using service
-    thread = threading.Thread(
-        target=render_comic_images_task,
-        args=(comic.id, script, style_id_str),  # Pass style_id_str instead of style_name
-        daemon=True
+    queue_result = queue_render_to_worker(
+        comic_id=comic.id,
+        script_data=script,
+        style=style_id_str
     )
-    thread.start()
     
     return {
         "ok": True,
-        "message": "Comic image generation started",
+        "message": "Comic image generation queued" if queue_result.get("queued") else "Comic image generation started (fallback)",
         "data": {
             "comic_id": id,
             "status": "RENDERING",
-            "panels_count": len(panels)
+            "panels_count": len(panels),
+            "queued": queue_result.get("queued", False),
+            "tasks": queue_result.get("tasks") if queue_result.get("queued") else None
         }
     }
 
@@ -1201,12 +1206,14 @@ async def generate_comic_video(
     """
     Generate cinematic video from comic panels with narration.
     
+    This endpoint queues the video generation to a dedicated worker service
+    via Cloud Tasks for isolated processing with dedicated resources (8GB RAM).
+    
     Features:
     - Ken Burns effect (zoom/pan animation)
     - Fade transitions between panels
     - TTS narration in Indonesian
     - 9:16 vertical format for mobile
-    - Cinematic letterbox bars
     
     The video URL will be stored in comic.preview_video_url when complete.
     """
@@ -1252,9 +1259,39 @@ async def generate_comic_video(
             "description": p.description or p.page_description or ""
         })
     
-    # Start video generation in background
+    # Try to queue to Cloud Tasks (dedicated video worker)
+    try:
+        from app.services.video_queue import queue_video_generation
+        
+        task_name = queue_video_generation(comic.id, panel_data)
+        
+        if task_name:
+            logger.info(f"Video generation queued to Cloud Tasks: {task_name}")
+            
+            return {
+                "ok": True,
+                "message": "Video generation queued to dedicated worker",
+                "data": {
+                    "comic_id": id,
+                    "status": "QUEUED",
+                    "task_id": task_name.split("/")[-1] if "/" in task_name else task_name,
+                    "panels_count": len(panel_data),
+                    "processing_mode": "dedicated_worker",
+                    "estimated_time": "60-120 seconds",
+                    "features": [
+                        "Ken Burns effect (zoom/pan)",
+                        "Fade transitions",
+                        "TTS narration (Indonesian)",
+                        "9:16 vertical format"
+                    ]
+                }
+            }
+    except Exception as queue_error:
+        logger.warning(f"Cloud Tasks queueing failed, falling back to background task: {queue_error}")
+    
+    # Fallback: Run in background task (same container)
     def generate_video_task(comic_id: int, panels_data: list):
-        """Background task to generate video"""
+        """Background task to generate video (fallback)"""
         try:
             import sys
             import traceback
@@ -1271,10 +1308,9 @@ async def generate_comic_video(
             thread_db = SessionLocal()
             
             try:
-                logger.info(f"Starting cinematic video generation for comic {comic_id}...")
+                logger.info(f"Starting video generation for comic {comic_id} (fallback mode)...")
                 logger.info(f"Panels data count: {len(panels_data)}")
                 
-                # Generate video - this function handles GCS upload internally
                 video_url = video_generator.generate_video_for_comic(
                     comic_id=comic_id,
                     panels=panels_data
@@ -1283,14 +1319,11 @@ async def generate_comic_video(
                 if video_url:
                     logger.info(f"Video generation returned URL: {video_url}")
                     
-                    # Update comic with video URL
                     comic_record = thread_db.query(Comic).filter(Comic.id == comic_id).first()
                     if comic_record:
                         comic_record.preview_video_url = video_url
                         thread_db.commit()
                         logger.info(f"Comic {comic_id}: Video URL saved to database")
-                    
-                    logger.info(f"Comic {comic_id}: Cinematic video generated successfully!")
                 else:
                     logger.error(f"Video generation returned None for comic {comic_id}")
                     
@@ -1303,22 +1336,21 @@ async def generate_comic_video(
         except Exception as outer_e:
             logger.exception(f"Video generation outer error for comic {comic_id}: {outer_e}")
     
-    # Run in background
     background.add_task(generate_video_task, comic.id, panel_data)
     
     return {
         "ok": True,
-        "message": "Cinematic video generation started",
+        "message": "Video generation started (fallback mode)",
         "data": {
             "comic_id": id,
             "status": "VIDEO_GENERATING",
             "panels_count": len(panel_data),
+            "processing_mode": "background_task",
             "features": [
                 "Ken Burns effect (zoom/pan)",
                 "Fade transitions",
                 "TTS narration (Indonesian)",
-                "9:16 vertical format",
-                "Cinematic letterbox"
+                "9:16 vertical format"
             ]
         }
     }

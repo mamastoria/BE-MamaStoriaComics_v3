@@ -4,6 +4,7 @@ import sys
 import threading
 import traceback
 from pathlib import Path
+from typing import Optional, Dict, Any
 from app.core.database import get_session_local
 from app.models.comic import Comic
 from app.models.comic_panel import ComicPanel
@@ -19,6 +20,93 @@ import video_generator
 
 logger = logging.getLogger(__name__)
 
+
+def queue_render_to_worker(comic_id: int, script_data: dict, style: str) -> Dict[str, Any]:
+    """
+    Queue comic rendering to dedicated worker via Cloud Tasks.
+    Each part (1 and 2) is queued as a separate job for isolated processing.
+    
+    This is the NEW recommended approach - uses dedicated worker with dedicated resources.
+    Falls back to in-process rendering if queue fails.
+    
+    Args:
+        comic_id: Comic ID in database
+        script_data: Full script data for the comic
+        style: Style ID
+        
+    Returns:
+        Dict with queue status and task names
+    """
+    from datetime import datetime
+    from app.services.render_queue import queue_both_parts
+    
+    SessionLocal = get_session_local()
+    db = SessionLocal()
+    
+    try:
+        # Update status to RENDERING
+        comic = db.query(Comic).filter(Comic.id == comic_id).first()
+        if comic:
+            comic.draft_job_status = "RENDERING"
+            comic.render_started_at = datetime.now()
+            db.commit()
+        
+        # Queue both parts to Cloud Tasks
+        logger.info(f"Queuing render jobs for comic {comic_id} to worker...")
+        queue_result = queue_both_parts(
+            comic_id=comic_id,
+            script_data=script_data,
+            style=style
+        )
+        
+        if queue_result.get("part1") and queue_result.get("part2"):
+            logger.info(f"Successfully queued render jobs for comic {comic_id}")
+            return {
+                "success": True,
+                "queued": True,
+                "comic_id": comic_id,
+                "tasks": queue_result
+            }
+        else:
+            # Fallback to in-process rendering if queue failed
+            logger.warning(f"Queue failed for comic {comic_id}, falling back to in-process rendering")
+            
+            # Start background thread for in-process rendering
+            t = threading.Thread(
+                target=render_comic_images_task, 
+                args=(comic_id, script_data, style), 
+                daemon=True
+            )
+            t.start()
+            
+            return {
+                "success": True,
+                "queued": False,
+                "fallback": True,
+                "comic_id": comic_id
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to queue render for comic {comic_id}: {e}")
+        
+        # Fallback to in-process
+        t = threading.Thread(
+            target=render_comic_images_task, 
+            args=(comic_id, script_data, style), 
+            daemon=True
+        )
+        t.start()
+        
+        return {
+            "success": True,
+            "queued": False,
+            "fallback": True,
+            "error": str(e),
+            "comic_id": comic_id
+        }
+    finally:
+        db.close()
+
 def render_comic_images_task(comic_id: int, script_data: dict, style: str):
     """Background thread to render comic images from approved draft"""
     # Delay to ensure main transaction commits from the API endpoint
@@ -28,7 +116,14 @@ def render_comic_images_task(comic_id: int, script_data: dict, style: str):
     thread_db = SessionLocal()
     
     try:
+        from datetime import datetime
         logger.info(f"Rendering images for comic {comic_id}...")
+        
+        # Record render start time
+        comic_for_timing = thread_db.query(Comic).filter(Comic.id == comic_id).first()
+        if comic_for_timing:
+            comic_for_timing.render_started_at = datetime.now()
+            thread_db.commit()
         
         # Start render job
         core.start_render_all_job(script_data, job_id=str(comic_id))
@@ -54,6 +149,13 @@ def render_comic_images_task(comic_id: int, script_data: dict, style: str):
                 raise RuntimeError(f"Render failed: {job_state.get('error')}")
             
             time.sleep(3)
+        
+        # Record render completion and clipping start
+        comic_for_timing = thread_db.query(Comic).filter(Comic.id == comic_id).first()
+        if comic_for_timing:
+            comic_for_timing.render_completed_at = datetime.now()
+            comic_for_timing.clipping_started_at = datetime.now()  # Clipping is part of render
+            thread_db.commit()
         
         # Update panel image URLs from GCS
         job_state = core.get_job(str(comic_id))
@@ -92,6 +194,7 @@ def render_comic_images_task(comic_id: int, script_data: dict, style: str):
         if comic_record:
             logger.info(f"Updating comic {comic_id} with PDF and cover URLs")
             comic_record.pdf_url = f"/api/pdf/{comic_id}"
+            comic_record.clipping_completed_at = datetime.now()  # Clipping done
             if cover_url:
                 comic_record.cover_url = cover_url
             thread_db.commit()
@@ -125,6 +228,11 @@ def render_comic_images_task(comic_id: int, script_data: dict, style: str):
                 
                 logger.info(f"Starting video generation for comic {comic_id} with {len(panel_data)} panels...")
                 
+                # Record video start time
+                if comic_record:
+                    comic_record.video_started_at = datetime.now()
+                    thread_db.commit()
+                
                 output_path = video_generator.generate_video_for_comic(
                     comic_id=comic_id,
                     panels=panel_data
@@ -135,6 +243,7 @@ def render_comic_images_task(comic_id: int, script_data: dict, style: str):
                     logger.info(f"Video output path: {output_path}")
                     if comic_record:
                         comic_record.preview_video_url = output_path
+                        comic_record.video_completed_at = datetime.now()  # Video done
                         thread_db.commit()
                     logger.info(f"Video generated and saved for comic {comic_id}: {output_path}")
                     video_generated_successfully = True

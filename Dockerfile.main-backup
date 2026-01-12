@@ -1,4 +1,4 @@
-# Worker Dockerfile - builds from project root
+# Use slim for smaller image
 FROM python:3.11-slim
 
 # Prevent Python from writing .pyc files & enable unbuffered logs
@@ -7,21 +7,18 @@ ENV PYTHONUNBUFFERED=1
 
 # Cloud Run listens on 8080
 ENV PORT=8080
-# Fallback Defaults
+# Fallback Defaults to prevent startup crash
 ENV GOOGLE_CLOUD_PROJECT=nanobananacomic-482111
 ENV GOOGLE_PROJECT_ID=nanobananacomic-482111
 ENV VERTEX_LOCATION=asia-southeast2
 ENV APP_ENV=production
-# Critical Env Vars for Worker
-ENV SMART_CROP_SERVICE_URL="https://asia-southeast2-nanobananacomic-482111.cloudfunctions.net/smart-crop-worker"
-ENV GCS_BUCKET_NAME="mamastoria-storage"
+ENV SMART_CROP_SERVICE_URL=https://smart-crop-worker-dxsgrit6eq-et.a.run.app
 
 WORKDIR /app
 
-# System deps for Pillow (jpeg/png), and CA certs
+# System deps for Pillow (jpeg/png), ffmpeg for video, and CA certs
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    libgl1 \
     libjpeg62-turbo-dev \
     zlib1g-dev \
     libpng-dev \
@@ -29,16 +26,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libtiff5-dev \
     libopenjp2-7-dev \
     ca-certificates \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python deps first (better layer caching)
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy entire app
+# Copy app
 COPY . /app
 
+# Optional: if you have static/ folder, it will be copied too
 EXPOSE 8080
 
-# Start Worker FastAPI from worker directory
-CMD ["python", "-m", "uvicorn", "worker.main:app", "--host=0.0.0.0", "--port=8080"]
+# Start FastAPI
+CMD ["uvicorn", "app.main:app", "--host=0.0.0.0", "--port=8080"]

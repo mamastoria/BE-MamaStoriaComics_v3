@@ -97,6 +97,20 @@ class ComicDetail(ComicListItem):
     selected_backgrounds: Optional[List[Union[int, str]]]
     layout: Optional[str]
     
+    # Draft/Generation status fields
+    draft_job_id: Optional[str] = None
+    draft_job_status: Optional[str] = None
+    
+    # Timing fields for monitoring
+    script_started_at: Optional[datetime] = None
+    script_completed_at: Optional[datetime] = None
+    render_started_at: Optional[datetime] = None
+    render_completed_at: Optional[datetime] = None
+    clipping_started_at: Optional[datetime] = None
+    clipping_completed_at: Optional[datetime] = None
+    video_started_at: Optional[datetime] = None
+    video_completed_at: Optional[datetime] = None
+    
     model_config = ORMConfig
 
 

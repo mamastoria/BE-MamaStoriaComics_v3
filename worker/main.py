@@ -195,6 +195,233 @@ async def handle_generate_panel(request: Request):
         return {"ok": False, "error": str(e)}
 
 
+class RenderPartPayload(BaseModel):
+    """Payload for rendering a single comic part (1 job = 1 part)"""
+    comic_id: int
+    part_no: int  # 1 or 2
+    script: Dict[str, Any]
+    style: Optional[str] = None
+
+
+@app.post("/tasks/render-part")
+async def handle_render_part(request: Request):
+    """
+    Handle single part rendering task (1 part = 1 job)
+    
+    This endpoint is called by Cloud Tasks queue.
+    Each part (9 panels as 3x3 grid) is processed as a separate job.
+    This prevents OOM by isolating each render job.
+    """
+    import time
+    from datetime import datetime
+    # Import necessary DB and services modules
+    from app.core.database import get_session_local
+    from app.models.comic import Comic
+    from app.models.comic_panel import ComicPanel
+    from app.services.video_queue import queue_video_generation
+    
+    try:
+        body = await request.json()
+        payload = RenderPartPayload(**body)
+        
+        comic_id = payload.comic_id
+        part_no = payload.part_no
+        script = payload.script
+        
+        logger.info(f"[Worker] Starting PART {part_no} render for comic {comic_id}")
+        
+        start_time = time.time()
+        
+        # Render single part using core function
+        part_result = core.render_part_payload(
+            script=script,
+            part_no=part_no,
+            job_id=str(comic_id),
+            style=payload.style
+        )
+        
+        elapsed = time.time() - start_time
+        logger.info(f"[Worker] PART {part_no} for comic {comic_id} completed in {elapsed:.1f}s")
+        
+        # ---------------------------------------------------------
+        # SAVE RESULTS TO DATABASE & CHECK COMPLETION
+        # ---------------------------------------------------------
+        db = get_session_local()()
+        try:
+            # 1. Update Comic Status
+            comic = db.query(Comic).filter(Comic.id == comic_id).first()
+            if not comic:
+                logger.error(f"[Worker] Comic {comic_id} not found in DB")
+                return {"ok": False, "error": "Comic not found"}
+
+            # Set render_started_at if this is the first part to complete
+            if not comic.render_started_at:
+                comic.render_started_at = datetime.now()
+            
+            # Set clipping_started_at on first part
+            if part_no == 1 and not comic.clipping_started_at:
+                comic.clipping_started_at = datetime.now()
+            
+            # 2. Save Panel URLs
+            panel_urls = part_result.get("panel_urls", [])
+            saved_count = 0
+            for i, url in enumerate(panel_urls):
+                if url:
+                    panel_idx = i + 1
+                    panel = db.query(ComicPanel).filter(
+                        ComicPanel.comic_id == comic_id,
+                        ComicPanel.page_number == part_no,
+                        ComicPanel.panel_number == panel_idx
+                    ).first()
+                    
+                    if panel:
+                        panel.image_url = url
+                        saved_count += 1
+            
+            logger.info(f"[Worker] Saved {saved_count} panel URLs for comic {comic_id} part {part_no}")
+            
+            # Save Grid URL (optional, maybe as cover if Part 1 Panel 1?)
+            if part_no == 1 and panel_urls and panel_urls[0]:
+                comic.cover_url = panel_urls[0]
+                
+            db.commit()
+            
+            # Small delay to handle race condition between parallel parts
+            import time as time_module
+            time_module.sleep(2)  # Wait 2 seconds for other part to commit
+            
+            # Refresh session to get latest data
+            db.expire_all()
+            
+            # 3. Check if ALL parts are completed
+            # We check if all panels for both parts have image_url
+            panels_ready = db.query(ComicPanel).filter(
+                ComicPanel.comic_id == comic_id,
+                ComicPanel.image_url.isnot(None)
+            ).count()
+            
+            total_panels_db = db.query(ComicPanel).filter(
+                ComicPanel.comic_id == comic_id
+            ).count()
+            
+            logger.info(f"[Worker] Check Completion: {panels_ready}/{total_panels_db} panels ready")
+            
+            if panels_ready >= total_panels_db and total_panels_db > 0:
+                # ALL PARTS COMPLETED!
+                logger.info(f"[Worker] All parts completed for comic {comic_id}. Triggering Video Generation...")
+                
+                # Update status
+                comic.render_completed_at = datetime.now()
+                comic.clipping_completed_at = datetime.now()
+                comic.video_started_at = datetime.now()
+                comic.draft_job_status = "PROCESSING" # Still processing video
+                db.commit()
+                
+                # Fetch all panels to prepare payload for video worker
+                all_panels = db.query(ComicPanel).filter(
+                    ComicPanel.comic_id == comic_id,
+                    ComicPanel.image_url.isnot(None)
+                ).order_by(ComicPanel.page_number, ComicPanel.panel_number).all()
+                
+                video_payload_panels = [{
+                    "image_url": p.image_url,
+                    "narration": p.narration or p.page_narration or "",
+                    "dialogue": p.dialogues or [],
+                    "description": p.description or p.page_description or ""
+                } for p in all_panels]
+                
+                # Trigger Video Worker via Queue
+                queue_video_generation(comic_id, video_payload_panels)
+                
+            else:
+                logger.info(f"[Worker] Comic {comic_id} partly done. Waiting for other parts.")
+                
+        finally:
+            db.close()
+            
+        # ---------------------------------------------------------
+        
+        # Return result (panel URLs, grid URL, etc)
+        return {
+            "ok": True,
+            "comic_id": comic_id,
+            "part_no": part_no,
+            "panel_urls": part_result.get("panel_urls", []),
+            "grid_gcs_url": part_result.get("grid_gcs_url"),
+            "render_time_seconds": round(elapsed, 1)
+        }
+        
+    except Exception as e:
+        logger.error(f"[Worker] Part render failed: {str(e)}")
+        logger.error(traceback.format_exc())
+        
+        # Return 200 with error to prevent infinite retry
+        return {
+            "ok": False, 
+            "error": str(e),
+            "comic_id": payload.comic_id if 'payload' in locals() else None,
+            "part_no": payload.part_no if 'payload' in locals() else None
+        }
+
+
+class CropPartPayload(BaseModel):
+    """Payload for cropping a single comic part grid"""
+    comic_id: int
+    part_no: int
+    grid_gcs_url: str
+
+
+@app.post("/tasks/crop-part")
+async def handle_crop_part(request: Request):
+    """
+    Handle single part cropping task (1 crop = 1 job)
+    
+    Calls the smart-crop-worker Cloud Function to crop 3x3 grid into 9 panels.
+    """
+    import time
+    
+    try:
+        body = await request.json()
+        payload = CropPartPayload(**body)
+        
+        comic_id = payload.comic_id
+        part_no = payload.part_no
+        grid_gcs_url = payload.grid_gcs_url
+        
+        logger.info(f"[Worker] Starting CROP for PART {part_no} of comic {comic_id}")
+        
+        start_time = time.time()
+        
+        # Call smart crop service
+        panel_urls = core.call_smart_crop_service(
+            grid_gcs_url=grid_gcs_url,
+            job_id=str(comic_id),
+            part_no=part_no
+        )
+        
+        elapsed = time.time() - start_time
+        logger.info(f"[Worker] CROP PART {part_no} for comic {comic_id} completed in {elapsed:.1f}s, {len(panel_urls)} panels")
+        
+        return {
+            "ok": True,
+            "comic_id": comic_id,
+            "part_no": part_no,
+            "panel_urls": panel_urls,
+            "crop_time_seconds": round(elapsed, 1)
+        }
+        
+    except Exception as e:
+        logger.error(f"[Worker] Crop failed: {str(e)}")
+        logger.error(traceback.format_exc())
+        
+        return {
+            "ok": False,
+            "error": str(e),
+            "comic_id": payload.comic_id if 'payload' in locals() else None,
+            "part_no": payload.part_no if 'payload' in locals() else None
+        }
+
+
 @app.post("/tasks/generate-pdf")
 async def handle_generate_pdf(request: Request):
     """
