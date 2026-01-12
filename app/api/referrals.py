@@ -193,3 +193,32 @@ async def check_parent_referral(
             "profile_photo_path": referrer.profile_photo_path
         }
     }
+
+@router.get("/referrals/check-code", response_model=dict)
+async def validate_referral_code(
+    referral_code: str = Query(..., description="Referral code to validate"),
+    db: Session = Depends(get_db)
+):
+    """
+    Validate a referral code and get the referrer's details.
+    **Public Endpoint**: Does not require authentication header.
+    """
+    code = referral_code.strip()
+    referrer = db.query(User).filter(User.referral_code_id == code).first()
+    
+    if not referrer:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invalid referral code"
+        )
+    
+    return {
+        "ok": True,
+        "data": {
+            "id_users": referrer.id_users,
+            "full_name": referrer.full_name,
+            "username": referrer.username,
+            "referral_code": referrer.referral_code_id,
+            "profile_photo_path": referrer.profile_photo_path
+        }
+    }
