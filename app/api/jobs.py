@@ -120,6 +120,63 @@ async def get_queue_status(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/locked")
+async def get_locked_jobs(db: Session = Depends(get_db)):
+    """
+    Get list of currently locked jobs
+    """
+    from app.models.comic import Comic
+    from sqlalchemy import text
+    
+    locked = db.query(Comic).filter(
+        Comic.locked_by.isnot(None)
+    ).all()
+    
+    return {
+        "ok": True,
+        "count": len(locked),
+        "jobs": [{
+            "id": c.id,
+            "status": c.draft_job_status,
+            "locked_by": c.locked_by,
+            "locked_at": str(c.locked_at) if c.locked_at else None,
+            "video_started_at": str(c.video_started_at) if c.video_started_at else None
+        } for c in locked]
+    }
+
+
+@router.get("/stats")
+async def get_status_breakdown(db: Session = Depends(get_db)):
+    """
+    Get breakdown of all comic statuses
+    """
+    from app.models.comic import Comic
+    from sqlalchemy import func
+    
+    # Count by status
+    status_counts = db.query(
+        Comic.draft_job_status, 
+        func.count(Comic.id)
+    ).group_by(Comic.draft_job_status).all()
+    
+    # Count videos
+    video_done = db.query(Comic).filter(Comic.preview_video_url.isnot(None)).count()
+    video_pending = db.query(Comic).filter(
+        Comic.preview_video_url.is_(None),
+        Comic.cover_url.isnot(None)
+    ).count()
+    
+    return {
+        "ok": True,
+        "status_breakdown": {s: c for s, c in status_counts},
+        "video_stats": {
+            "completed": video_done,
+            "pending": video_pending
+        },
+        "total_comics": sum(c for _, c in status_counts)
+    }
+
+
 @router.get("/debug/{comic_id}")
 async def debug_comic(comic_id: int, db: Session = Depends(get_db)):
     """
