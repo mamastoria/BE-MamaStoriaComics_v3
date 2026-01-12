@@ -288,6 +288,27 @@ def process_image_jobs(db: Session) -> Dict[str, Any]:
                 ComicPanel.comic_id == comic.id
             ).order_by(ComicPanel.page_number, ComicPanel.panel_number).all()
             
+            # Validate panels - check for invalid data
+            valid_panels = [p for p in panels if p.panel_number and p.panel_number > 0 and p.page_number in (1, 2)]
+            
+            if len(valid_panels) < 9:  # Need at least 9 panels (minimum 1 part)
+                logger.warning(f"[{worker_id}] Comic #{comic.id} has invalid panels ({len(valid_panels)} valid). Regenerating script...")
+                
+                # Reset to PENDING to regenerate script
+                comic.draft_job_status = 'PENDING'
+                comic.locked_by = None
+                comic.locked_at = None
+                db.commit()
+                
+                results["failed"] += 1
+                job_result["status"] = "reset"
+                job_result["error"] = f"Invalid panels ({len(valid_panels)} valid), reset to PENDING"
+                results["processed"] += 1
+                results["jobs"].append(job_result)
+                continue
+            
+            panels = valid_panels
+            
             # Build script structure for core.render_part_payload
             script = {
                 "global": {},
