@@ -289,9 +289,9 @@ class ComicService:
         # Base query for published comics excluding current one
         query = db.query(Comic).filter(
             Comic.id != comic.id,
+            Comic.status == True,  # Only active comics
             Comic.title.isnot(None),  # Only published comics
-            Comic.cover_url.isnot(None),
-            Comic.publisher.isnot(None)
+            Comic.cover_url.isnot(None)
         )
         
         criteria = []
