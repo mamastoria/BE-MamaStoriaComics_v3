@@ -11,7 +11,8 @@ from typing import List, Dict, Any, Optional
 logger = logging.getLogger(__name__)
 
 # Cloud Tasks settings
-PROJECT_ID = os.getenv("GCP_PROJECT", "nanobananacomic-482111")
+# Priority: GCP_PROJECT -> GOOGLE_CLOUD_PROJECT -> default
+PROJECT_ID = os.getenv("GCP_PROJECT", os.getenv("GOOGLE_CLOUD_PROJECT", "nanobananacomic-482111"))
 LOCATION = os.getenv("GCP_REGION", "asia-southeast2")
 QUEUE_NAME = "video-generation-queue"
 VIDEO_WORKER_URL = os.getenv(
@@ -27,23 +28,15 @@ SERVICE_ACCOUNT_EMAIL = os.getenv(
 def queue_video_generation(comic_id: int, panels_data: List[Dict[str, Any]]) -> Optional[str]:
     """
     Queue a video generation job to Cloud Tasks.
-    
-    Args:
-        comic_id: The comic ID to generate video for
-        panels_data: List of panel data with image_url, narration, etc.
-    
-    Returns:
-        Task name if successful, None if failed
     """
     try:
         from google.cloud import tasks_v2
-        from google.protobuf import timestamp_pb2
-        import datetime
         
         client = tasks_v2.CloudTasksClient()
         
         # Build the queue path
         parent = client.queue_path(PROJECT_ID, LOCATION, QUEUE_NAME)
+        logger.info(f"Targeting Cloud Tasks Queue: {parent}")
         
         # Build the request payload
         payload = {
