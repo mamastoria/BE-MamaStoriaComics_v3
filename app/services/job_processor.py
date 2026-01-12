@@ -288,11 +288,24 @@ def process_image_jobs(db: Session) -> Dict[str, Any]:
                 ComicPanel.comic_id == comic.id
             ).order_by(ComicPanel.page_number, ComicPanel.panel_number).all()
             
-            # Validate panels - check for invalid data
-            valid_panels = [p for p in panels if p.panel_number and p.panel_number > 0 and p.page_number in (1, 2)]
+            # Validate panels - check for invalid data (including negative numbers)
+            valid_panels = []
+            has_invalid = False
+            for p in panels:
+                if not p.panel_number or p.panel_number < 1 or p.panel_number > 9:
+                    has_invalid = True
+                    logger.warning(f"[{worker_id}] Comic #{comic.id} has invalid panel_number: {p.panel_number}")
+                elif p.page_number not in (1, 2):
+                    has_invalid = True
+                    logger.warning(f"[{worker_id}] Comic #{comic.id} has invalid page_number: {p.page_number}")
+                else:
+                    valid_panels.append(p)
             
-            if len(valid_panels) < 9:  # Need at least 9 panels (minimum 1 part)
-                logger.warning(f"[{worker_id}] Comic #{comic.id} has invalid panels ({len(valid_panels)} valid). Regenerating script...")
+            if has_invalid or len(valid_panels) < 9:  # Need at least 9 panels (minimum 1 part)
+                logger.warning(f"[{worker_id}] Comic #{comic.id} has invalid panels ({len(valid_panels)} valid, has_invalid={has_invalid}). Deleting and regenerating script...")
+                
+                # Delete all corrupt panels
+                db.query(ComicPanel).filter(ComicPanel.comic_id == comic.id).delete()
                 
                 # Reset to PENDING to regenerate script
                 comic.draft_job_status = 'PENDING'
@@ -302,7 +315,7 @@ def process_image_jobs(db: Session) -> Dict[str, Any]:
                 
                 results["failed"] += 1
                 job_result["status"] = "reset"
-                job_result["error"] = f"Invalid panels ({len(valid_panels)} valid), reset to PENDING"
+                job_result["error"] = f"Invalid panels deleted, reset to PENDING for script regen"
                 results["processed"] += 1
                 results["jobs"].append(job_result)
                 continue
