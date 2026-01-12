@@ -120,6 +120,38 @@ async def get_queue_status(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/debug/{comic_id}")
+async def debug_comic(comic_id: int, db: Session = Depends(get_db)):
+    """
+    Get raw comic data for debugging purposes
+    """
+    from app.models.comic import Comic
+    
+    comic = db.get(Comic, comic_id)
+    if not comic:
+        raise HTTPException(status_code=404, detail="Comic not found")
+        
+    return {
+        "id": comic.id,
+        "draft_job_status": comic.draft_job_status,
+        "locked_by": comic.locked_by,
+        "locked_at": str(comic.locked_at) if comic.locked_at else None,
+        "script_started_at": str(comic.script_started_at) if comic.script_started_at else None,
+        "script_completed_at": str(comic.script_completed_at) if comic.script_completed_at else None,
+        "render_started_at": str(comic.render_started_at) if comic.render_started_at else None,
+        "render_completed_at": str(comic.render_completed_at) if comic.render_completed_at else None,
+        "video_started_at": str(comic.video_started_at) if comic.video_started_at else None,
+        "video_completed_at": str(comic.video_completed_at) if comic.video_completed_at else None,
+        "preview_video_url": comic.preview_video_url,
+        "cover_url": comic.cover_url,
+        "script_retry_count": comic.script_retry_count,
+        "image_retry_count": comic.image_retry_count,
+        "video_retry_count": comic.video_retry_count,
+        "last_error_message": comic.last_error_message,
+        "last_error_at": str(comic.last_error_at) if comic.last_error_at else None
+    }
+
+
 @router.get("/health")
 async def job_health():
     """
