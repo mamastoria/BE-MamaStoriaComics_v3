@@ -133,15 +133,19 @@ async def generate_video(request: VideoGenerationRequest):
             
             # Update database
             try:
+                from datetime import datetime
                 SessionLocal = get_session_local()
                 db = SessionLocal()
                 
                 comic = db.query(Comic).filter(Comic.id == comic_id).first()
                 if comic:
                     comic.preview_video_url = video_url
-                    comic.video_status = "COMPLETED"
+                    comic.draft_job_status = 'COMPLETED'  # Critical: mark as done
+                    comic.locked_by = None  # Critical: clear lock
+                    comic.locked_at = None
+                    comic.video_completed_at = datetime.now()
                     db.commit()
-                    logger.info(f"Database updated for comic {comic_id}")
+                    logger.info(f"Database updated for comic {comic_id}: status=COMPLETED, lock cleared")
                 else:
                     logger.warning(f"Comic {comic_id} not found in database")
                     
@@ -158,14 +162,21 @@ async def generate_video(request: VideoGenerationRequest):
         else:
             logger.error(f"Video generation returned None for comic {comic_id}")
             
-            # Update status to FAILED
+            # Update status to FAILED - but keep PROCESSING so it can retry
             try:
+                from datetime import datetime
                 SessionLocal = get_session_local()
                 db = SessionLocal()
                 comic = db.query(Comic).filter(Comic.id == comic_id).first()
                 if comic:
-                    comic.video_status = "FAILED"
+                    # Clear lock so it can be retried
+                    comic.locked_by = None
+                    comic.locked_at = None
+                    comic.video_retry_count = (comic.video_retry_count or 0) + 1
+                    comic.last_error_message = "Video generator returned None"
+                    comic.last_error_at = datetime.now()
                     db.commit()
+                    logger.info(f"Comic {comic_id} marked for retry (attempt {comic.video_retry_count})")
                 db.close()
             except Exception:
                 pass
@@ -180,14 +191,21 @@ async def generate_video(request: VideoGenerationRequest):
     except Exception as e:
         logger.exception(f"Video generation failed for comic {comic_id}: {e}")
         
-        # Update status to FAILED
+        # Update status to allow retry
         try:
+            from datetime import datetime
             SessionLocal = get_session_local()
             db = SessionLocal()
             comic = db.query(Comic).filter(Comic.id == comic_id).first()
             if comic:
-                comic.video_status = "FAILED"
+                # Clear lock so it can be retried
+                comic.locked_by = None
+                comic.locked_at = None
+                comic.video_retry_count = (comic.video_retry_count or 0) + 1
+                comic.last_error_message = str(e)[:1000]
+                comic.last_error_at = datetime.now()
                 db.commit()
+                logger.info(f"Comic {comic_id} marked for retry after error (attempt {comic.video_retry_count})")
             db.close()
         except Exception:
             pass
