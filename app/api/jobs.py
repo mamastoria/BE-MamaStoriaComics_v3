@@ -273,3 +273,57 @@ async def run_migration(db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"Migration error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/fix-stuck")
+async def fix_stuck_jobs(db: Session = Depends(get_db)):
+    """
+    Fix stuck jobs:
+    1. Reset RENDERING jobs back to SCRIPT_READY (they failed during image gen)
+    2. Clear zombie locks (locked > 30 minutes ago)
+    """
+    from app.models.comic import Comic
+    from datetime import datetime, timedelta
+    
+    results = {
+        "rendering_reset": 0,
+        "locks_cleared": 0,
+        "details": []
+    }
+    
+    # 1. Reset RENDERING jobs to SCRIPT_READY
+    rendering_jobs = db.query(Comic).filter(
+        Comic.draft_job_status == 'RENDERING'
+    ).all()
+    
+    for comic in rendering_jobs:
+        comic.draft_job_status = 'SCRIPT_READY'
+        comic.locked_by = None
+        comic.locked_at = None
+        comic.render_started_at = None
+        comic.render_completed_at = None
+        results["rendering_reset"] += 1
+        results["details"].append(f"Reset comic #{comic.id} from RENDERING to SCRIPT_READY")
+    
+    # 2. Clear zombie locks (locked > 30 minutes ago)
+    lock_timeout = datetime.now() - timedelta(minutes=30)
+    zombie_locks = db.query(Comic).filter(
+        Comic.locked_by.isnot(None),
+        Comic.locked_at < lock_timeout
+    ).all()
+    
+    for comic in zombie_locks:
+        old_lock = comic.locked_by
+        comic.locked_by = None
+        comic.locked_at = None
+        results["locks_cleared"] += 1
+        results["details"].append(f"Cleared zombie lock on comic #{comic.id} (was: {old_lock})")
+    
+    db.commit()
+    
+    return {
+        "ok": True,
+        "message": f"Fixed {results['rendering_reset']} stuck renders, cleared {results['locks_cleared']} zombie locks",
+        "data": results
+    }
+
