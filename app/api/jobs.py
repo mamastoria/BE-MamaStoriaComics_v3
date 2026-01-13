@@ -306,7 +306,8 @@ async def fix_stuck_jobs(db: Session = Depends(get_db)):
         results["details"].append(f"Reset comic #{comic.id} from RENDERING to SCRIPT_READY")
     
     # 2. Clear zombie locks (locked > 30 minutes ago)
-    lock_timeout = datetime.now() - timedelta(minutes=30)
+    from datetime import timezone
+    lock_timeout = datetime.now(timezone.utc) - timedelta(minutes=30)
     zombie_locks = db.query(Comic).filter(
         Comic.locked_by.isnot(None),
         Comic.locked_at < lock_timeout
