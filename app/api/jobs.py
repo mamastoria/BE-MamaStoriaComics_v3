@@ -188,8 +188,28 @@ async def debug_comic(comic_id: int, db: Session = Depends(get_db)):
     if not comic:
         raise HTTPException(status_code=404, detail="Comic not found")
         
+    # Get panels payload
+    from app.models.comic_panel import ComicPanel
+    panels = db.query(ComicPanel).filter(
+        ComicPanel.comic_id == comic.id,
+        ComicPanel.image_url.isnot(None)
+    ).order_by(ComicPanel.page_number, ComicPanel.panel_number).all()
+    
+    panels_data = [{
+        "image_url": p.image_url,
+        "narration": p.narration or p.page_narration or "",
+        "dialogue": p.dialogues or [],
+        "description": p.description or p.page_description or ""
+    } for p in panels]
+    
+    payload = {
+        "comic_id": comic.id,
+        "panels": panels_data
+    }
+        
     return {
         "id": comic.id,
+        "payload": payload,
         "draft_job_status": comic.draft_job_status,
         "locked_by": comic.locked_by,
         "locked_at": str(comic.locked_at) if comic.locked_at else None,
