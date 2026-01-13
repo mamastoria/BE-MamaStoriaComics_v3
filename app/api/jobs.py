@@ -328,3 +328,34 @@ async def fix_stuck_jobs(db: Session = Depends(get_db)):
         "data": results
     }
 
+
+@router.post("/clear-all-locks")
+async def clear_all_locks(db: Session = Depends(get_db)):
+    """
+    EMERGENCY: Force clear ALL locks regardless of age.
+    Use this when the queue is completely stuck.
+    """
+    from app.models.comic import Comic
+    
+    locked_jobs = db.query(Comic).filter(
+        Comic.locked_by.isnot(None)
+    ).all()
+    
+    count = 0
+    details = []
+    for comic in locked_jobs:
+        old_lock = comic.locked_by
+        comic.locked_by = None
+        comic.locked_at = None
+        count += 1
+        details.append(f"Cleared lock on comic #{comic.id} (was: {old_lock})")
+    
+    db.commit()
+    
+    return {
+        "ok": True,
+        "message": f"Force cleared {count} locks",
+        "count": count,
+        "details": details
+    }
+
