@@ -17,7 +17,7 @@ LOCATION = os.getenv("GCP_REGION", "asia-southeast2")
 QUEUE_NAME = "video-generation-queue"
 VIDEO_WORKER_URL = os.getenv(
     "VIDEO_WORKER_URL", 
-    "https://video-worker-1089713441636.asia-southeast2.run.app/generate"
+    "https://video-worker-dxsgrit6eq-et.a.run.app/generate"
 )
 SERVICE_ACCOUNT_EMAIL = os.getenv(
     "CLOUD_TASKS_SA", 
