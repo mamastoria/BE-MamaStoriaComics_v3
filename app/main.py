@@ -57,6 +57,10 @@ app.add_middleware(
 
 
 # Health check endpoint
+@app.get("/debug-root")
+async def debug_root():
+    return {"ok": True, "message": "Root debugging works"}
+
 @app.get("/", tags=["Health"])
 async def root():
     """Root endpoint - health check"""
