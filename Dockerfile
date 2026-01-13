@@ -1,37 +1,43 @@
-# Video Worker - Dedicated Video Generation Service
+# Use slim for smaller image
 FROM python:3.11-slim
 
-# Install FFmpeg and required system packages
-# Note: libgl1-mesa-glx replaced with libgl1 for Debian Trixie
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg \
-    libsm6 \
-    libxext6 \
-    libgl1 \
-    curl \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+# Prevent Python from writing .pyc files & enable unbuffered logs
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
-# Set working directory
+# Cloud Run listens on 8080
+ENV PORT=8080
+# Fallback Defaults to prevent startup crash
+ENV GOOGLE_CLOUD_PROJECT=nanobananacomic-482111
+ENV GOOGLE_PROJECT_ID=nanobananacomic-482111
+ENV VERTEX_LOCATION=asia-southeast2
+ENV APP_ENV=production
+ENV SMART_CROP_SERVICE_URL=https://smart-crop-worker-dxsgrit6eq-et.a.run.app
+
 WORKDIR /app
 
-# Copy requirements and install dependencies
-COPY requirements.txt /app/
+# System deps for Pillow (jpeg/png), ffmpeg for video, and CA certs
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libjpeg62-turbo-dev \
+    zlib1g-dev \
+    libpng-dev \
+    libwebp-dev \
+    libtiff5-dev \
+    libopenjp2-7-dev \
+    ca-certificates \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python deps first (better layer caching)
+COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install additional dependencies for video worker
-RUN pip install --no-cache-dir uvicorn
+# Copy app
+COPY . /app
 
-# Copy the entire project
-COPY . /app/
-
-# Set Python path and environment
-ENV PYTHONPATH=/app
-ENV PYTHONUNBUFFERED=1
-ENV PORT=8080
-
-# Expose port
+# Optional: if you have static/ folder, it will be copied too
 EXPOSE 8080
 
-# Run the video worker
-CMD ["python", "video_worker/main.py"]
+# Start FastAPI
+CMD ["uvicorn", "app.main:app", "--host=0.0.0.0", "--port=8080"]
