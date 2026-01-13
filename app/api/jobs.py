@@ -384,3 +384,34 @@ async def clear_all_locks(db: Session = Depends(get_db)):
         "details": details
     }
 
+
+@router.post("/force-fail/{comic_id}")
+async def force_fail_job(comic_id: int, db: Session = Depends(get_db)):
+    """
+    EMERGENCY: Force fail a specific job to unblock the queue.
+    Sets status to FAILED and clears locks.
+    """
+    from app.models.comic import Comic
+    from datetime import datetime
+    
+    comic = db.get(Comic, comic_id)
+    if not comic:
+        raise HTTPException(status_code=404, detail="Comic not found")
+    
+    old_status = comic.draft_job_status
+    
+    comic.draft_job_status = 'FAILED'
+    comic.video_status = 'FAILED'
+    comic.locked_by = None
+    comic.locked_at = None
+    comic.last_error_message = "Force failed by admin to unblock queue"
+    comic.last_error_at = datetime.now()
+    
+    db.commit()
+    
+    return {
+        "ok": True,
+        "message": f"Comic #{comic_id} force failed (was {old_status})",
+        "comic_id": comic_id
+    }
+
