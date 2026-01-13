@@ -177,6 +177,11 @@ async def get_status_breakdown(db: Session = Depends(get_db)):
     }
 
 
+@router.get("/test-route")
+async def test_route():
+    return {"ok": True, "message": "Routing works!"}
+
+
 @router.get("/debug/{comic_id}")
 async def debug_comic(comic_id: int, db: Session = Depends(get_db)):
     """
