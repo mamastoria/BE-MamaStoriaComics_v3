@@ -48,6 +48,9 @@ app.add_middleware(
         "http://localhost:5000",
         "http://localhost:8000",
         "http://localhost:8080",
+        "http://127.0.0.1:5500",
+        "http://localhost:5500",
+        "https://mamastoria.com"
     ],
     allow_origin_regex="https://.*",
     allow_credentials=True,

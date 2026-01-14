@@ -3,12 +3,14 @@ Public API endpoints - No authentication required
 These endpoints are accessible without login for public sharing
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy import desc, func, String
 from sqlalchemy.orm import Session, joinedload
 import logging
-from typing import Optional
+from typing import Optional, List
 
 from app.core.database import get_db
 from app.models.comic import Comic
+from app.models.user import User
 from app.schemas.comic import ComicWithPanels, ComicListItem
 from app.utils.pagination import paginate, get_pagination_params
 from app.utils.responses import paginated_response
@@ -151,3 +153,113 @@ async def get_public_similar_comics(
         "ok": True,
         "data": similar_data
     }
+
+
+@router.get("/comics/popular", response_model=dict)
+async def list_popular_comics(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    nuance: Optional[str] = Query(None, description="Filter by genre/nuance"),
+    db: Session = Depends(get_db)
+):
+    """
+    List popular comics based on views + nuance filter.
+    """
+    query = db.query(Comic).filter(
+        Comic.title.isnot(None),
+        Comic.cover_url.isnot(None)
+    )
+    
+    if nuance:
+        # Check against genre list (JSON array or similar)
+        # Using string matching for simplicity as 'genre' is JSON
+        # Postgres JSONB containment: Comic.genre.contains([nuance])
+        # But this is Generic JSON, so we use a text fallback or exact match if possible.
+        # Ideally: query = query.filter(Comic.genre.contains([nuance]))
+        # Fallback to text searching if structure varies
+        query = query.filter(func.cast(Comic.genre, String).ilike(f"%{nuance}%"))
+
+    # Sort by total_views DESC
+    query = query.order_by(desc(Comic.total_views))
+    
+    items, total = paginate(query, page, limit)
+    comics_data = [ComicListItem.model_validate(c).model_dump() for c in items]
+    
+    return paginated_response(comics_data, page, limit, total)
+
+
+@router.get("/comics/trending", response_model=dict)
+async def list_trending_comics(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    """
+    List trending comics (currently checking total_views DESC).
+    Could be upgraded to check 'recent views' if analytics data allows.
+    """
+    # Simply alias to popular sort for now
+    query = db.query(Comic).filter(
+        Comic.title.isnot(None),
+        Comic.cover_url.isnot(None)
+    ).order_by(desc(Comic.total_views))
+
+    items, total = paginate(query, page, limit)
+    comics_data = [ComicListItem.model_validate(c).model_dump() for c in items]
+    
+    return paginated_response(comics_data, page, limit, total)
+
+
+@router.get("/comics/new", response_model=dict)
+async def list_new_comics(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    """
+    List newly released comics (created_at DESC).
+    """
+    query = db.query(Comic).filter(
+        Comic.title.isnot(None),
+        Comic.cover_url.isnot(None)
+    ).order_by(desc(Comic.created_at))
+
+    items, total = paginate(query, page, limit)
+    comics_data = [ComicListItem.model_validate(c).model_dump() for c in items]
+    
+    return paginated_response(comics_data, page, limit, total)
+
+
+@router.get("/creators", response_model=dict)
+async def list_top_creators(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    """
+    List creators sorted by number of published comics.
+    """
+    # Subquery or Join to count comics per user
+    # We only count published comics (title IS NOT NULL)
+    query = db.query(User, func.count(Comic.id).label("comic_count"))\
+              .join(Comic, User.id_users == Comic.user_id)\
+              .filter(Comic.title.isnot(None))\
+              .group_by(User.id_users)\
+              .order_by(desc("comic_count"))
+              
+    # Manual pagination for aggregation query
+    total = query.count()
+    results = query.offset((page - 1) * limit).limit(limit).all()
+    
+    # Format data manually as we don't have a specific Creator Schema ready here
+    data = []
+    for user, count in results:
+        data.append({
+            "id": user.id_users,
+            "full_name": user.full_name,
+            "username": user.username,
+            "profile_photo_path": user.profile_photo_path,
+            "comic_count": count
+        })
+        
+    return paginated_response(data, page, limit, total)
