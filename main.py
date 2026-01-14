@@ -9,8 +9,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+from sqlalchemy import desc, func, cast, String
+from fastapi import Depends
 
 import core
+from app.core.database import get_db
+from app.models.comic import Comic
+from app.models.user import User
 
 
 # ============================================================
@@ -111,6 +117,110 @@ def api_nuances():
     for nid, n in core.COMIC_NUANCES.items():
         out.append({"id": nid, "label": n.get("label", nid)})
     return {"default": core.DEFAULT_NUANCES, "nuances": out}
+
+
+# ============================================================
+# PUBLIC API
+# ============================================================
+def paginate_response(items, total, page, limit):
+    return {
+        "data": items,
+        "meta": {
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "total_pages": (total + limit - 1) // limit
+        }
+    }
+
+@app.get("/api/public/comics/popular")
+def public_popular_comics(
+    nuance: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    query = db.query(Comic).filter(Comic.status == True)
+    
+    if nuance:
+        # Simple filter by casting JSON to string to find matches (naive but works for MVP)
+        # Ideally should use JSON operators if exact DB is known
+        query = query.filter(func.cast(Comic.genre, String).ilike(f"%{nuance}%"))
+
+    total = query.count()
+    comics = query.order_by(desc(Comic.total_views))\
+                  .offset((page - 1) * limit)\
+                  .limit(limit)\
+                  .all()
+    
+    return paginate_response(comics, total, page, limit)
+
+
+@app.get("/api/public/comics/trending")
+def public_trending_comics(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    # Trending logic: Views + Likes? Or just Views desc?
+    # Using total_views for now.
+    query = db.query(Comic).filter(Comic.status == True)
+    total = query.count()
+    comics = query.order_by(desc(Comic.total_views))\
+                  .offset((page - 1) * limit)\
+                  .limit(limit)\
+                  .all()
+    
+    return paginate_response(comics, total, page, limit)
+
+
+@app.get("/api/public/comics/new")
+def public_new_comics(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    query = db.query(Comic).filter(Comic.status == True)
+    total = query.count()
+    comics = query.order_by(desc(Comic.created_at))\
+                  .offset((page - 1) * limit)\
+                  .limit(limit)\
+                  .all()
+    
+    return paginate_response(comics, total, page, limit)
+
+
+@app.get("/api/public/creators")
+def public_creators(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    # Sort creators by number of comics
+    query = db.query(User, func.count(Comic.id).label("comic_count"))\
+              .join(Comic, User.id_users == Comic.user_id)\
+              .filter(Comic.status == True)\
+              .group_by(User.id_users)\
+              .order_by(desc("comic_count"))
+              
+    total = query.count()
+    results = query.offset((page - 1) * limit)\
+                   .limit(limit)\
+                   .all()
+    
+    # Format result
+    data = []
+    for user, count in results:
+        user_dict = {
+            "id": user.id_users,
+            "full_name": user.full_name,
+            "username": user.username,
+            "profile_photo_path": user.profile_photo_path,
+            "comic_count": count
+        }
+        data.append(user_dict)
+        
+    return paginate_response(data, total, page, limit)
 
 
 @app.get("/")
