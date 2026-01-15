@@ -136,3 +136,15 @@ def get_optional_user(
     except Exception as e:
         print(f"Error in get_optional_user: {e}")
         return None
+
+
+async def get_current_admin(
+    current_user: User = Depends(get_current_user)
+) -> User:
+    """Ensure caller is admin-level (role == 'admin')."""
+    if str(current_user.role).lower() != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required"
+        )
+    return current_user

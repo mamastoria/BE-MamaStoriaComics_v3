@@ -2,15 +2,26 @@
 Admin API endpoints for Cloud Logging integration and performance monitoring.
 """
 
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, Depends, Body
 from typing import Optional, List
 from datetime import datetime, timedelta
 import logging
 import re
+import os
+
+from sqlalchemy import inspect, text
+from sqlalchemy.orm import Session
+
+from app.core.dependencies import get_current_admin
+from app.core.database import get_db
 
 logger = logging.getLogger("admin_api")
 
-router = APIRouter(prefix="/api/v1/admin", tags=["Admin"])
+router = APIRouter(
+    prefix="/api/v1/admin",
+    tags=["Admin"],
+    dependencies=[Depends(get_current_admin)]
+)
 
 
 # Lazy loading for Google Cloud Logging
@@ -21,6 +32,11 @@ def _get_logging_client():
     from google.cloud import logging as cloud_logging
     from google.cloud.logging_v2 import DESCENDING
     return cloud_logging.Client(), DESCENDING
+
+
+def _get_storage_client():
+    from google.cloud import storage
+    return storage.Client()
 
 
 def parse_log_for_performance(entries: list) -> dict:
@@ -659,3 +675,138 @@ async def force_fail_comic(comic_id: int):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
+
+
+# =============================
+# DATABASE ADMIN (SAFE / WHITELISTED)
+# =============================
+ALLOWED_TABLE_PREVIEW = {
+    "users": "id_users",
+    "comics": "id",
+    "comic_requests": "id",
+}
+
+
+@router.get("/db/tables")
+async def list_tables(db: Session = Depends(get_db)):
+    inspector = inspect(db.bind)
+    return {"tables": inspector.get_table_names()}
+
+
+@router.get("/db/preview/{table}")
+async def preview_table(
+    table: str,
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db)
+):
+    if table not in ALLOWED_TABLE_PREVIEW:
+        raise HTTPException(status_code=403, detail="Table not allowed")
+
+    pk = ALLOWED_TABLE_PREVIEW[table]
+    sql = text(f"SELECT * FROM {table} ORDER BY {pk} DESC LIMIT :limit")
+    rows = db.execute(sql, {"limit": limit}).mappings().all()
+    rows = [dict(r) for r in rows]
+    return {"success": True, "table": table, "rows": rows, "count": len(rows)}
+
+
+@router.post("/db/update/{table}/{pk_value}")
+async def update_row(
+    table: str,
+    pk_value: int,
+    payload: dict = Body(..., embed=True),
+    db: Session = Depends(get_db)
+):
+    if table not in ALLOWED_TABLE_PREVIEW:
+        raise HTTPException(status_code=403, detail="Table not allowed")
+
+    pk = ALLOWED_TABLE_PREVIEW[table]
+    if not payload:
+        raise HTTPException(status_code=400, detail="Empty payload")
+
+    # Build SET clause safely using parameters
+    set_clauses = []
+    params = {"pk_value": pk_value}
+    for idx, (col, val) in enumerate(payload.items()):
+        param_key = f"v{idx}"
+        set_clauses.append(f"{col} = :{param_key}")
+        params[param_key] = val
+
+    set_sql = ", ".join(set_clauses)
+    sql = text(f"UPDATE {table} SET {set_sql} WHERE {pk} = :pk_value")
+
+    try:
+        db.execute(sql, params)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.exception("Failed to update row")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    return {"success": True, "table": table, "pk": pk_value, "updated_fields": list(payload.keys())}
+
+
+@router.delete("/db/delete/{table}/{pk_value}")
+async def delete_row(
+    table: str,
+    pk_value: int,
+    db: Session = Depends(get_db)
+):
+    if table not in ALLOWED_TABLE_PREVIEW:
+        raise HTTPException(status_code=403, detail="Table not allowed")
+
+    pk = ALLOWED_TABLE_PREVIEW[table]
+    sql = text(f"DELETE FROM {table} WHERE {pk} = :pk_value")
+    try:
+        result = db.execute(sql, {"pk_value": pk_value})
+        db.commit()
+        return {"success": True, "table": table, "pk": pk_value, "deleted": result.rowcount}
+    except Exception as e:
+        db.rollback()
+        logger.exception("Failed to delete row")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================
+# STORAGE (GCS) ADMIN
+# =============================
+GCS_BUCKET = os.getenv("GCS_BUCKET_NAME", "mamastoria-storage")
+
+
+@router.get("/storage/list")
+async def list_storage_objects(
+    prefix: str = Query("", description="Folder prefix"),
+    limit: int = Query(50, ge=1, le=500)
+):
+    client = _get_storage_client()
+    bucket = client.bucket(GCS_BUCKET)
+    blobs = client.list_blobs(bucket, prefix=prefix, max_results=limit)
+
+    items = []
+    for b in blobs:
+        items.append({
+            "name": b.name,
+            "size": b.size,
+            "updated": b.updated.isoformat() if b.updated else None,
+            "content_type": b.content_type,
+            "public_url": b.public_url,
+        })
+
+    return {"success": True, "bucket": GCS_BUCKET, "count": len(items), "objects": items}
+
+
+@router.delete("/storage/delete")
+async def delete_storage_object(
+    path: str = Query(..., description="Object path to delete")
+):
+    client = _get_storage_client()
+    bucket = client.bucket(GCS_BUCKET)
+    blob = bucket.blob(path)
+    if not blob.exists():
+        raise HTTPException(status_code=404, detail="Object not found")
+
+    try:
+        blob.delete()
+        return {"success": True, "bucket": GCS_BUCKET, "path": path, "deleted": True}
+    except Exception as e:
+        logger.exception("Failed to delete object")
+        raise HTTPException(status_code=500, detail=str(e))

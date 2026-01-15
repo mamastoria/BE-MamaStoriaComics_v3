@@ -797,52 +797,45 @@ def b64_png(img: Image.Image) -> str:
     return base64.b64encode(buf.getvalue()).decode("utf-8")
 
 
-def split_grid_3x3(img: Image.Image) -> List[Image.Image]:
+def split_grid_3x3(img: Image.Image, use_margin: bool = False) -> List[Image.Image]:
     """
-    Split a 3x3 grid image into 9 panels with ASYMMETRIC SAFETY CROP.
-    - Outer edges (page borders) have larger crop to remove white space.
-    - Inner edges (panel gutters) have standard safety crop.
+    Split a 3x3 grid image into 9 panels with uniform sizing.
+    Remainder pixels are distributed so widths/heights stay aligned.
     """
     w, h = img.size
-    cell_w = w // 3
-    cell_h = h // 3
-    
-    # Crop Ratios
-    INNER_M = 0.035  # 3.5% for internal panel borders (gutters)
-    OUTER_M = 0.05   # 6% for outer page edges (reduced from 7.5%)
-    
+
+    base_cell_w = w // 3
+    base_cell_h = h // 3
+    remainder_w = w % 3
+    remainder_h = h % 3
+
+    # Distribute remainder pixels to the first columns/rows for perfect coverage
+    col_widths = [base_cell_w + (1 if i < remainder_w else 0) for i in range(3)]
+    row_heights = [base_cell_h + (1 if i < remainder_h else 0) for i in range(3)]
+
+    margin_px = 8 if use_margin else 0
+
     panels: List[Image.Image] = []
     for row in range(3):
         for col in range(3):
-            # 1. Base coordinates
-            base_left = col * cell_w
-            base_top = row * cell_h
-            base_right = base_left + cell_w
-            base_bottom = base_top + cell_h
-            
-            # 2. Determine margins based on position
-            # Left edge: If col 0 (leftmost), use OUTER margin. Else INNER.
-            m_left = OUTER_M if col == 0 else INNER_M
-            
-            # Top edge: If row 0 (topmost), use OUTER margin. Else INNER.
-            m_top = OUTER_M if row == 0 else INNER_M
-            
-            # Right edge: If col 2 (rightmost), use OUTER margin. Else INNER.
-            m_right = OUTER_M if col == 2 else INNER_M
-            
-            # Bottom edge: If row 2 (bottommost), use OUTER margin. Else INNER.
-            m_bottom = OUTER_M if row == 2 else INNER_M
-            
-            # 3. Calculate pixel crop
-            left = base_left + int(cell_w * m_left)
-            top = base_top + int(cell_h * m_top)
-            right = base_right - int(cell_w * m_right)
-            bottom = base_bottom - int(cell_h * m_bottom)
-            
-            # 4. Safety clamp
-            if left >= right: left = base_left
-            if top >= bottom: top = base_top
-            
+            left = sum(col_widths[:col])
+            right = left + col_widths[col]
+            top = sum(row_heights[:row])
+            bottom = top + row_heights[row]
+
+            if margin_px:
+                left += margin_px
+                top += margin_px
+                right -= margin_px
+                bottom -= margin_px
+
+            if left >= right or top >= bottom:
+                # Clamp to avoid invalid crop when images are very small
+                left = sum(col_widths[:col])
+                right = left + col_widths[col]
+                top = sum(row_heights[:row])
+                bottom = top + row_heights[row]
+
             panels.append(img.crop((left, top, right, bottom)))
     return panels
 
@@ -1179,6 +1172,48 @@ DIALOGUE (speech bubbles, max 2):
 
     part_title = (part.get("part_title") or "").strip()
     part_summary = (part.get("part_summary") or "").strip()
+
+    # Explicit pixel-perfect grid specification to remove ambiguity for the model
+    CANVAS_WIDTH = 1080
+    CANVAS_HEIGHT = 1620
+    PANEL_WIDTH = CANVAS_WIDTH // 3  # 360px
+    PANEL_HEIGHT = CANVAS_HEIGHT // 3  # 540px
+    GUTTER_WIDTH = 0
+
+    explicit_grid_spec = f"""
+⚠️⚠️⚠️ GRID SPECIFICATION (ABSOLUTE - NO VARIATION) ⚠️⚠️⚠️
+
+IMAGE CANVAS DIMENSIONS:
+- Width: EXACTLY {CANVAS_WIDTH} pixels (1080px)
+- Height: EXACTLY {CANVAS_HEIGHT} pixels (1620px)
+- Aspect Ratio: {TARGET_AR} (2:3)
+
+3×3 GRID LAYOUT:
+- Rows: 3
+- Columns: 3
+- Total Panels: 9 (no more, no less)
+
+EACH PANEL MUST BE:
+- Width: EXACTLY {PANEL_WIDTH} pixels (1080÷3 = 360px per panel)
+- Height: EXACTLY {PANEL_HEIGHT} pixels (1620÷3 = 540px per panel)
+- Size: {PANEL_WIDTH}×{PANEL_HEIGHT} pixels EXACTLY
+- Gutter/Border between panels: {GUTTER_WIDTH} pixels (FULL BLEED - panels touch edges)
+
+VERIFICATION CHECKLIST (DO THIS BEFORE GENERATING):
+✓ 3 columns × {PANEL_WIDTH}px = {3 * PANEL_WIDTH}px = {CANVAS_WIDTH}px (width matches? YES)
+✓ 3 rows × {PANEL_HEIGHT}px = {3 * PANEL_HEIGHT}px = {CANVAS_HEIGHT}px (height matches? YES)
+✓ All panels are identical size: {PANEL_WIDTH}×{PANEL_HEIGHT}px
+✓ Panel 1 (top-left) = Panel 9 (bottom-right) in dimensions
+✓ No merged panels, no variable sizes
+✓ Image fills entire canvas (full bleed, no white borders)
+✓ Thin black gridlines (1px) between panels only
+
+FINAL OUTPUT CHECK (BEFORE SUBMITTING IMAGE):
+- Count pixels: Top-left to top-right = {CANVAS_WIDTH}px? ✓
+- Count pixels: Top-left to bottom-left = {CANVAS_HEIGHT}px? ✓
+- Every panel corner to corner = {PANEL_WIDTH}×{PANEL_HEIGHT}? ✓
+- If ANY answer is NO → REGENERATE with correct dimensions
+""".strip()
     # SINGLE UNIFIED GRID RULE FOR ALL PARTS (1 and 2)
     grid_rules = """
 GRID LAYOUT RULES (CRITICAL):
@@ -1203,6 +1238,8 @@ TEXT RULES (CRITICAL):
 """.strip()
 
     layout_rules = f"""
+{explicit_grid_spec}
+
 LAYOUT / CANVAS (CRITICAL - MUST FOLLOW EXACTLY FOR ALL PARTS):
 - Single image canvas MUST be portrait with exact aspect ratio {TARGET_AR} (like 1080x1620 or 1024x1536).
 - Draw a PERFECT 3x3 grid of 9 EQUAL panels.
@@ -1413,6 +1450,8 @@ def render_part_payload(script: Dict[str, Any], part_no: int, *, job_id: Optiona
     4. Return panel URLs
     """
     part_start_time = time.time()
+    ai_generate_ms = upload_grid_ms = smart_crop_ms = manual_crop_ms = upload_panels_ms = 0
+    smart_crop_used = False
     logger.info(f"PART {part_no}: Starting render pipeline...")
     
     validate_script_shape(script)
@@ -1437,7 +1476,9 @@ def render_part_payload(script: Dict[str, Any], part_no: int, *, job_id: Optiona
     
     # 1. Generate GRID Image
     logger.info(f"PART {part_no}: Generating 3x3 grid image via AI...")
+    _t_ai = time.time()
     grid_img = generate_3x3_grid_image(img_prompt)
+    ai_generate_ms = int((time.time() - _t_ai) * 1000)
 
     # Save full grid to local disk (for preview/debug)
     grid_path: Optional[Path] = None
@@ -1452,7 +1493,9 @@ def render_part_payload(script: Dict[str, Any], part_no: int, *, job_id: Optiona
             grid_path = None
         
         # Also upload full grid to GCS (Required for Smart Crop)
+        _t_up_grid = time.time()
         grid_gcs_url = upload_grid_to_gcs(job_id, int(part_no), grid_img)
+        upload_grid_ms = int((time.time() - _t_up_grid) * 1000)
 
     # 2. Crop Panels (Smart Service or Manual Fallback)
     panel_urls = []
@@ -1462,36 +1505,58 @@ def render_part_payload(script: Dict[str, Any], part_no: int, *, job_id: Optiona
 
     # TRY SMART CROP SERVICE
     if job_id and grid_gcs_url:
-        try:
-             # logger.info(f"Attempting Smart Crop for Job {job_id} Part {part_no}...")
-             panel_urls = call_smart_crop_service(grid_gcs_url, job_id, int(part_no))
-             logger.info(f"Smart Crop Success: Job {job_id} Part {part_no} -> {len(panel_urls)} panels.")
-             smart_crop_success = True
+           try:
+               _t_smart_crop = time.time()
+               panel_urls = call_smart_crop_service(grid_gcs_url, job_id, int(part_no))
+               smart_crop_ms = int((time.time() - _t_smart_crop) * 1000)
+               logger.info(f"Smart Crop Success: Job {job_id} Part {part_no} -> {len(panel_urls)} panels.")
+               smart_crop_success = True
+               smart_crop_used = True
              
-             # panels_b64 is left empty []. 
-             # Frontend and PDF Generator must handle using URLs.
-        except Exception as e:
-             logger.warning(f"Smart Crop Service Failed/Skipped: {e}. Falling back to local manual crop.")
-             smart_crop_success = False
+               # panels_b64 is left empty []. 
+               # Frontend and PDF Generator must handle using URLs.
+           except Exception as e:
+               logger.warning(f"Smart Crop Service Failed/Skipped: {e}. Falling back to local manual crop.")
+               smart_crop_success = False
     
     # FALLBACK: LOCAL MANUAL CROP
     if not smart_crop_success:
         logger.info(f"Performing Local Manual Crop (Fallback) for Job {job_id}")
         crop_start = time.time()
         grid_panels = split_grid_3x3(grid_img)
+        manual_crop_ms = int((time.time() - crop_start) * 1000)
         panels_b64 = [b64_png(p) for p in grid_panels]  # Populate base64 for fallback
-        logger.info(f"Local crop completed in {time.time() - crop_start:.1f}s")
+        logger.info(f"Local crop completed in {manual_crop_ms/1000:.1f}s")
         
         if job_id:
             upload_start = time.time()
             panel_urls = upload_panels_parallel(job_id, int(part_no), grid_panels, max_workers=9)  # OPTIMIZED: 9 workers
-            logger.info(f"Panel upload completed in {time.time() - upload_start:.1f}s")
+            upload_panels_ms = int((time.time() - upload_start) * 1000)
+            logger.info(f"Panel upload completed in {upload_panels_ms/1000:.1f}s")
         else:
             panel_urls = [None] * len(grid_panels)
     
     # Log final timing summary
     part_elapsed = time.time() - part_start_time
     successful_panels = len([u for u in panel_urls if u])
+    render_total_ms = int(part_elapsed * 1000)
+    logger.info(
+        {
+            "event": "render_timings",
+            "part_no": int(part_no),
+            "job_id": job_id or "",
+            "ai_generate_ms": ai_generate_ms,
+            "upload_grid_ms": upload_grid_ms,
+            "smart_crop_ms": smart_crop_ms,
+            "manual_crop_ms": manual_crop_ms,
+            "upload_panels_ms": upload_panels_ms,
+            "render_total_ms": render_total_ms,
+            "smart_crop_used": smart_crop_used,
+            "successful_panels": successful_panels,
+            "project_id": PROJECT_ID,
+            "region": VERTEX_LOCATION,
+        }
+    )
     logger.info(f"PART {part_no}: COMPLETED in {part_elapsed:.1f}s ({successful_panels}/9 panels)")
 
     return {
