@@ -22,6 +22,11 @@ def get_database_url() -> str:
     """Get database URL from environment"""
     url = os.environ.get("DATABASE_URL", "")
     
+    # If using Cloud SQL Connector, we don't need DATABASE_URL (connector handles it)
+    use_cloud_sql_connector = os.environ.get("USE_CLOUD_SQL_CONNECTOR", "false").lower() == "true"
+    if use_cloud_sql_connector:
+        return ""  # Return empty as connector will be used instead
+    
     if not url:
         # Try to import from settings as fallback
         try:
@@ -98,18 +103,34 @@ def get_engine():
                 
             except Exception as e:
                 logger.error(f"Failed to create Cloud SQL Connector engine: {e}")
-                # Fallback to standard URL
-                logger.info("Falling back to standard connection string...")
-                if not database_url:
-                    raise ValueError("DATABASE_URL is not configured")
-                _engine = create_engine(database_url, pool_pre_ping=True)
+                # Don't fallback to socket-based URL - it won't work in Cloud Run
+                # Raise error instead so deployment fails (forces fix)
+                raise RuntimeError(
+                    f"Cloud SQL Connector failed: {e}. "
+                    "Check: USE_CLOUD_SQL_CONNECTOR=true, CLOUD_SQL_CONNECTION_NAME, DB_PASS, "
+                    "Cloud SQL Admin API enabled, and service account permissions."
+                )
                 
         else:
             # Standard connection (Local or Cloud Run with Socket)
-            if not database_url:
-                raise ValueError("DATABASE_URL is not configured")
+            database_url = get_database_url()
             
-            logger.info(f"Creating database engine...")
+            if not database_url:
+                raise ValueError(
+                    "DATABASE_URL not configured and USE_CLOUD_SQL_CONNECTOR is false. "
+                    "Either set DATABASE_URL (without /cloudsql path) or enable Cloud SQL Connector."
+                )
+            
+            # Prevent socket-based URLs in Cloud Run (they won't work without Auth Proxy)
+            if "/cloudsql/" in database_url:
+                logger.error(
+                    "Socket-based DATABASE_URL detected in standard mode. "
+                    "Enable Cloud SQL Connector instead: USE_CLOUD_SQL_CONNECTOR=true"
+                )
+                raise ValueError(
+                    "Socket-based DATABASE_URL requires Cloud SQL Connector. "
+                    "Set USE_CLOUD_SQL_CONNECTOR=true"
+                )
             logger.info(f"Database URL pattern: {database_url[:50]}...")
             
             try:
