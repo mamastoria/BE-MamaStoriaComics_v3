@@ -114,6 +114,7 @@ async def db_health_check():
 from app.api import auth, master_data, users, comics, comments, likes, history, subscriptions, notifications, analytics, comic_generator, commissions, withdrawals, referrals, worker, comic_requests, downloads, config_app, follows, public, admin, jobs
 
 # Include routers
+app.include_router(admin.setup_router, tags=["Setup"])  # NO AUTH - for initial setup
 app.include_router(comic_generator.router, tags=["Comic Generator"]) # Mixed paths (api + viewer)
 app.include_router(public.router, prefix="/api/v1/public", tags=["Public"]) # Public endpoints without auth
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])

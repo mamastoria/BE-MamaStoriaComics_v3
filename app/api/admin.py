@@ -23,6 +23,12 @@ router = APIRouter(
     dependencies=[Depends(get_current_admin)]
 )
 
+# Temporary router for initial setup (NO AUTH)
+setup_router = APIRouter(
+    prefix="/api/v1/setup",
+    tags=["Setup"]
+)
+
 
 # Lazy loading for Google Cloud Logging
 CLOUD_LOGGING_AVAILABLE = None # Will be determined at runtime
@@ -809,4 +815,75 @@ async def delete_storage_object(
         return {"success": True, "bucket": GCS_BUCKET, "path": path, "deleted": True}
     except Exception as e:
         logger.exception("Failed to delete object")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================
+# INITIAL SETUP (NO AUTH) - ONE TIME USE
+# =============================
+@setup_router.post("/create-initial-admin")
+async def create_initial_admin(
+    phone_number: str = Query("+6281234567890", description="Phone number for admin"),
+    password: str = Query("admin123", description="Password for admin"),
+    full_name: str = Query("Admin Dashboard", description="Admin's full name"),
+    db: Session = Depends(get_db)
+):
+    """
+    ONE-TIME setup endpoint to create initial admin user.
+    NO AUTHENTICATION REQUIRED (use carefully, disable after first use).
+    """
+    import bcrypt
+    import secrets
+    from app.models.user import User
+    
+    try:
+        # Check if admin already exists
+        existing = db.query(User).filter(User.phone_number == phone_number).first()
+        if existing:
+            # Update to admin role
+            existing.role = "admin"
+            existing.kredit = 999999
+            existing.is_verified = True
+            db.commit()
+            return {
+                "success": True,
+                "message": "User updated to admin role",
+                "phone_number": phone_number,
+                "password": password,
+                "note": "Use these credentials to login to dashboard"
+            }
+        
+        # Hash password
+        password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        
+        # Generate referral code
+        referral_code = secrets.token_hex(4).upper()
+        
+        # Create new admin user
+        new_user = User(
+            phone_number=phone_number,
+            password=password_hash,
+            full_name=full_name,
+            kredit=999999,
+            is_verified=True,
+            referral_code_id=referral_code,
+            role="admin"
+        )
+        
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        
+        return {
+            "success": True,
+            "message": "Admin user created successfully",
+            "user_id": new_user.id_users,
+            "phone_number": phone_number,
+            "password": password,
+            "credits": 999999,
+            "note": "Use these credentials to login to dashboard"
+        }
+    except Exception as e:
+        db.rollback()
+        logger.exception("Failed to create admin")
         raise HTTPException(status_code=500, detail=str(e))
