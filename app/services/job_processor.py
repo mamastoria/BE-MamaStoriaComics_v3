@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, text
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from app.models.comic import Comic
 from app.models.comic_panel import ComicPanel
@@ -131,12 +132,40 @@ def process_script_jobs(db: Session) -> Dict[str, Any]:
             style = db.query(Style).filter(Style.id == int(comic.style or 1)).first()
             style_id_str = comic.style or "1"
             genre_ids = comic.genre if isinstance(comic.genre, list) else ["1"]
+
+            # Map DB values to core style/nuance keys for consistency
+            try:
+                from app.models.master_data import Style, Genre
+
+                style_name = None
+                if str(style_id_str).isdigit() and str(style_id_str) not in core.COMIC_STYLES:
+                    style_row = db.query(Style).filter(Style.id == int(style_id_str)).first()
+                    style_name = style_row.name if style_row else None
+                else:
+                    style_name = str(style_id_str)
+
+                genre_names: List[str] = []
+                numeric_genres = [int(g) for g in genre_ids if str(g).isdigit()]
+                if numeric_genres:
+                    genre_rows = db.query(Genre).filter(Genre.id.in_(numeric_genres)).all()
+                    genre_names = [g.name for g in genre_rows]
+                else:
+                    genre_names = [str(g) for g in genre_ids]
+
+                mapped_style_id = core.map_style_id(style_id_str, style_name)
+                mapped_genres = core.map_nuance_ids(
+                    nuance_ids=[str(g) for g in genre_ids],
+                    nuance_names=genre_names,
+                )
+            except Exception:
+                mapped_style_id = str(style_id_str or "1")
+                mapped_genres = [str(g) for g in genre_ids]
             
             # Generate script
             script = core.make_two_part_script(
                 comic.story_idea or "A short comic story",
-                style_id_str,
-                [str(g) for g in genre_ids]
+                mapped_style_id,
+                mapped_genres
             )
             
             # Clear existing panels
@@ -349,29 +378,58 @@ def process_image_jobs(db: Session) -> Dict[str, Any]:
                     })
                 script["parts"].append(part_data)
             
-            # Render both parts
+            # Render both parts IN PARALLEL using ThreadPoolExecutor
             all_panel_urls = []
             
+            logger.info(f"[{worker_id}] Starting PARALLEL rendering of Part 1 & Part 2 for comic #{comic.id}")
+            
+            def render_part(part_no: int):
+                """Helper function to render a single part in thread"""
+                logger.info(f"[{worker_id}] Thread started: Rendering part {part_no} for comic #{comic.id}")
+                try:
+                    part_result = core.render_part_payload(
+                        script=script,
+                        part_no=part_no,
+                        job_id=str(comic.id),
+                        style=comic.style
+                    )
+                    logger.info(f"[{worker_id}] Thread completed: Part {part_no} for comic #{comic.id}")
+                    return (part_no, part_result)
+                except Exception as e:
+                    logger.error(f"[{worker_id}] Thread failed: Part {part_no} for comic #{comic.id} - {e}")
+                    raise
+            
+            # Execute both parts in parallel
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                # Submit both render tasks
+                future_to_part = {executor.submit(render_part, part_no): part_no for part_no in [1, 2]}
+                
+                # Collect results as they complete
+                part_results = {}
+                for future in as_completed(future_to_part):
+                    part_no = future_to_part[future]
+                    try:
+                        part_no_result, part_result = future.result()
+                        part_results[part_no_result] = part_result
+                        logger.info(f"[{worker_id}] ✅ Part {part_no_result} completed successfully")
+                    except Exception as e:
+                        logger.error(f"[{worker_id}] ❌ Part {part_no} failed: {e}")
+                        raise  # Re-raise to trigger failure handling
+            
+            logger.info(f"[{worker_id}] PARALLEL rendering complete for comic #{comic.id}")
+            
+            # Save panel URLs to database (process in order: Part 1 then Part 2)
             for part_no in [1, 2]:
-                logger.info(f"[{worker_id}] Rendering part {part_no} for comic #{comic.id}")
-                
-                part_result = core.render_part_payload(
-                    script=script,
-                    part_no=part_no,
-                    job_id=str(comic.id),
-                    style=comic.style
-                )
-                
+                part_result = part_results.get(part_no, {})
                 panel_urls = part_result.get("panel_urls", [])
                 
-                # Save panel URLs to database
                 part_panels = part1_panels if part_no == 1 else part2_panels
                 for i, url in enumerate(panel_urls):
                     if url and i < len(part_panels):
                         part_panels[i].image_url = url
                         all_panel_urls.append(url)
-                
-                db.commit()
+            
+            db.commit()
             
             # Update comic
             comic.render_completed_at = datetime.now()
