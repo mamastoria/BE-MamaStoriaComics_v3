@@ -329,6 +329,7 @@
                 }
 
                 authToken = data.data.tokens.access_token;
+                console.log('Token saved:', authToken.substring(0, 20) + '...');
                 localStorage.setItem('admin_token', authToken);
                 
                 document.getElementById('login-section').style.display = 'none';
@@ -349,13 +350,27 @@
         }
 
         async function apiCall(endpoint) {
+            if (!authToken) {
+                throw new Error('No auth token available');
+            }
             const response = await fetch(`${API_BASE}${endpoint}`, {
-                headers: {'Authorization': `Bearer ${authToken}`}
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${authToken}`,
+                    'Content-Type': 'application/json'
+                }
             });
+            
             if (response.status === 401 || response.status === 403) {
                 logout();
-                throw new Error('Unauthorized');
+                throw new Error('Unauthorized - please login again');
             }
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || `HTTP ${response.status}`);
+            }
+            
             return response.json();
         }
 
