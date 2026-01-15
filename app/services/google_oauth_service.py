@@ -1,12 +1,15 @@
 """
-Google OAuth Service
-Handles Google OAuth authentication and token verification
+Google OAuth Service & Firebase Token Verification
+Handles Google OAuth authentication and Firebase token verification
 """
 from google.oauth2 import id_token
 from google.auth.transport import requests
 from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any
 import httpx
+import firebase_admin
+from firebase_admin import credentials as firebase_credentials
+from firebase_admin import auth as firebase_auth
 
 from app.models.user import User
 from app.core.config import settings
@@ -15,14 +18,72 @@ from app.services.auth_service import AuthService
 
 
 class GoogleOAuthService:
-    """Service for Google OAuth operations"""
+    """Service for Google OAuth operations and Firebase token verification"""
+    
+    # Initialize Firebase Admin SDK once
+    _firebase_initialized = False
+    
+    @staticmethod
+    def _init_firebase():
+        """Initialize Firebase Admin SDK if not already initialized"""
+        if GoogleOAuthService._firebase_initialized:
+            return
+        
+        try:
+            # Check if Firebase is already initialized
+            firebase_admin.get_app()
+            GoogleOAuthService._firebase_initialized = True
+        except ValueError:
+            # Firebase app not initialized, initialize it
+            # The credentials are expected to be set via environment variable
+            # FIREBASE_CONFIG_PATH or GOOGLE_APPLICATION_CREDENTIALS
+            try:
+                firebase_admin.initialize_app()
+                GoogleOAuthService._firebase_initialized = True
+            except Exception as e:
+                print(f"Warning: Could not initialize Firebase Admin SDK: {str(e)}")
+    
+    @staticmethod
+    async def verify_firebase_token(token: str) -> Optional[Dict[str, Any]]:
+        """
+        Verify Firebase ID token
+        
+        Args:
+            token: Firebase ID token from client
+            
+        Returns:
+            User info dict if token is valid, None otherwise
+        """
+        try:
+            GoogleOAuthService._init_firebase()
+            
+            # Verify the Firebase ID token
+            decoded_token = firebase_auth.verify_id_token(token)
+            
+            return {
+                'email': decoded_token.get('email'),
+                'email_verified': decoded_token.get('email_verified', True),  # Firebase tokens are pre-verified
+                'name': decoded_token.get('name'),
+                'picture': decoded_token.get('picture'),
+                'google_id': decoded_token.get('uid'),  # Firebase UID
+                'provider': 'firebase'
+            }
+        except Exception as e:
+            print(f"Error verifying Firebase token: {str(e)}")
+            return None
+    
     
     @staticmethod
     async def verify_google_token(token: str) -> Optional[Dict[str, Any]]:
         """
-        Verify Google ID token or Access Token
+        Verify token - tries Firebase first, then Google OAuth token
         """
-        # 1. Try as JWT ID Token
+        # 1. Try as Firebase ID Token (preferred for mobile/web apps using Firebase Auth)
+        firebase_info = await GoogleOAuthService.verify_firebase_token(token)
+        if firebase_info:
+            return firebase_info
+        
+        # 2. Try as JWT Google ID Token (for backward compatibility)
         try:
             idinfo = id_token.verify_oauth2_token(
                 token, 
@@ -36,16 +97,18 @@ class GoogleOAuthService:
                     'email_verified': idinfo.get('email_verified', False),
                     'name': idinfo.get('name'),
                     'picture': idinfo.get('picture'),
-                    'google_id': idinfo.get('sub')
+                    'google_id': idinfo.get('sub'),
+                    'provider': 'google'
                 }
         except Exception:
             pass
 
-        # 2. Try as Access Token (fallback)
+        # 3. Try as Access Token (fallback)
         try:
             # Use the existing method to fetch profile via UserInfo endpoint
             user_info = await GoogleOAuthService.get_user_info_from_token(token)
             if user_info:
+                user_info['provider'] = 'google'
                 return user_info
         except Exception as e:
             print(f"Error checking token as Access Token: {str(e)}")
