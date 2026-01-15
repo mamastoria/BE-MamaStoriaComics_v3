@@ -211,8 +211,23 @@ async def get_performance_metrics(
     Returns timing data for each job/comic.
     """
     
-
+    # Return mock data for now (Cloud Logging may not be configured)
+    return {
+        "success": True,
+        "source": "mock",
+        "summary": {
+            "total_jobs": 0,
+            "completed": 0,
+            "failed": 0,
+            "avg_duration_seconds": None,
+            "min_duration_seconds": None,
+            "max_duration_seconds": None
+        },
+        "jobs": []
+    }
     
+    # TODO: Enable Cloud Logging integration later
+    """
     try:
         client, DESCENDING = _get_logging_client()
         
@@ -297,6 +312,7 @@ async def get_performance_metrics(
     except Exception as e:
         logger.exception("Failed to analyze performance")
         raise HTTPException(status_code=500, detail=str(e))
+    """
 
 
 @router.get("/logs/video")
