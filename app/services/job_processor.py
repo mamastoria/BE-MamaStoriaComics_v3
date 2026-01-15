@@ -566,13 +566,15 @@ def get_pending_video_jobs(db: Session, limit: int = 1) -> List[Comic]:
 
 def process_video_jobs(db: Session) -> Dict[str, Any]:
     """
-    Process pending video generation jobs
-    Only 1 at a time for stability
+    Process pending video generation jobs using ThreadPoolExecutor for parallel processing
+    
+    Returns:
+        Dict with processed, success, failed counts
     """
     worker_id = generate_worker_id("video")
-    limit = JOB_CONFIG["video"]["max_parallel"]  # Always 1
+    limit = JOB_CONFIG["video"]["max_parallel"]
     
-    logger.info(f"[{worker_id}] Starting video job processing (max {limit})...")
+    logger.info(f"[{worker_id}] Starting PARALLEL video job processing (max {limit})...")
     
     jobs = get_pending_video_jobs(db, limit)
     
@@ -582,20 +584,30 @@ def process_video_jobs(db: Session) -> Dict[str, Any]:
     
     results = {"processed": 0, "success": 0, "failed": 0, "jobs": []}
     
-    for comic in jobs:
-        job_result = {"comic_id": comic.id, "status": "pending"}
+    def process_single_video(comic: Comic):
+        """Process video generation for a single comic in thread"""
+        # Create new DB session for thread safety
+        from app.core.database import SessionLocal
+        thread_db = SessionLocal()
         
         try:
+            # Re-query comic in this thread's session
+            comic = thread_db.query(Comic).filter(Comic.id == comic.id).first()
+            if not comic:
+                return {"comic_id": comic.id, "status": "not_found"}
+            
+            job_result = {"comic_id": comic.id, "status": "pending"}
+            
             # Lock the job
             comic.locked_by = worker_id
             comic.locked_at = datetime.now()
             comic.video_started_at = datetime.now()
-            db.commit()
+            thread_db.commit()
             
-            logger.info(f"[{worker_id}] Generating video for comic #{comic.id}")
+            logger.info(f"[{worker_id}] Thread generating video for comic #{comic.id}")
             
             # Get all panels
-            panels = db.query(ComicPanel).filter(
+            panels = thread_db.query(ComicPanel).filter(
                 ComicPanel.comic_id == comic.id,
                 ComicPanel.image_url.isnot(None)
             ).order_by(ComicPanel.page_number, ComicPanel.panel_number).all()
@@ -630,14 +642,11 @@ def process_video_jobs(db: Session) -> Dict[str, Any]:
                 if task_name:
                     logger.info(f"[{worker_id}] Video queued to worker for comic #{comic.id}")
                     # Keep status as PROCESSING and KEEP LOCKED to enforce concurrency limit
-                    # It will be unlocked by timeout (30m) or when worker updates status to COMPLETED
-                    db.commit()
+                    thread_db.commit()
                     
-                    results["processed"] += 1
                     job_result["status"] = "queued"
                     job_result["task"] = task_name
-                    results["jobs"].append(job_result)
-                    continue
+                    return job_result
                 else:
                     raise Exception("Failed to queue video generation")
             
@@ -648,16 +657,17 @@ def process_video_jobs(db: Session) -> Dict[str, Any]:
             comic.video_retry_count = 0  # Reset on success
             comic.locked_by = None
             comic.locked_at = None
-            db.commit()
+            thread_db.commit()
             
-            results["success"] += 1
             job_result["status"] = "success"
             job_result["video_url"] = video_url[:100] if video_url else None
             
-            logger.info(f"[{worker_id}] Comic #{comic.id} video generated successfully")
+            logger.info(f"[{worker_id}] Thread completed: Comic #{comic.id} video generated")
+            
+            return job_result
             
         except Exception as e:
-            logger.error(f"[{worker_id}] Video generation failed for comic #{comic.id}: {e}")
+            logger.error(f"[{worker_id}] Thread failed: Video generation for comic #{comic.id}: {e}")
             import traceback
             traceback.print_exc()
             
@@ -667,14 +677,39 @@ def process_video_jobs(db: Session) -> Dict[str, Any]:
             comic.last_error_at = datetime.now()
             comic.locked_by = None
             comic.locked_at = None
-            db.commit()
+            thread_db.commit()
             
-            results["failed"] += 1
             job_result["status"] = "failed"
             job_result["error"] = str(e)[:200]
+            
+            return job_result
+        finally:
+            thread_db.close()
+    
+    # Execute all videos in parallel using ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=min(limit, len(jobs))) as executor:
+        future_to_comic = {executor.submit(process_single_video, comic): comic for comic in jobs}
         
-        results["processed"] += 1
-        results["jobs"].append(job_result)
+        for future in as_completed(future_to_comic):
+            comic = future_to_comic[future]
+            try:
+                job_result = future.result()
+                results["jobs"].append(job_result)
+                results["processed"] += 1
+                
+                if job_result.get("status") == "success":
+                    results["success"] += 1
+                    logger.info(f"[{worker_id}] ✅ Comic #{comic.id} video success")
+                elif job_result.get("status") == "queued":
+                    results["success"] += 1  # Count queued as success
+                    logger.info(f"[{worker_id}] 📤 Comic #{comic.id} video queued")
+                else:
+                    results["failed"] += 1
+                    logger.info(f"[{worker_id}] ❌ Comic #{comic.id} video failed")
+            except Exception as e:
+                logger.error(f"[{worker_id}] Unexpected error for comic #{comic.id}: {e}")
+                results["failed"] += 1
+                results["processed"] += 1
     
     logger.info(f"[{worker_id}] Video processing complete: {results['success']} success, {results['failed']} failed")
     return results
