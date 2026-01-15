@@ -137,7 +137,8 @@ async def get_cloud_logs(
     service: str = Query("nanobanana-backend", description="Service name"),
     severity: str = Query("INFO", description="Minimum severity"),
     limit: int = Query(50, ge=1, le=200),
-    hours: int = Query(24, ge=1, le=168, description="Hours to look back")
+    hours: int = Query(24, ge=1, le=168, description="Hours to look back"),
+    current_admin: User = Depends(get_current_admin)
 ):
     """
     Fetch logs from Google Cloud Logging.
@@ -204,7 +205,8 @@ async def get_cloud_logs(
 @router.get("/logs/performance")
 async def get_performance_metrics(
     hours: int = Query(24, ge=1, le=168),
-    limit: int = Query(100, ge=10, le=500)
+    limit: int = Query(100, ge=10, le=500),
+    current_admin: User = Depends(get_current_admin)
 ):
     """
     Analyze logs to extract performance metrics for comic generation.
@@ -302,7 +304,8 @@ async def get_performance_metrics(
 @router.get("/logs/video")
 async def get_video_generation_logs(
     hours: int = Query(24, ge=1, le=168),
-    limit: int = Query(50, ge=10, le=200)
+    limit: int = Query(50, ge=10, le=200),
+    current_admin: User = Depends(get_current_admin)
 ):
     """
     Get video generation specific logs.
@@ -355,7 +358,8 @@ async def get_video_generation_logs(
 @router.get("/comics/generation-stats")
 async def get_comic_generation_stats(
     hours: int = Query(24, ge=1, le=168),
-    limit: int = Query(50, ge=1, le=200)
+    limit: int = Query(50, ge=1, le=200),
+    current_admin: User = Depends(get_current_admin)
 ):
     """
     Get detailed comic generation statistics with timing breakdown.
@@ -694,7 +698,10 @@ ALLOWED_TABLE_PREVIEW = {
 
 
 @router.get("/db/tables")
-async def list_tables(db: Session = Depends(get_db)):
+async def list_tables(
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin)
+):
     inspector = inspect(db.bind)
     return {"tables": inspector.get_table_names()}
 
@@ -703,7 +710,8 @@ async def list_tables(db: Session = Depends(get_db)):
 async def preview_table(
     table: str,
     limit: int = Query(50, ge=1, le=200),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin)
 ):
     if table not in ALLOWED_TABLE_PREVIEW:
         raise HTTPException(status_code=403, detail="Table not allowed")
@@ -720,7 +728,8 @@ async def update_row(
     table: str,
     pk_value: int,
     payload: dict = Body(..., embed=True),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin)
 ):
     if table not in ALLOWED_TABLE_PREVIEW:
         raise HTTPException(status_code=403, detail="Table not allowed")
@@ -755,7 +764,8 @@ async def update_row(
 async def delete_row(
     table: str,
     pk_value: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin)
 ):
     if table not in ALLOWED_TABLE_PREVIEW:
         raise HTTPException(status_code=403, detail="Table not allowed")
@@ -781,7 +791,8 @@ GCS_BUCKET = os.getenv("GCS_BUCKET_NAME", "mamastoria-storage")
 @router.get("/storage/list")
 async def list_storage_objects(
     prefix: str = Query("", description="Folder prefix"),
-    limit: int = Query(50, ge=1, le=500)
+    limit: int = Query(50, ge=1, le=500),
+    current_admin: User = Depends(get_current_admin)
 ):
     client = _get_storage_client()
     bucket = client.bucket(GCS_BUCKET)
@@ -802,7 +813,8 @@ async def list_storage_objects(
 
 @router.delete("/storage/delete")
 async def delete_storage_object(
-    path: str = Query(..., description="Object path to delete")
+    path: str = Query(..., description="Object path to delete"),
+    current_admin: User = Depends(get_current_admin)
 ):
     client = _get_storage_client()
     bucket = client.bucket(GCS_BUCKET)
