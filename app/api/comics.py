@@ -39,6 +39,7 @@ async def list_comics(
     genre: Optional[str] = None,
     style: Optional[str] = None,
     q: Optional[str] = None,  # Changed from 'search' to 'q'
+    user_id: Optional[int] = None,
     sort_by: Optional[str] = Query(None, regex="^(newest|popularity)$"),
     db: Session = Depends(get_db)
 ):
@@ -50,6 +51,7 @@ async def list_comics(
     - **genre**: Filter by genre name
     - **style**: Filter by style name
     - **q**: Search query in title, synopsis, and tags
+    - **user_id**: Filter by creator user ID (published comics only)
     - **sort_by**: Sort order - 'newest' (default) or 'popularity' (by total_likes + total_views)
     """
     # Base query - only published comics
@@ -65,7 +67,10 @@ async def list_comics(
     
     if style:
         query = query.filter(Comic.style == style)
-    
+
+    if user_id:
+        query = query.filter(Comic.user_id == user_id)
+
     if q:
         search_term = f"%{q}%"
         query = query.filter(
@@ -91,6 +96,34 @@ async def list_comics(
     # Convert to schema
     comics_data = [ComicListItem.model_validate(comic).model_dump() for comic in items]
     
+    return paginated_response(comics_data, page, per_page, total)
+
+
+@router.get("/comics/my-published", response_model=dict)
+async def list_my_published_comics(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    List published comics owned by the current user
+
+    - **page**: Page number (default: 1)
+    - **per_page**: Items per page (default: 20, max: 100)
+    """
+    query = db.query(Comic).filter(
+        Comic.user_id == current_user.id_users,
+        Comic.title.isnot(None),
+        Comic.cover_url.isnot(None),
+        Comic.status == True
+    ).order_by(Comic.created_at.desc())
+
+    page, per_page = get_pagination_params(page, per_page)
+    items, total = paginate(query, page, per_page)
+
+    comics_data = [ComicListItem.model_validate(comic).model_dump() for comic in items]
+
     return paginated_response(comics_data, page, per_page, total)
 
 
@@ -134,17 +167,20 @@ async def create_story_and_attributes(
     db: Session = Depends(get_db)
 ):
     """
-    Create new comic from story idea (Step 1)
+    Create new comic from story idea (Step 1) - ASYNC
     
     - **story_idea**: Story idea text or transcribed audio
     - **page_count**: Number of pages (1-25)
     - **genre_ids**: List of genre IDs
     - **style_id**: Style ID
     
-    Returns created comic with ID and generates SCRIPT ONLY (no images yet).
-    User can review/edit the draft, then call /comics/{id}/generate to render images.
+    Returns immediately with comic ID. Script generation happens in background via job processor.
+    User can navigate to /comics/{id}/edit to watch progress and see panels as they are generated.
+    
+    Status progression: PENDING → GENERATING_SCRIPT → SCRIPT_READY
     """
     try:
+        # Create comic record
         comic = ComicService.create_comic_from_story_idea(
             db=db,
             user=current_user,
@@ -154,161 +190,30 @@ async def create_story_and_attributes(
             style_id=story_data.style_id
         )
         
-        # Get style from DB - we pass the ID (as string) to core, not the name
-        from app.models.master_data import Style, Genre
+        # Get style name for logging
+        from app.models.master_data import Style
         style = db.query(Style).filter(Style.id == story_data.style_id).first()
-        style_id_str = str(story_data.style_id)  # Pass ID as string to core
-        style_name = style.name if style else "Cartoon"  # For logging/metadata only
+        style_name = style.name if style else "Cartoon"
         
-        # Get genre IDs as string list for core.make_two_part_script
-        genre_ids_str = [str(gid) for gid in story_data.genre_ids]
+        # ASYNC: Set to PENDING status - job processor will handle script generation
+        from datetime import datetime
+        comic.draft_job_status = "PENDING"
+        comic.script_started_at = datetime.now()
+        db.commit()
+        db.refresh(comic)
         
-        logger.info(f"Creating comic with style_id={style_id_str} ({style_name}), genres={genre_ids_str}")
-        
-        # GENERATE SCRIPT ONLY (not rendering images)
-        # This is fast and can be done synchronously
-        script_error = None
-        try:
-            import sys
-            from pathlib import Path
-            
-            ROOT_DIR = Path(__file__).resolve().parent.parent.parent
-            if str(ROOT_DIR) not in sys.path:
-                sys.path.append(str(ROOT_DIR))
-            
-            import core
-            from app.models.comic_panel import ComicPanel
-            
-            # Update status to generating script
-            from datetime import datetime
-            comic.draft_job_status = "GENERATING_SCRIPT"
-            comic.script_started_at = datetime.now()
-            db.commit()
-            
-            logger.info(f"Generating script for comic {comic.id} with style={style_id_str}, nuances={genre_ids_str}...")
-            
-            # Generate script (text only, no images)
-            # Pass style_id as string ID (e.g., "6" for Ghibli) and genre_ids as string list
-            script = core.make_two_part_script(
-                story_data.story_idea, 
-                style_id_str,     # Use ID string, not name
-                genre_ids_str     # Pass genre IDs from frontend
-            )
-            
-            logger.info(f"Script generated for comic {comic.id}, creating draft panels...")
-            
-            # Clear existing panels
-            db.query(ComicPanel).filter(ComicPanel.comic_id == comic.id).delete()
-            
-            # Save script as draft panels (no image_url yet)
-            # Script format: {"global": {...}, "parts": [{"part_no": 1, ...}, {"part_no": 2, ...}]}
-            panel_counter = 0
-            parts = script.get("parts", [])
-            
-            for part in parts:
-                if not part or not isinstance(part, dict):
-                    continue
-                part_no = int(part.get("part_no", 0))
-                if part_no not in (1, 2):
-                    continue
-                panels_script = part.get("panels", [])
-                
-                for i, panel_data in enumerate(panels_script):
-                    panel = ComicPanel(
-                        comic_id=comic.id,
-                        page_number=part_no,
-                        panel_number=i + 1,
-                        image_url=None,  # No image yet - will be generated on approve
-                        description=panel_data.get("panel_context") or panel_data.get("description"),
-                        page_description=panel_data.get("panel_context") or panel_data.get("description"),
-                        narration=panel_data.get("narration"),
-                        page_narration=panel_data.get("narration"),
-                        dialogues=panel_data.get("dialogues", []),
-                        instruksi_visual=panel_data.get("instruksi_visual"),
-                        instruksi_render_teks=panel_data.get("instruksi_render_teks"),
-                        main_characters_on_page=panel_data.get("main_characters_in_panel")
-                    )
-                    db.add(panel)
-                    panel_counter += 1
-            
-            # Extract metadata from AI script to fill comic columns
-            global_data = script.get("global", {})
-            parts_data = script.get("parts", [])
-            
-            # Title from AI
-            ai_title = (
-                global_data.get("comic_title") or 
-                script.get("suggested_title") or 
-                script.get("title") or 
-                ""
-            ).strip()
-            
-            # Tagline/Theme
-            ai_tagline = (global_data.get("tagline") or "").strip()
-            
-            # Characters info for keywords
-            characters = global_data.get("characters", [])
-            character_names = [c.get("name", "") for c in characters if isinstance(c, dict)]
-            
-            # Extract keywords from character names and story
-            keywords_list = []
-            if character_names:
-                keywords_list.extend([n for n in character_names if n])
-            # Add style and nuance as keywords too
-            if style_name:
-                keywords_list.append(style_name)
-            
-            # Get mood from style
-            style_data = global_data.get("style", {})
-            ai_mood = style_data.get("color_mood", "")
-            
-            # Build synopsis from part summaries
-            synopsis_parts = []
-            for part in parts_data:
-                if isinstance(part, dict):
-                    ps = (part.get("part_summary") or "").strip()
-                    if ps:
-                        synopsis_parts.append(ps)
-            ai_synopsis = " ".join(synopsis_parts) if synopsis_parts else story_data.story_idea[:500]
-            
-            # Update comic with all extracted data
-            comic.draft_job_status = "SCRIPT_READY"
-            comic.draft_job_id = str(comic.id)  # Job ID = Comic ID
-            comic.script_completed_at = datetime.now()
-            comic.title = ai_title or story_data.story_idea[:100]  # Use title or fallback
-            comic.summary = ai_title or story_data.story_idea[:100]
-            comic.synopsis = ai_synopsis
-            comic.theme = ai_tagline or None
-            comic.keywords = keywords_list if keywords_list else None
-            comic.mood = ai_mood or None
-            comic.layout = "portrait"  # Default to portrait for 9-panel grid
-            
-            # Set publisher to current user's name
-            comic.publisher = current_user.username or current_user.full_name
-            
-            # Tags from keywords (for search)
-            if keywords_list:
-                comic.tags = " ".join([f"#{k.lower().replace(' ', '')}" for k in keywords_list[:5]])
-            
-            db.commit()
-            db.refresh(comic)
-            
-            logger.info(f"Comic {comic.id}: Script ready with {panel_counter} panels. Title: '{ai_title}', Publisher: '{comic.publisher}'")
-            
-        except Exception as e:
-            logger.exception(f"Script generation failed for comic {comic.id}: {e}")
-            script_error = str(e)
-            comic.draft_job_status = "SCRIPT_FAILED"
-            db.commit()
+        logger.info(f"Comic {comic.id} queued for script generation (style={style_name}, user={current_user.id})")
         
         response_data = ComicDetail.model_validate(comic).model_dump()
         
+        # Return immediately without waiting for script generation
         return {
             "ok": True,
-            "message": "Comic draft created. Review panels and call /comics/{id}/generate when ready.",
+            "message": "Draft created! Script generation started in background.",
             "data": response_data,
-            "generation_status": comic.draft_job_status,
-            "script_error": script_error
+            "comic_id": comic.id,
+            "generation_status": "PENDING",
+            "estimated_time_seconds": 120  # 1-3 menit typical
         }
     except ValueError as e:
         raise HTTPException(
@@ -512,6 +417,19 @@ async def publish_comic(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Comic not found or you don't have permission"
+        )
+
+    effective_title = publish_data.title or comic_obj.title
+    if not effective_title or not effective_title.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Judul komik wajib diisi sebelum publish"
+        )
+
+    if not comic_obj.cover_url:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cover komik belum tersedia. Selesaikan render cover terlebih dahulu."
         )
     
     published_comic = ComicService.publish_comic(
