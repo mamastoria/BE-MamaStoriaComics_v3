@@ -150,6 +150,16 @@ async def startup_event():
     print("Application startup event finished.")
 
 
+# Mount static files at the END of all route definitions
+from pathlib import Path
+static_dir = Path(__file__).parent.parent / "static"
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+    print(f"✓ Static files mounted from {static_dir}")
+else:
+    print(f"⚠ Static directory not found: {static_dir}")
+
+
 if __name__ == "__main__":
     import uvicorn
     import os
