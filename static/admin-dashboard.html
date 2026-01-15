@@ -351,27 +351,40 @@
 
         async function apiCall(endpoint) {
             if (!authToken) {
+                console.error('No auth token available');
                 throw new Error('No auth token available');
             }
+            
+            const headers = {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            };
+            
+            console.log(`API Call: GET ${API_BASE}${endpoint}`);
+            console.log(`Auth Header: Bearer ${authToken.substring(0, 20)}...`);
+            
             const response = await fetch(`${API_BASE}${endpoint}`, {
                 method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${authToken}`,
-                    'Content-Type': 'application/json'
-                }
+                headers: headers
             });
             
+            console.log(`Response Status: ${response.status}`);
+            
             if (response.status === 401 || response.status === 403) {
+                console.error(`Auth failed (${response.status}), logging out`);
                 logout();
                 throw new Error('Unauthorized - please login again');
             }
             
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
+                console.error(`API Error: ${response.status}`, errorData);
                 throw new Error(errorData.detail || `HTTP ${response.status}`);
             }
             
-            return response.json();
+            const data = await response.json();
+            console.log(`API Success:`, data);
+            return data;
         }
 
         function switchTab(tabName) {
