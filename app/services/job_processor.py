@@ -23,17 +23,21 @@ from app.models.comic_panel import ComicPanel
 logger = logging.getLogger(__name__)
 
 # Configuration
+# Adjust max_parallel based on your Cloud Run CPU/Memory allocation:
+# - 4 parallel = Safe for 2 vCPU, 4GB RAM
+# - 8 parallel = Needs 4 vCPU, 8GB RAM
+# - 16 parallel = Needs 8 vCPU, 16GB RAM (recommended for high volume)
 JOB_CONFIG = {
     "script": {
-        "max_parallel": 4,
+        "max_parallel": 8,  # Increased from 4 - can handle more concurrent script generation
         "lock_timeout_minutes": 10,
     },
     "image": {
-        "max_parallel": 4,
+        "max_parallel": 8,  # Increased from 4 - with parallel parts per comic, can handle 16 parts at once
         "lock_timeout_minutes": 20,
     },
     "video": {
-        "max_parallel": 1,  # Only 1 video at a time for stability
+        "max_parallel": 2,  # Increased from 1 - videos are less resource intensive now
         "lock_timeout_minutes": 30,
     }
 }
