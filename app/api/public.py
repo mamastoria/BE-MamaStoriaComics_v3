@@ -125,7 +125,7 @@ async def list_popular_comics(
     db: Session = Depends(get_db)
 ):
     """
-    List popular comics based on views + nuance filter.
+    List popular comics based on total_likes.
     """
     query = db.query(Comic).filter(
         Comic.title.isnot(None),
@@ -133,16 +133,11 @@ async def list_popular_comics(
     )
     
     if nuance:
-        # Check against genre list (JSON array or similar)
-        # Using string matching for simplicity as 'genre' is JSON
-        # Postgres JSONB containment: Comic.genre.contains([nuance])
-        # But this is Generic JSON, so we use a text fallback or exact match if possible.
-        # Ideally: query = query.filter(Comic.genre.contains([nuance]))
         # Fallback to text searching if structure varies
         query = query.filter(func.cast(Comic.genre, String).ilike(f"%{nuance}%"))
 
-    # Sort by total_views + total_likes DESC
-    query = query.order_by((Comic.total_likes + Comic.total_views).desc())
+    # Sort by total_likes DESC (Most Liked)
+    query = query.order_by(Comic.total_likes.desc())
     
     items, total = paginate(query, page, limit)
     comics_data = [ComicListItem.model_validate(c).model_dump() for c in items]
@@ -157,14 +152,15 @@ async def list_trending_comics(
     db: Session = Depends(get_db)
 ):
     """
-    List trending comics (currently checking total_views DESC).
-    Could be upgraded to check 'recent views' if analytics data allows.
+    List trending comics based on total_views.
     """
-    # Simply alias to popular sort for now
     query = db.query(Comic).filter(
         Comic.title.isnot(None),
         Comic.cover_url.isnot(None)
-    ).order_by((Comic.total_likes + Comic.total_views).desc())
+    )
+
+    # Sort by total_views DESC (Most Viewed/Viral)
+    query = query.order_by(Comic.total_views.desc())
 
     items, total = paginate(query, page, limit)
     comics_data = [ComicListItem.model_validate(c).model_dump() for c in items]
