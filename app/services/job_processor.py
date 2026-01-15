@@ -23,21 +23,29 @@ from app.models.comic_panel import ComicPanel
 logger = logging.getLogger(__name__)
 
 # Configuration
-# Adjust max_parallel based on your Cloud Run CPU/Memory allocation:
-# - 4 parallel = Safe for 2 vCPU, 4GB RAM
-# - 8 parallel = Needs 4 vCPU, 8GB RAM
-# - 16 parallel = Needs 8 vCPU, 16GB RAM (recommended for high volume)
+# High-volume production config for handling 1000+ comics efficiently
+# With parallel part rendering (2 parts per comic), actual parallel capacity is doubled
+# 
+# Performance estimates for 1000 comics:
+# - 64 parallel comics × 2 parts each = 128 concurrent image generations
+# - 1000 comics ÷ 64 per batch = 15.6 batches
+# - 15.6 batches × 20 minutes = ~5.2 hours total (vs 83 hours sequential!)
+#
+# Cloud Run requirements:
+# - Recommended: 16+ vCPU, 32GB+ RAM per instance
+# - Set max instances to 2-3 for cost control
+# - Ensure Vertex AI quota: 300+ requests/minute
 JOB_CONFIG = {
     "script": {
-        "max_parallel": 8,  # Increased from 4 - can handle more concurrent script generation
+        "max_parallel": 32,  # 32 comics generating scripts simultaneously
         "lock_timeout_minutes": 10,
     },
     "image": {
-        "max_parallel": 8,  # Increased from 4 - with parallel parts per comic, can handle 16 parts at once
+        "max_parallel": 64,  # 64 comics × 2 parts = 128 parallel image generations!
         "lock_timeout_minutes": 20,
     },
     "video": {
-        "max_parallel": 2,  # Increased from 1 - videos are less resource intensive now
+        "max_parallel": 8,  # 8 videos at once (less resource intensive)
         "lock_timeout_minutes": 30,
     }
 }
