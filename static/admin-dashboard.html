@@ -424,16 +424,24 @@
                         <span class="stat-value">${summary.failed}</span>
                     </div>
                     <div class="stat">
-                        <span class="stat-label">Avg Total Time</span>
-                        <span class="stat-value">${summary.avg_total_duration ? (summary.avg_total_duration + 's') : 'N/A'}</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-label">Avg Script Time</span>
+                        <span class="stat-label">1️⃣ Draft AI (Avg)</span>
                         <span class="stat-value">${summary.avg_script_duration ? (summary.avg_script_duration + 's') : 'N/A'}</span>
                     </div>
                     <div class="stat">
-                        <span class="stat-label">Avg Render Time</span>
+                        <span class="stat-label">2️⃣ Halaman Komik (Avg)</span>
                         <span class="stat-value">${summary.avg_render_duration ? (summary.avg_render_duration + 's') : 'N/A'}</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">3️⃣ PDF (Avg)</span>
+                        <span class="stat-value">${summary.avg_clipping_duration ? (summary.avg_clipping_duration + 's') : 'N/A'}</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">4️⃣ Video (Avg)</span>
+                        <span class="stat-value">${summary.avg_video_duration ? (summary.avg_video_duration + 's') : 'N/A'}</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">⏱ Total (Avg)</span>
+                        <span class="stat-value">${summary.avg_total_duration ? (summary.avg_total_duration + 's') : 'N/A'}</span>
                     </div>
                 `;
 
@@ -446,7 +454,11 @@
                                 <th>Title</th>
                                 <th>User</th>
                                 <th>Status</th>
-                                <th>Total Time</th>
+                                <th>1️⃣ Draft AI</th>
+                                <th>2️⃣ Halaman</th>
+                                <th>3️⃣ PDF</th>
+                                <th>4️⃣ Video</th>
+                                <th>⏱ Total</th>
                                 <th>Created</th>
                             </tr>
                         </thead>
@@ -454,10 +466,14 @@
                             ${comics.map(c => `
                                 <tr>
                                     <td>${c.comic_id}</td>
-                                    <td>${c.title}</td>
-                                    <td>${c.user.name}</td>
-                                    <td><span class="badge badge-${c.status === 'COMPLETED' ? 'success' : c.status === 'FAILED' ? 'danger' : 'warning'}">${c.status}</span></td>
-                                    <td>${c.timing.total_duration_seconds ? (c.timing.total_duration_seconds + 's') : 'N/A'}</td>
+                                    <td>${c.title || 'Untitled'}</td>
+                                    <td>${c.user?.name || 'N/A'}</td>
+                                    <td><span class="badge badge-${c.status === 'COMPLETED' ? 'success' : c.status === 'FAILED' ? 'danger' : 'warning'}">${c.status || 'UNKNOWN'}</span></td>
+                                    <td>${c.timing?.script_duration_seconds ? (c.timing.script_duration_seconds + 's') : '-'}</td>
+                                    <td>${c.timing?.render_duration_seconds ? (c.timing.render_duration_seconds + 's') : '-'}</td>
+                                    <td>${c.timing?.clipping_duration_seconds ? (c.timing.clipping_duration_seconds + 's') : '-'}</td>
+                                    <td>${c.timing?.video_duration_seconds ? (c.timing.video_duration_seconds + 's') : '-'}</td>
+                                    <td><strong>${c.timing?.total_duration_seconds ? (c.timing.total_duration_seconds + 's') : '-'}</strong></td>
                                     <td>${new Date(c.created_at).toLocaleString()}</td>
                                 </tr>
                             `).join('')}

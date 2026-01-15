@@ -454,27 +454,19 @@ async def get_comic_generation_stats(
                 "story_idea": comic.story_idea[:200] if comic.story_idea else None,
                 "status": comic.draft_job_status or "PENDING",
                 "timing": {
-                    "script": {
-                        "started_at": comic.script_started_at.isoformat() if comic.script_started_at else None,
-                        "completed_at": comic.script_completed_at.isoformat() if comic.script_completed_at else None,
-                        "duration_seconds": script_duration
-                    },
-                    "render": {
-                        "started_at": comic.render_started_at.isoformat() if comic.render_started_at else None,
-                        "completed_at": comic.render_completed_at.isoformat() if comic.render_completed_at else None,
-                        "duration_seconds": render_duration
-                    },
-                    "clipping": {
-                        "started_at": comic.clipping_started_at.isoformat() if comic.clipping_started_at else None,
-                        "completed_at": comic.clipping_completed_at.isoformat() if comic.clipping_completed_at else None,
-                        "duration_seconds": clipping_duration
-                    },
-                    "video": {
-                        "started_at": comic.video_started_at.isoformat() if comic.video_started_at else None,
-                        "completed_at": comic.video_completed_at.isoformat() if comic.video_completed_at else None,
-                        "duration_seconds": video_duration
-                    },
-                    "total_duration_seconds": total_duration
+                    "script_duration_seconds": script_duration,
+                    "render_duration_seconds": render_duration,
+                    "clipping_duration_seconds": clipping_duration,
+                    "video_duration_seconds": video_duration,
+                    "total_duration_seconds": total_duration,
+                    "script_started_at": comic.script_started_at.isoformat() if comic.script_started_at else None,
+                    "script_completed_at": comic.script_completed_at.isoformat() if comic.script_completed_at else None,
+                    "render_started_at": comic.render_started_at.isoformat() if comic.render_started_at else None,
+                    "render_completed_at": comic.render_completed_at.isoformat() if comic.render_completed_at else None,
+                    "clipping_started_at": comic.clipping_started_at.isoformat() if comic.clipping_started_at else None,
+                    "clipping_completed_at": comic.clipping_completed_at.isoformat() if comic.clipping_completed_at else None,
+                    "video_started_at": comic.video_started_at.isoformat() if comic.video_started_at else None,
+                    "video_completed_at": comic.video_completed_at.isoformat() if comic.video_completed_at else None
                 }
             })
         
@@ -482,7 +474,7 @@ async def get_comic_generation_stats(
         completed = [r for r in results if r["status"] == "COMPLETED"]
         
         def avg_duration(key):
-            durations = [r["timing"][key]["duration_seconds"] for r in completed if r["timing"][key]["duration_seconds"]]
+            durations = [r["timing"][f"{key}_duration_seconds"] for r in completed if r["timing"].get(f"{key}_duration_seconds")]
             return round(sum(durations) / len(durations), 1) if durations else None
         
         total_durations = [r["timing"]["total_duration_seconds"] for r in completed if r["timing"]["total_duration_seconds"]]
