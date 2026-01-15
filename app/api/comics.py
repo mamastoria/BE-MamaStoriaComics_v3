@@ -462,7 +462,9 @@ async def list_drafts(
     for comic in items:
         data = ComicDetail.model_validate(comic).model_dump()
         # Add status field based on draft_job_status (UPPERCASE for frontend)
-        data['status'] = (comic.draft_job_status or 'PENDING').upper()
+        # Map to valid JobStatus enum values: QUEUED, PROCESSING, COMPLETED, FAILED
+        status_value = comic.draft_job_status or 'QUEUED'
+        data['status'] = status_value.upper()
         # Ensure coverUrl mapping (frontend uses camelCase)
         data['coverUrl'] = comic.cover_url
         comics_data.append(data)
