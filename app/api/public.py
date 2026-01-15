@@ -14,9 +14,44 @@ from app.models.user import User
 from app.schemas.comic import ComicWithPanels, ComicListItem
 from app.utils.pagination import paginate, get_pagination_params
 from app.utils.responses import paginated_response
+# Service import moved to inside functions to avoid circular imports if any, keeping consistency
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+@router.get("/comics/similar", response_model=dict)
+async def get_similar_comics_via_query(
+    comic_id: int = Query(..., description="ID komik referensi"),
+    limit: int = Query(10, ge=1, le=50),
+    db: Session = Depends(get_db)
+):
+    """
+    Get similar comics based on genre and style - Public endpoint
+    
+    - **comic_id**: Comic ID (Query Param)
+    - **limit**: Number of similar comics (max: 50)
+    
+    Returns similar comics ordered by newest first (created_at DESC)
+    """
+    comic = db.query(Comic).filter(Comic.id == comic_id).first()
+    
+    if not comic:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comic not found"
+        )
+    
+    # Get similar comics using service
+    from app.services.comic_service import ComicService
+    similar = ComicService.get_similar_comics(db, comic, limit)
+    similar_data = [ComicListItem.model_validate(c).model_dump() for c in similar]
+    
+    return {
+        "ok": True,
+        "data": similar_data
+    }
+
 
 
 @router.get("/comics", response_model=dict)
