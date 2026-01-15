@@ -328,7 +328,7 @@
                     throw new Error(data.error || 'Login failed');
                 }
 
-                authToken = data.access_token;
+                authToken = data.data.tokens.access_token;
                 localStorage.setItem('admin_token', authToken);
                 
                 document.getElementById('login-section').style.display = 'none';
