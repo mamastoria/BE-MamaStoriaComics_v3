@@ -98,7 +98,7 @@ def get_pending_script_jobs(db: Session, limit: int = 4) -> List[Comic]:
 
 def process_script_jobs(db: Session) -> Dict[str, Any]:
     """
-    Process pending script generation jobs
+    Process pending script generation jobs using ThreadPoolExecutor for parallel processing
     
     Returns:
         Dict with processed, success, failed counts
@@ -106,7 +106,7 @@ def process_script_jobs(db: Session) -> Dict[str, Any]:
     worker_id = generate_worker_id("script")
     limit = JOB_CONFIG["script"]["max_parallel"]
     
-    logger.info(f"[{worker_id}] Starting script job processing (max {limit})...")
+    logger.info(f"[{worker_id}] Starting PARALLEL script job processing (max {limit})...")
     
     # Get pending jobs
     jobs = get_pending_script_jobs(db, limit)
@@ -117,10 +117,19 @@ def process_script_jobs(db: Session) -> Dict[str, Any]:
     
     results = {"processed": 0, "success": 0, "failed": 0, "jobs": []}
     
-    for comic in jobs:
-        job_result = {"comic_id": comic.id, "status": "pending"}
+    def process_single_script(comic: Comic):
+        """Process script generation for a single comic in thread"""
+        # Create new DB session for thread safety
+        from app.core.database import SessionLocal
+        thread_db = SessionLocal()
         
         try:
+            # Re-query comic in this thread's session
+            comic = thread_db.query(Comic).filter(Comic.id == comic.id).first()
+            if not comic:
+            thread_db.commit()
+            
+            logger.info(f"[{worker_id}] Thread pic.id, "status": "pending"}
             # Lock the job
             comic.locked_by = worker_id
             comic.locked_at = datetime.now()
@@ -141,7 +150,7 @@ def process_script_jobs(db: Session) -> Dict[str, Any]:
             
             # Get style and genre info
             from app.models.master_data import Style
-            style = db.query(Style).filter(Style.id == int(comic.style or 1)).first()
+            style = thread_db.query(Style).filter(Style.id == int(comic.style or 1)).first()
             style_id_str = comic.style or "1"
             genre_ids = comic.genre if isinstance(comic.genre, list) else ["1"]
 
@@ -151,7 +160,7 @@ def process_script_jobs(db: Session) -> Dict[str, Any]:
 
                 style_name = None
                 if str(style_id_str).isdigit() and str(style_id_str) not in core.COMIC_STYLES:
-                    style_row = db.query(Style).filter(Style.id == int(style_id_str)).first()
+                    style_row = thread_db.query(Style).filter(Style.id == int(style_id_str)).first()
                     style_name = style_row.name if style_row else None
                 else:
                     style_name = str(style_id_str)
@@ -159,7 +168,7 @@ def process_script_jobs(db: Session) -> Dict[str, Any]:
                 genre_names: List[str] = []
                 numeric_genres = [int(g) for g in genre_ids if str(g).isdigit()]
                 if numeric_genres:
-                    genre_rows = db.query(Genre).filter(Genre.id.in_(numeric_genres)).all()
+                    genre_rows = thread_db.query(Genre).filter(Genre.id.in_(numeric_genres)).all()
                     genre_names = [g.name for g in genre_rows]
                 else:
                     genre_names = [str(g) for g in genre_ids]
@@ -181,7 +190,7 @@ def process_script_jobs(db: Session) -> Dict[str, Any]:
             )
             
             # Clear existing panels
-            db.query(ComicPanel).filter(ComicPanel.comic_id == comic.id).delete()
+            thread_db.query(ComicPanel).filter(ComicPanel.comic_id == comic.id).delete()
             
             # Save script as draft panels
             panel_counter = 0
@@ -209,7 +218,7 @@ def process_script_jobs(db: Session) -> Dict[str, Any]:
                         instruksi_visual=panel_data.get("instruksi_visual"),
                         instruksi_render_teks=panel_data.get("instruksi_render_teks"),
                     )
-                    db.add(panel)
+                    thread_db.add(panel)
                     panel_counter += 1
             
             # Extract metadata
@@ -224,16 +233,16 @@ def process_script_jobs(db: Session) -> Dict[str, Any]:
             comic.locked_at = None
             comic.title = ai_title or (comic.story_idea[:100] if comic.story_idea else "Untitled")
             
-            db.commit()
+            thread_db.commit()
             
-            results["success"] += 1
             job_result["status"] = "success"
             job_result["panels"] = panel_counter
             
-            logger.info(f"[{worker_id}] Comic #{comic.id} script generated successfully ({panel_counter} panels)")
+            logger.info(f"[{worker_id}] Thread completed: Comic #{comic.id} script generated ({panel_counter} panels)")
             
-        except Exception as e:
-            logger.error(f"[{worker_id}] Script generation failed for comic #{comic.id}: {e}")
+            return job_result
+            
+        except Exception as e:Thread failed: Script generation for comic #{comic.id}: {e}")
             
             # Update failure status
             comic.draft_job_status = 'SCRIPT_FAILED'
@@ -242,13 +251,36 @@ def process_script_jobs(db: Session) -> Dict[str, Any]:
             comic.last_error_at = datetime.now()
             comic.locked_by = None
             comic.locked_at = None
-            db.commit()
+            thread_db.commit()
             
-            results["failed"] += 1
             job_result["status"] = "failed"
             job_result["error"] = str(e)[:200]
+            
+            return job_result
+        finally:
+            thread_db.close()
+    
+    # Execute all scripts in parallel using ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=min(limit, len(jobs))) as executor:
+        future_to_comic = {executor.submit(process_single_script, comic): comic for comic in jobs}
         
-        results["processed"] += 1
+        for future in as_completed(future_to_comic):
+            comic = future_to_comic[future]
+            try:
+                job_result = future.result()
+                results["jobs"].append(job_result)
+                results["processed"] += 1
+                
+                if job_result.get("status") == "success":
+                    results["success"] += 1
+                    logger.info(f"[{worker_id}] ✅ Comic #{comic.id} script success")
+                else:
+                    results["failed"] += 1
+                    logger.info(f"[{worker_id}] ❌ Comic #{comic.id} script failed")
+            except Exception as e:
+                logger.error(f"[{worker_id}] Unexpected error for comic #{comic.id}: {e}")
+                results["failed"] += 1
+                results["processed"] += 1
         results["jobs"].append(job_result)
     
     logger.info(f"[{worker_id}] Script processing complete: {results['success']} success, {results['failed']} failed")
