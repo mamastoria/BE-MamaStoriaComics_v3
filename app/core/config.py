@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     
     # Database
-    DATABASE_URL: str
+    DATABASE_URL: Optional[str] = None
     
     # JWT
     JWT_SECRET_KEY: str

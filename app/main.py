@@ -50,9 +50,11 @@ app.add_middleware(
         "http://localhost:8080",
         "http://127.0.0.1:5500",
         "http://localhost:5500",
-        "https://mamastoria.com"
+        "https://mamastoria.com",
+        "https://nanobananacomic-482111.web.app",
+        "https://nanobananacomic-482111.firebaseapp.com"
     ],
-    allow_origin_regex="https://.*",
+    allow_origin_regex=r"https://.*|http://localhost:\d+|http://127\.0\.0\.1:\d+",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -48,18 +48,37 @@ class ComicService:
         style = db.query(Style).filter(Style.id == style_id).first()
         if not style:
             raise ValueError("Invalid style ID")
+
+        # Map DB style/genre names to core style/nuance IDs
+        try:
+            import core
+        except Exception:
+            core = None
         
         # Create comic
-        # Store style_id and genre IDs (as strings) for proper matching with core.COMIC_STYLES
+        # Store core-mapped style/nuance IDs when possible for consistent generation
+        style_key = str(style_id)
+        genre_keys = [str(genre.id) for genre in genres]
+        if core is not None:
+            style_key = core.map_style_id(style_id, style.name)
+            genre_keys = core.map_nuance_ids(
+                nuance_ids=[str(genre.id) for genre in genres],
+                nuance_names=[genre.name for genre in genres],
+            )
+
         comic = Comic(
             user_id=user.id_users,
             story_idea=story_idea,
             page_count=page_count,
-            genre=[str(genre.id) for genre in genres],  # Store as array of ID strings
-            style=str(style_id),  # Store style ID as string for core.COMIC_STYLES matching
+            genre=genre_keys,  # Store as array of ID strings
+            style=str(style_key),  # Store style ID as string for core.COMIC_STYLES matching
             draft_job_status="PENDING",
             publisher=user.full_name or user.username
         )
+        
+        # DEBUG: Log style and genre being saved
+        from app.core.logging_config import logger
+        logger.info(f"💾 Creating comic with style={style_key} (from {style.name}), genres={genre_keys} (from {[g.name for g in genres]})")
         
         db.add(comic)
         db.commit()
@@ -170,6 +189,9 @@ class ComicService:
         # Set publisher to creator's name if not already set
         if not comic.publisher and comic.user:
             comic.publisher = comic.user.full_name or comic.user.username
+
+        # Mark comic as published/active
+        comic.status = True
         
         # TODO: Validate comic is ready to publish (has panels, cover, etc.)
         

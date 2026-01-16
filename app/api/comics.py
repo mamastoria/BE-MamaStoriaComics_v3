@@ -662,15 +662,15 @@ async def get_draft_status(
     
     # Map draft_job_status to frontend JobStatus enum
     status_map = {
-        "QUEUED": "idle",
-        "PENDING": "idle", 
+        "QUEUED": "queued",
+        "PENDING": "pending",  # Initial status - will trigger progress dialog
         "GENERATING_SCRIPT": "processing",
-        "SCRIPT_READY": "idle",  # Script done, waiting for user to approve
+        "SCRIPT_READY": "script_ready",  # Script done, waiting for user to approve
         "PROCESSING": "processing",
-        "RENDERING": "processing",
+        "RENDERING": "rendering",
         "COMPLETED": "completed",
         "FAILED": "failed",
-        "SCRIPT_FAILED": "failed",
+        "SCRIPT_FAILED": "script_failed",
     }
     raw_status = comic.draft_job_status or "pending"
     frontend_status = status_map.get(raw_status.upper(), raw_status.lower())
@@ -714,6 +714,11 @@ async def get_draft_status(
                 summary_parts.append("\n".join(panel_text))
     
     detailed_summary = "\n\n".join(summary_parts) if summary_parts else (comic.story_idea[:500] if comic.story_idea else "")
+    
+    # DEBUG: Log summary generation
+    logger.info(f"📝 Comic #{comic.id} - Summary for status endpoint: {len(detailed_summary)} chars, {len(summary_parts)} parts")
+    if not detailed_summary:
+        logger.warning(f"⚠️ Comic #{comic.id} - NO SUMMARY GENERATED! status={raw_status}, panels={len(comic.panels or [])}, story_idea len={len(comic.story_idea or '')}")
     
     # Build genre list with proper structure
     genres_data = []
@@ -1062,12 +1067,37 @@ async def generate_comic(
     genre_ids_str = []
     if comic.genre and isinstance(comic.genre, list):
         for g in comic.genre:
-            if isinstance(g, str) and g.isdigit():
+            if isinstance(g, str):
                 genre_ids_str.append(g)
             elif isinstance(g, dict):
-                gid = g.get("id") or g.get("key")
+                gid = g.get("id") or g.get("key") or g.get("name")
                 if gid:
                     genre_ids_str.append(str(gid))
+
+    # Map to core style/nuance keys for rendering
+    try:
+        import core
+        from app.models.master_data import Genre
+
+        style_name = style_value
+        if str(style_id_str).isdigit() and str(style_id_str) not in core.COMIC_STYLES:
+            style_row = db.query(Style).filter(Style.id == int(style_id_str)).first()
+            style_name = style_row.name if style_row else style_value
+
+        numeric_genres = [int(g) for g in genre_ids_str if str(g).isdigit()]
+        if numeric_genres:
+            genre_rows = db.query(Genre).filter(Genre.id.in_(numeric_genres)).all()
+            genre_names = [g.name for g in genre_rows]
+        else:
+            genre_names = [str(g) for g in genre_ids_str]
+
+        style_id_str = core.map_style_id(style_id_str, style_name)
+        genre_ids_str = core.map_nuance_ids(
+            nuance_ids=genre_ids_str,
+            nuance_names=genre_names,
+        )
+    except Exception:
+        pass
     
     logger.info(f"Generating images with style_id={style_id_str}, genres={genre_ids_str}")
     

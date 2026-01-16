@@ -576,15 +576,57 @@ COMIC_NUANCES: Dict[str, Dict[str, str]] = {
 DEFAULT_NUANCES: List[str] = ["4"]  # Petualangan as default
 
 
-def normalize_nuances(nuances: Optional[List[str]]) -> List[str]:
+def _normalize_label(label: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", (label or "").lower())
+
+
+def _match_label_to_key(label: Optional[str], mapping: Dict[str, Dict[str, str]]) -> Optional[str]:
+    if not label:
+        return None
+    target = _normalize_label(label)
+    if not target:
+        return None
+    for key, meta in mapping.items():
+        mapped_label = _normalize_label(meta.get("label", ""))
+        if not mapped_label:
+            continue
+        if mapped_label == target or target in mapped_label or mapped_label in target:
+            return key
+    return None
+
+
+def map_style_id(style_id: Optional[str], style_name: Optional[str]) -> str:
+    sid = str(style_id or "").strip()
+    if sid in COMIC_STYLES:
+        return sid
+    matched = _match_label_to_key(style_name, COMIC_STYLES)
+    if matched:
+        return matched
+    logger.warning("Style '%s' not mapped, falling back to default '%s'", style_name, DEFAULT_STYLE_ID)
+    return DEFAULT_STYLE_ID
+
+
+def map_nuance_ids(
+    nuance_ids: Optional[List[str]] = None,
+    nuance_names: Optional[List[str]] = None,
+) -> List[str]:
     chosen: List[str] = []
-    for nid in (nuances or []):
+    for nid in (nuance_ids or []):
         nid = str(nid or "").strip()
         if nid and nid in COMIC_NUANCES and nid not in chosen:
             chosen.append(nid)
+    if not chosen and nuance_names:
+        for name in nuance_names:
+            matched = _match_label_to_key(name, COMIC_NUANCES)
+            if matched and matched not in chosen:
+                chosen.append(matched)
     if not chosen:
         chosen = list(DEFAULT_NUANCES)
     return chosen[:5]
+
+
+def normalize_nuances(nuances: Optional[List[str]]) -> List[str]:
+    return map_nuance_ids(nuance_ids=nuances)
 
 
 def nuance_label_summary(nuances: List[str]) -> str:
