@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime
 import requests
 from app.core.config import settings
+from typing import Optional
 
 class DokuClient:
     def __init__(self):
@@ -63,7 +64,7 @@ class DokuClient:
         # Safe comparison
         return hmac.compare_digest(signature, calculated_signature)
 
-    def generate_payment_url(self, order_id: str, amount: int, customer_data: dict, package_name: str) -> str:
+    def generate_payment_url(self, order_id: str, amount: int, customer_data: dict, package_name: str, callback_url: Optional[str] = None) -> str:
         """
         Generate Doku Checkout Payment URL
         """
@@ -77,8 +78,8 @@ class DokuClient:
                 "amount": amount,
                 "invoice_number": order_id,
                 "currency": "IDR",
-                "callback_url": "https://nanobanana-backend-1089713441636.asia-southeast2.run.app/api/v1/subscriptions/payment-callback", # Fixed for now or typical callback
-                # "callback_url": f"{settings.API_BASE_URL}/subscriptions/payment-callback" # Ideal
+                # Prefer provided callback_url (from request/base_url) and fallback to configured/default
+                "callback_url": callback_url if callback_url else "https://nanobanana-backend-1089713441636.asia-southeast2.run.app/api/v1/subscriptions/payment-callback",
                 "line_items": [
                     {
                         "name": package_name,

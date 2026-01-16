@@ -286,11 +286,15 @@ async def purchase_subscription(
             }
             
             # Real Doku API call
+            # Build callback URL based on current request base URL to avoid environment mismatches
+            base_url = str(request.base_url).rstrip("/")
+            cb_url = f"{base_url}/api/v1/subscriptions/payment-callback"
             payment_url = doku_client.generate_payment_url(
                 order_id=order_id,
                 amount=package.price,
                 customer_data=customer_data,
-                package_name=package.name
+                package_name=package.name,
+                callback_url=cb_url
             )
             print(f"Generated Doku Payment URL: {payment_url}")
         
