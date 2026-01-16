@@ -411,6 +411,56 @@ async def force_fail_job(comic_id: int, db: Session = Depends(get_db)):
     
     return {
         "ok": True,
+        "message": f"Comic #{comic_id} force failed",
+        "old_status": old_status,
+        "new_status": comic.draft_job_status,
+        "comic_id": comic_id
+    }
+
+
+@router.post("/recover-stuck/{comic_id}")
+async def recover_stuck_job(comic_id: int, db: Session = Depends(get_db)):
+    """
+    RECOVERY: Recover a comic stuck in PROCESSING/RENDERING status.
+    Clears locks and resets status to SCRIPT_READY for image generation retry.
+    """
+    from app.models.comic import Comic
+    from datetime import datetime
+    
+    comic = db.get(Comic, comic_id)
+    if not comic:
+        raise HTTPException(status_code=404, detail="Comic not found")
+    
+    old_status = comic.draft_job_status
+    
+    # Only recover if stuck in processing/rendering
+    if old_status not in ["PROCESSING", "RENDERING"]:
+        return {
+            "ok": False,
+            "message": f"Comic not stuck (status={old_status})",
+            "comic_id": comic_id
+        }
+    
+    # Reset to SCRIPT_READY for retry
+    comic.draft_job_status = 'SCRIPT_READY'
+    comic.locked_by = None
+    comic.locked_at = None
+    comic.last_error_message = f"Recovered from stuck {old_status} status"
+    comic.last_error_at = datetime.now()
+    
+    db.commit()
+    logger.info(f"Recovered comic #{comic_id}: {old_status} → SCRIPT_READY")
+    
+    return {
+        "ok": True,
+        "message": f"Comic #{comic_id} recovered from stuck status",
+        "old_status": old_status,
+        "new_status": "SCRIPT_READY",
+        "comic_id": comic_id
+    }
+    
+    return {
+        "ok": True,
         "message": f"Comic #{comic_id} force failed (was {old_status})",
         "comic_id": comic_id
     }
