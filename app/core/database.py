@@ -18,14 +18,29 @@ _engine = None
 _SessionLocal = None
 
 
+def _is_truthy(value: Optional[str]) -> bool:
+    if value is None:
+        return False
+    return value.strip().lower() in {"true", "1", "yes", "y", "on"}
+
+
 def get_database_url() -> str:
     """Get database URL from environment"""
     url = os.environ.get("DATABASE_URL", "")
     
-    # If using Cloud SQL Connector, we don't need DATABASE_URL (connector handles it)
-    use_cloud_sql_connector = os.environ.get("USE_CLOUD_SQL_CONNECTOR", "false").lower() == "true"
+    # If using Cloud SQL Connector, we still allow DATABASE_URL for credential extraction
+    use_cloud_sql_connector = _is_truthy(os.environ.get("USE_CLOUD_SQL_CONNECTOR"))
     if use_cloud_sql_connector:
-        return ""  # Return empty as connector will be used instead
+        # Return whatever is set so connector code can parse user/pass/db
+        # The engine creation will not use this URL when connector mode is enabled
+        if not url:
+            try:
+                from app.core.config import settings
+                url = settings.DATABASE_URL
+            except Exception as e:
+                logger.warning(f"Could not load DATABASE_URL from settings (connector mode): {e}")
+                url = ""
+        return url
     
     if not url:
         # Try to import from settings as fallback
@@ -47,10 +62,12 @@ def get_engine():
         database_url = get_database_url()
         
         # Check if we should use Cloud SQL Connector (set via env var in Cloud Run)
-        use_cloud_sql_connector = os.environ.get("USE_CLOUD_SQL_CONNECTOR", "false").lower() == "true"
+        use_cloud_sql_connector = _is_truthy(os.environ.get("USE_CLOUD_SQL_CONNECTOR"))
         connection_name = os.environ.get("CLOUD_SQL_CONNECTION_NAME")
         
-        if use_cloud_sql_connector and connection_name:
+        if use_cloud_sql_connector:
+            if not connection_name:
+                raise ValueError("USE_CLOUD_SQL_CONNECTOR=true but CLOUD_SQL_CONNECTION_NAME is not set.")
             logger.info("Using Cloud SQL Python Connector...")
             try:
                 from google.cloud.sql.connector import Connector, IPTypes
