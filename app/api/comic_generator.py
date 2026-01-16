@@ -15,12 +15,9 @@ ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
-try:
-    import core
-except ImportError:
-    # If standard import fails, try relative or adjust path logic
-    # This fallback is unlikely needed if run from root
-    import core
+# NOTE: core is imported lazily inside functions to avoid blocking startup
+# with Google Cloud credential loading
+
 
 router = APIRouter()
 
@@ -33,7 +30,7 @@ class ScriptRequest(BaseModel):
     story: str = Field(..., min_length=1)
     style_id: Optional[str] = Field(
         default=None,
-        description="One of: " + ", ".join(core.COMIC_STYLES.keys()),
+        description="Comic style (loaded from /api/styles endpoint)",
     )
     nuances: List[str] = Field(
         default_factory=list,
@@ -64,7 +61,8 @@ def health_ai(
     """
     if str(current_user.role).lower() != "admin":
          raise HTTPException(status_code=403, detail="Admin restricted")
-
+    
+    import core
     return {
         "status": "ok",
         "project_id": core.PROJECT_ID,
@@ -76,6 +74,7 @@ def health_ai(
 
 @router.get("/api/styles")
 def api_styles():
+    import core
     styles = []
     for sid, s in core.COMIC_STYLES.items():
         styles.append(
@@ -94,6 +93,7 @@ def api_styles():
 
 @router.get("/api/nuances")
 def api_nuances():
+    import core
     out = []
     for nid, n in core.COMIC_NUANCES.items():
         out.append({"id": nid, "label": n.get("label", nid)})
@@ -107,6 +107,7 @@ def api_script(
     req: ScriptRequest,
     current_user: User = Depends(get_current_user)
 ):
+    import core
     story = (req.story or "").strip()
     if not story:
         raise HTTPException(status_code=400, detail="story is empty")
@@ -133,7 +134,8 @@ def api_script(
             }
         )
     except Exception as e:
-        core.logger.exception("Script generation failed")
+        import logging
+        logging.getLogger().exception("Script generation failed")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -146,6 +148,7 @@ def api_render_part(
     Render satu part (langsung synchronous) untuk debug/manual.
     SECURITY: Restricted to Admin only.
     """
+    import core
     if str(current_user.role).lower() != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
 
@@ -153,7 +156,8 @@ def api_render_part(
         payload = core.render_part_payload(req.script, int(req.part_no))
         return JSONResponse(payload)
     except Exception as e:
-        core.logger.exception("Render part failed")
+        import logging
+        logging.getLogger().exception("Render part failed")
         raise HTTPException(status_code=500, detail=str(e))
 
 
