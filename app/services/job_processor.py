@@ -23,29 +23,17 @@ from app.models.comic_panel import ComicPanel
 logger = logging.getLogger(__name__)
 
 # Configuration
-# High-volume production config for handling 1000+ comics efficiently
-# With parallel part rendering (2 parts per comic), actual parallel capacity is doubled
-# 
-# Performance estimates for 1000 comics:
-# - 64 parallel comics × 2 parts each = 128 concurrent image generations
-# - 1000 comics ÷ 64 per batch = 15.6 batches
-# - 15.6 batches × 20 minutes = ~5.2 hours total (vs 83 hours sequential!)
-#
-# Cloud Run requirements:
-# - Recommended: 16+ vCPU, 32GB+ RAM per instance
-# - Set max instances to 2-3 for cost control
-# - Ensure Vertex AI quota: 300+ requests/minute
 JOB_CONFIG = {
     "script": {
-        "max_parallel": 32,  # 32 comics generating scripts simultaneously
+        "max_parallel": 4,
         "lock_timeout_minutes": 10,
     },
     "image": {
-        "max_parallel": 64,  # 64 comics × 2 parts = 128 parallel image generations!
+        "max_parallel": 4,
         "lock_timeout_minutes": 20,
     },
     "video": {
-        "max_parallel": 8,  # 8 videos at once (less resource intensive)
+        "max_parallel": 1,  # Only 1 video at a time for stability
         "lock_timeout_minutes": 30,
     }
 }
@@ -54,121 +42,6 @@ JOB_CONFIG = {
 def generate_worker_id(prefix: str) -> str:
     """Generate unique worker ID"""
     return f"{prefix}-{uuid.uuid4().hex[:8]}"
-
-
-    # =============================================================================
-    # AUTO-RECOVERY FOR STUCK COMICS (TIMEOUT-BASED)
-    # =============================================================================
-
-    def recover_stuck_jobs(db: Session) -> Dict[str, Any]:
-        """
-        Automatic recovery for comics stuck in PROCESSING/RENDERING/other states.
-    
-        Comics become "stuck" when:
-        1. Image generation fails but status doesn't reset
-        2. Locks expire but locks remain set
-        3. System crashes while job was running
-    
-        This function:
-        - Detects comics locked > timeout_minutes
-        - Resets status based on what stage they were in
-        - Clears locks to allow retry
-        - Logs recovery for audit trail
-        """
-        recovered = {"script": 0, "image": 0, "video": 0, "total": 0}
-    
-        # Check SCRIPT jobs that are stuck
-        script_timeout = JOB_CONFIG["script"]["lock_timeout_minutes"]
-        script_expiry = datetime.now() - timedelta(minutes=script_timeout)
-    
-        stuck_scripts = db.query(Comic).filter(
-            and_(
-                Comic.draft_job_status.in_(['SCRIPT_FAILED', 'PENDING']),
-                Comic.locked_by.isnot(None),
-                Comic.locked_at < script_expiry
-            )
-        ).all()
-    
-        for comic in stuck_scripts:
-            Process all types of jobs in one call.
-            comic.locked_at = None
-            comic.script_retry_count = (comic.script_retry_count or 0) + 1
-            recovered["script"] += 1
-            logger.warning(f"🔓 AUTO-RECOVER: Unlocked stuck SCRIPT job for comic #{comic.id} (retry #{comic.script_retry_count})")
-    
-        # Check IMAGE jobs that are stuck
-        image_timeout = JOB_CONFIG["image"]["lock_timeout_minutes"]
-        image_expiry = datetime.now() - timedelta(minutes=image_timeout)
-    
-        stuck_images = db.query(Comic).filter(
-            and_(
-                Comic.draft_job_status.in_(['PROCESSING', 'RENDERING']),
-                Comic.locked_by.isnot(None),
-                Comic.locked_at < image_expiry
-            )
-        ).all()
-    
-        for comic in stuck_images:
-            comic.draft_job_status = 'SCRIPT_READY'  # Reset for retry
-        def process_all_jobs(db: Session) -> Dict[str, Any]:
-            """
-            Process all types of jobs in one call.
-    
-            Auto-recovery runs FIRST to recover any stuck comics before processing.
-            """
-            # RUN AUTO-RECOVERY FIRST to recover any stuck comics
-            logger.info("=" * 80)
-            logger.info("🔄 Starting auto-recovery for stuck comics...")
-            recovery_stats = recover_stuck_jobs(db)
-            logger.info(f"✅ Auto-recovery complete: {recovery_stats}")
-            logger.info("=" * 80)
-    
-            # Now process new jobs
-            results = {
-                "recovery": recovery_stats,
-                "script": process_script_jobs(db),
-                "image": process_image_jobs(db),
-                "video": process_video_jobs(db),
-            }
-    
-            return results
-            comic.locked_by = None
-            comic.locked_at = None
-            comic.image_retry_count = (comic.image_retry_count or 0) + 1
-            comic.last_error_message = f"Auto-recovered from stuck RENDERING after {image_timeout}min timeout (retry #{comic.image_retry_count})"
-            comic.last_error_at = datetime.now()
-            recovered["image"] += 1
-            logger.warning(f"🔓 AUTO-RECOVER: Reset stuck IMAGE job for comic #{comic.id} to SCRIPT_READY (retry #{comic.image_retry_count})")
-    
-        # Check VIDEO jobs that are stuck
-        video_timeout = JOB_CONFIG["video"]["lock_timeout_minutes"]
-        video_expiry = datetime.now() - timedelta(minutes=video_timeout)
-    
-        stuck_videos = db.query(Comic).filter(
-            and_(
-                Comic.draft_job_status == 'PROCESSING',
-                Comic.locked_by.isnot(None),
-                Comic.locked_at < video_expiry,
-                Comic.cover_url.isnot(None)  # Images were done
-            )
-        ).all()
-    
-        for comic in stuck_videos:
-            # For video, keep at PROCESSING but clear lock for retry
-            comic.locked_by = None
-            comic.locked_at = None
-            comic.video_retry_count = (comic.video_retry_count or 0) + 1
-            comic.last_error_message = f"Auto-recovered from stuck VIDEO after {video_timeout}min timeout (retry #{comic.video_retry_count})"
-            comic.last_error_at = datetime.now()
-            recovered["video"] += 1
-            logger.warning(f"🔓 AUTO-RECOVER: Unlocked stuck VIDEO job for comic #{comic.id} (retry #{comic.video_retry_count})")
-    
-        if recovered["script"] + recovered["image"] + recovered["video"] > 0:
-            db.commit()
-            recovered["total"] = recovered["script"] + recovered["image"] + recovered["video"]
-            logger.warning(f"🔓 AUTO-RECOVERY SUMMARY: {recovered['total']} comics recovered ({recovered['script']} script, {recovered['image']} image, {recovered['video']} video)")
-    
-        return recovered
 
 
 def is_lock_expired(locked_at: datetime, timeout_minutes: int) -> bool:
@@ -194,12 +67,34 @@ def get_pending_script_jobs(db: Session, limit: int = 4) -> List[Comic]:
     timeout = JOB_CONFIG["script"]["lock_timeout_minutes"]
     lock_expiry = datetime.now() - timedelta(minutes=timeout)
     
+    jobs = db.query(Comic).filter(
+        and_(
+            or_(
+                Comic.draft_job_status == 'PENDING',
+                Comic.draft_job_status == 'SCRIPT_FAILED',
+                Comic.draft_job_status.is_(None)
+            ),
+            or_(
+                Comic.locked_by.is_(None),
+                Comic.locked_at < lock_expiry
+            )
+        )
+    ).order_by(Comic.id.asc()).limit(limit).all()
+    
+    return jobs
+
+
+def process_script_jobs(db: Session) -> Dict[str, Any]:
+    """
+    Process pending script generation jobs
+    
+    Returns:
         Dict with processed, success, failed counts
     """
     worker_id = generate_worker_id("script")
     limit = JOB_CONFIG["script"]["max_parallel"]
     
-    logger.info(f"[{worker_id}] Starting PARALLEL script job processing (max {limit})...")
+    logger.info(f"[{worker_id}] Starting script job processing (max {limit})...")
     
     # Get pending jobs
     jobs = get_pending_script_jobs(db, limit)
@@ -210,28 +105,16 @@ def get_pending_script_jobs(db: Session, limit: int = 4) -> List[Comic]:
     
     results = {"processed": 0, "success": 0, "failed": 0, "jobs": []}
     
-    def process_single_script(comic: Comic):
-        """Process script generation for a single comic in thread"""
-        # Create new DB session for thread safety
-        from app.core.database import SessionLocal
-        thread_db = SessionLocal()
+    for comic in jobs:
+        job_result = {"comic_id": comic.id, "status": "pending"}
         
         try:
-            # Re-query comic in this thread's session
-            comic_id = comic.id
-            comic = thread_db.query(Comic).filter(Comic.id == comic_id).first()
-            if not comic:
-                return {"comic_id": comic_id, "status": "not_found"}
-
-            job_result = {"comic_id": comic.id, "status": "pending"}
-
-            logger.info(f"[{worker_id}] Thread locked comic #{comic.id} (status: pending)")
             # Lock the job
             comic.locked_by = worker_id
             comic.locked_at = datetime.now()
             comic.draft_job_status = 'GENERATING_SCRIPT'
             comic.script_started_at = datetime.now()
-            thread_db.commit()
+            db.commit()
             
             logger.info(f"[{worker_id}] Processing script for comic #{comic.id}")
             
@@ -246,12 +129,9 @@ def get_pending_script_jobs(db: Session, limit: int = 4) -> List[Comic]:
             
             # Get style and genre info
             from app.models.master_data import Style
-            style = thread_db.query(Style).filter(Style.id == int(comic.style or 1)).first()
+            style = db.query(Style).filter(Style.id == int(comic.style or 1)).first()
             style_id_str = comic.style or "1"
             genre_ids = comic.genre if isinstance(comic.genre, list) else ["1"]
-
-            # DEBUG: Log what we're using for script generation
-            logger.info(f"🎨 Comic #{comic.id} - Style from DB: {style_id_str}, Genres from DB: {genre_ids}")
 
             # Map DB values to core style/nuance keys for consistency
             try:
@@ -259,7 +139,7 @@ def get_pending_script_jobs(db: Session, limit: int = 4) -> List[Comic]:
 
                 style_name = None
                 if str(style_id_str).isdigit() and str(style_id_str) not in core.COMIC_STYLES:
-                    style_row = thread_db.query(Style).filter(Style.id == int(style_id_str)).first()
+                    style_row = db.query(Style).filter(Style.id == int(style_id_str)).first()
                     style_name = style_row.name if style_row else None
                 else:
                     style_name = str(style_id_str)
@@ -267,7 +147,7 @@ def get_pending_script_jobs(db: Session, limit: int = 4) -> List[Comic]:
                 genre_names: List[str] = []
                 numeric_genres = [int(g) for g in genre_ids if str(g).isdigit()]
                 if numeric_genres:
-                    genre_rows = thread_db.query(Genre).filter(Genre.id.in_(numeric_genres)).all()
+                    genre_rows = db.query(Genre).filter(Genre.id.in_(numeric_genres)).all()
                     genre_names = [g.name for g in genre_rows]
                 else:
                     genre_names = [str(g) for g in genre_ids]
@@ -281,9 +161,6 @@ def get_pending_script_jobs(db: Session, limit: int = 4) -> List[Comic]:
                 mapped_style_id = str(style_id_str or "1")
                 mapped_genres = [str(g) for g in genre_ids]
             
-            # DEBUG: Log mapped values for script generation
-            logger.info(f"🎨 Comic #{comic.id} - Mapped for script: style={mapped_style_id}, nuances={mapped_genres}")
-            
             # Generate script
             script = core.make_two_part_script(
                 comic.story_idea or "A short comic story",
@@ -292,7 +169,7 @@ def get_pending_script_jobs(db: Session, limit: int = 4) -> List[Comic]:
             )
             
             # Clear existing panels
-            thread_db.query(ComicPanel).filter(ComicPanel.comic_id == comic.id).delete()
+            db.query(ComicPanel).filter(ComicPanel.comic_id == comic.id).delete()
             
             # Save script as draft panels
             panel_counter = 0
@@ -320,7 +197,7 @@ def get_pending_script_jobs(db: Session, limit: int = 4) -> List[Comic]:
                         instruksi_visual=panel_data.get("instruksi_visual"),
                         instruksi_render_teks=panel_data.get("instruksi_render_teks"),
                     )
-                    thread_db.add(panel)
+                    db.add(panel)
                     panel_counter += 1
             
             # Extract metadata
@@ -335,17 +212,16 @@ def get_pending_script_jobs(db: Session, limit: int = 4) -> List[Comic]:
             comic.locked_at = None
             comic.title = ai_title or (comic.story_idea[:100] if comic.story_idea else "Untitled")
             
-            thread_db.commit()
+            db.commit()
             
+            results["success"] += 1
             job_result["status"] = "success"
             job_result["panels"] = panel_counter
             
-            logger.info(f"[{worker_id}] Thread completed: Comic #{comic.id} script generated ({panel_counter} panels)")
-            
-            return job_result
+            logger.info(f"[{worker_id}] Comic #{comic.id} script generated successfully ({panel_counter} panels)")
             
         except Exception as e:
-            logger.error(f"[{worker_id}] Thread failed: Script generation for comic #{comic.id}: {e}")
+            logger.error(f"[{worker_id}] Script generation failed for comic #{comic.id}: {e}")
             
             # Update failure status
             comic.draft_job_status = 'SCRIPT_FAILED'
@@ -354,36 +230,14 @@ def get_pending_script_jobs(db: Session, limit: int = 4) -> List[Comic]:
             comic.last_error_at = datetime.now()
             comic.locked_by = None
             comic.locked_at = None
-            thread_db.commit()
+            db.commit()
             
+            results["failed"] += 1
             job_result["status"] = "failed"
             job_result["error"] = str(e)[:200]
-            
-            return job_result
-        finally:
-            thread_db.close()
-    
-    # Execute all scripts in parallel using ThreadPoolExecutor
-    with ThreadPoolExecutor(max_workers=min(limit, len(jobs))) as executor:
-        future_to_comic = {executor.submit(process_single_script, comic): comic for comic in jobs}
         
-        for future in as_completed(future_to_comic):
-            comic = future_to_comic[future]
-            try:
-                job_result = future.result()
-                results["jobs"].append(job_result)
-                results["processed"] += 1
-                
-                if job_result.get("status") == "success":
-                    results["success"] += 1
-                    logger.info(f"[{worker_id}] OK: Comic #{comic.id} script success")
-                else:
-                    results["failed"] += 1
-                    logger.info(f"[{worker_id}] FAIL: Comic #{comic.id} script failed")
-            except Exception as e:
-                logger.error(f"[{worker_id}] Unexpected error for comic #{comic.id}: {e}")
-                results["failed"] += 1
-                results["processed"] += 1
+        results["processed"] += 1
+        results["jobs"].append(job_result)
     
     logger.info(f"[{worker_id}] Script processing complete: {results['success']} success, {results['failed']} failed")
     return results
@@ -557,9 +411,9 @@ def process_image_jobs(db: Session) -> Dict[str, Any]:
                     try:
                         part_no_result, part_result = future.result()
                         part_results[part_no_result] = part_result
-                        logger.info(f"[{worker_id}] OK: Part {part_no_result} completed successfully")
+                        logger.info(f"[{worker_id}] ✅ Part {part_no_result} completed successfully")
                     except Exception as e:
-                        logger.error(f"[{worker_id}] FAIL: Part {part_no} failed: {e}")
+                        logger.error(f"[{worker_id}] ❌ Part {part_no} failed: {e}")
                         raise  # Re-raise to trigger failure handling
             
             logger.info(f"[{worker_id}] PARALLEL rendering complete for comic #{comic.id}")
@@ -668,15 +522,13 @@ def get_pending_video_jobs(db: Session, limit: int = 1) -> List[Comic]:
 
 def process_video_jobs(db: Session) -> Dict[str, Any]:
     """
-    Process pending video generation jobs using ThreadPoolExecutor for parallel processing
-    
-    Returns:
-        Dict with processed, success, failed counts
+    Process pending video generation jobs
+    Only 1 at a time for stability
     """
     worker_id = generate_worker_id("video")
-    limit = JOB_CONFIG["video"]["max_parallel"]
+    limit = JOB_CONFIG["video"]["max_parallel"]  # Always 1
     
-    logger.info(f"[{worker_id}] Starting PARALLEL video job processing (max {limit})...")
+    logger.info(f"[{worker_id}] Starting video job processing (max {limit})...")
     
     jobs = get_pending_video_jobs(db, limit)
     
@@ -686,30 +538,20 @@ def process_video_jobs(db: Session) -> Dict[str, Any]:
     
     results = {"processed": 0, "success": 0, "failed": 0, "jobs": []}
     
-    def process_single_video(comic: Comic):
-        """Process video generation for a single comic in thread"""
-        # Create new DB session for thread safety
-        from app.core.database import SessionLocal
-        thread_db = SessionLocal()
+    for comic in jobs:
+        job_result = {"comic_id": comic.id, "status": "pending"}
         
         try:
-            # Re-query comic in this thread's session
-            comic = thread_db.query(Comic).filter(Comic.id == comic.id).first()
-            if not comic:
-                return {"comic_id": comic.id, "status": "not_found"}
-            
-            job_result = {"comic_id": comic.id, "status": "pending"}
-            
             # Lock the job
             comic.locked_by = worker_id
             comic.locked_at = datetime.now()
             comic.video_started_at = datetime.now()
-            thread_db.commit()
+            db.commit()
             
-            logger.info(f"[{worker_id}] Thread generating video for comic #{comic.id}")
+            logger.info(f"[{worker_id}] Generating video for comic #{comic.id}")
             
             # Get all panels
-            panels = thread_db.query(ComicPanel).filter(
+            panels = db.query(ComicPanel).filter(
                 ComicPanel.comic_id == comic.id,
                 ComicPanel.image_url.isnot(None)
             ).order_by(ComicPanel.page_number, ComicPanel.panel_number).all()
@@ -744,11 +586,14 @@ def process_video_jobs(db: Session) -> Dict[str, Any]:
                 if task_name:
                     logger.info(f"[{worker_id}] Video queued to worker for comic #{comic.id}")
                     # Keep status as PROCESSING and KEEP LOCKED to enforce concurrency limit
-                    thread_db.commit()
+                    # It will be unlocked by timeout (30m) or when worker updates status to COMPLETED
+                    db.commit()
                     
+                    results["processed"] += 1
                     job_result["status"] = "queued"
                     job_result["task"] = task_name
-                    return job_result
+                    results["jobs"].append(job_result)
+                    continue
                 else:
                     raise Exception("Failed to queue video generation")
             
@@ -759,17 +604,16 @@ def process_video_jobs(db: Session) -> Dict[str, Any]:
             comic.video_retry_count = 0  # Reset on success
             comic.locked_by = None
             comic.locked_at = None
-            thread_db.commit()
+            db.commit()
             
+            results["success"] += 1
             job_result["status"] = "success"
             job_result["video_url"] = video_url[:100] if video_url else None
             
-            logger.info(f"[{worker_id}] Thread completed: Comic #{comic.id} video generated")
-            
-            return job_result
+            logger.info(f"[{worker_id}] Comic #{comic.id} video generated successfully")
             
         except Exception as e:
-            logger.error(f"[{worker_id}] Thread failed: Video generation for comic #{comic.id}: {e}")
+            logger.error(f"[{worker_id}] Video generation failed for comic #{comic.id}: {e}")
             import traceback
             traceback.print_exc()
             
@@ -779,39 +623,14 @@ def process_video_jobs(db: Session) -> Dict[str, Any]:
             comic.last_error_at = datetime.now()
             comic.locked_by = None
             comic.locked_at = None
-            thread_db.commit()
+            db.commit()
             
+            results["failed"] += 1
             job_result["status"] = "failed"
             job_result["error"] = str(e)[:200]
-            
-            return job_result
-        finally:
-            thread_db.close()
-    
-    # Execute all videos in parallel using ThreadPoolExecutor
-    with ThreadPoolExecutor(max_workers=min(limit, len(jobs))) as executor:
-        future_to_comic = {executor.submit(process_single_video, comic): comic for comic in jobs}
         
-        for future in as_completed(future_to_comic):
-            comic = future_to_comic[future]
-            try:
-                job_result = future.result()
-                results["jobs"].append(job_result)
-                results["processed"] += 1
-                
-                if job_result.get("status") == "success":
-                    results["success"] += 1
-                    logger.info(f"[{worker_id}] OK: Comic #{comic.id} video success")
-                elif job_result.get("status") == "queued":
-                    results["success"] += 1  # Count queued as success
-                    logger.info(f"[{worker_id}] QUEUED: Comic #{comic.id} video queued")
-                else:
-                    results["failed"] += 1
-                    logger.info(f"[{worker_id}] FAIL: Comic #{comic.id} video failed")
-            except Exception as e:
-                logger.error(f"[{worker_id}] Unexpected error for comic #{comic.id}: {e}")
-                results["failed"] += 1
-                results["processed"] += 1
+        results["processed"] += 1
+        results["jobs"].append(job_result)
     
     logger.info(f"[{worker_id}] Video processing complete: {results['success']} success, {results['failed']} failed")
     return results
@@ -826,45 +645,6 @@ def process_all_jobs(db: Session) -> Dict[str, Any]:
     Process all types of jobs in one call
     """
     results = {
-        "script": process_script_jobs(db),
-        "image": process_image_jobs(db),
-        "video": process_video_jobs(db),
-    }
-    
-    return results
-
-    # RUN AUTO-RECOVERY FIRST to recover any stuck comics
-    logger.info("=" * 80)
-    logger.info("🔄 Starting auto-recovery for stuck comics...")
-    recovery_stats = recover_stuck_jobs(db)
-    logger.info(f"✅ Auto-recovery complete: {recovery_stats}")
-    logger.info("=" * 80)
-    
-    results = {
-        "recovery": recovery_stats,
-        "script": process_script_jobs(db),
-        "image": process_image_jobs(db),
-        "video": process_video_jobs(db),
-    }
-    
-    return results
-
-def process_all_jobs(db: Session) -> Dict[str, Any]:
-    """
-    Process all types of jobs in one call.
-    
-    Auto-recovery runs FIRST to recover any stuck comics before processing.
-    """
-    # RUN AUTO-RECOVERY FIRST to recover any stuck comics
-    logger.info("=" * 80)
-    logger.info("🔄 Starting auto-recovery for stuck comics...")
-    recovery_stats = recover_stuck_jobs(db)
-    logger.info(f"✅ Auto-recovery complete: {recovery_stats}")
-    logger.info("=" * 80)
-    
-    # Now process new jobs
-    results = {
-        "recovery": recovery_stats,
         "script": process_script_jobs(db),
         "image": process_image_jobs(db),
         "video": process_video_jobs(db),
