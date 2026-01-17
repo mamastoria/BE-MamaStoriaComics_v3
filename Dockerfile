@@ -10,7 +10,7 @@ ENV PORT=8080
 # Fallback Defaults to prevent startup crash
 ENV GOOGLE_CLOUD_PROJECT=nanobananacomic-482111
 ENV GOOGLE_PROJECT_ID=nanobananacomic-482111
-ENV VERTEX_LOCATION=asia-southeast2
+ENV VERTEX_LOCATION=us-central1
 ENV APP_ENV=production
 ENV SMART_CROP_SERVICE_URL=https://smart-crop-worker-dxsgrit6eq-et.a.run.app
 
