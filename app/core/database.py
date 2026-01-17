@@ -138,16 +138,9 @@ def get_engine():
                     "Either set DATABASE_URL (without /cloudsql path) or enable Cloud SQL Connector."
                 )
             
-            # Prevent socket-based URLs in Cloud Run (they won't work without Auth Proxy)
+            # Allow socket-based URLs in Cloud Run (standard behavior with --add-cloudsql-instances)
             if "/cloudsql/" in database_url:
-                logger.error(
-                    "Socket-based DATABASE_URL detected in standard mode. "
-                    "Enable Cloud SQL Connector instead: USE_CLOUD_SQL_CONNECTOR=true"
-                )
-                raise ValueError(
-                    "Socket-based DATABASE_URL requires Cloud SQL Connector. "
-                    "Set USE_CLOUD_SQL_CONNECTOR=true"
-                )
+                logger.info("Socket-based DATABASE_URL detected. Using standard socket connection.")
             logger.info(f"Database URL pattern: {database_url[:50]}...")
             
             try:

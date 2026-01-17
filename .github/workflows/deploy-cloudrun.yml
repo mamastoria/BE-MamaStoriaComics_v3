@@ -54,7 +54,7 @@ jobs:
             --service-account nanobanana-comic-sa@${{ env.PROJECT_ID }}.iam.gserviceaccount.com \
             --add-cloudsql-instances ${{ env.PROJECT_ID }}:${{ env.REGION }}:cloudsql-nanobanana-us \
             --memory 2Gi \
-            --timeout 600 \
+            --timeout 900 \
             --set-env-vars "APP_ENV=production,GOOGLE_CLOUD_PROJECT=${{ env.PROJECT_ID }},GOOGLE_PROJECT_ID=${{ env.PROJECT_ID }},GOOGLE_BUCKET_NAME=nanobanana-storage,VERTEX_LOCATION=${{ env.REGION }}" \
             --set-secrets "SECRET_KEY=SECRET_KEY:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,DATABASE_URL=DATABASE_URL:latest"
 
