@@ -81,6 +81,7 @@ class DokuClient:
         
         # Only include phone if it is not empty
         phone = customer_data.get("phone")
+        if phone:
             customer_payload["phone"] = phone
 
         body = {
