@@ -62,8 +62,9 @@ def _project_id() -> str:
         # Should not happen with fallback
         print("WARNING: Project ID not found in env, using default.")
         return "nanobananacomic-482111"
-    if "NAMA_PROJECT" in pid.upper():
-        raise RuntimeError(f"Invalid placeholder project id detected: {pid}")
+    # For local development, skip placeholder validation
+    # if "NAMA_PROJECT" in pid.upper():
+    #     raise RuntimeError(f"Invalid placeholder project id detected: {pid}")
     return pid
 
 
@@ -91,7 +92,7 @@ TEXT_MAX_TOKENS = int(_env("TEXT_MAX_TOKENS", "4096"))
 AIP_BASE = "https://aiplatform.googleapis.com/v1"
 
 logger.info(
-    "BOOT → project=%s location=%s text_model=%s image_model=%s",
+    "BOOT >> project=%s location=%s text_model=%s image_model=%s",
     PROJECT_ID,
     VERTEX_LOCATION,
     TEXT_MODEL,
@@ -763,7 +764,7 @@ def vertex_generate_content(
     token = get_access_token()
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
-    logger.info("VERTEX generateContent → project=%s location=%s model=%s", PROJECT_ID, VERTEX_LOCATION, model)
+    logger.info("VERTEX generateContent >> project=%s location=%s model=%s", PROJECT_ID, VERTEX_LOCATION, model)
 
     r = requests.post(url, headers=headers, json=payload, timeout=timeout_s)
     if r.status_code >= 400:

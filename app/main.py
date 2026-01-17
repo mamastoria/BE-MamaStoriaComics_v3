@@ -45,19 +45,15 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "http://localhost:5000",
-        "http://localhost:8000",
-        "http://localhost:8080",
-        "http://127.0.0.1:5500",
-        "http://localhost:5500",
-        "https://mamastoria.com",
-        "https://nanobananacomic-482111.web.app",
-        "https://nanobananacomic-482111.firebaseapp.com"
+        "http://localhost:8080", 
+        "http://localhost:5173",
+        "http://127.0.0.1:*",
+        "https://nanobanana-backend-1089713441636.us-central1.run.app",
     ],
-    allow_origin_regex=r"https://.*|http://localhost:\d+|http://127\.0\.0\.1:\d+",
-    allow_credentials=True,
+    allow_credentials=True,  # Allow credentials (cookies, auth headers)
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 
@@ -115,6 +111,78 @@ async def db_health_check():
 # Import routers
 from app.api import auth, master_data, users, comics, comments, likes, history, subscriptions, notifications, analytics, comic_generator, commissions, withdrawals, referrals, worker, comic_requests, downloads, config_app, follows, public, admin, jobs
 
+# Dev endpoint for testing (bypass auth in dev mode)
+@app.post("/api/v1/auth/dev-login", tags=["Development"])
+async def dev_login(credentials: dict):
+    """
+    Development mode login - bypasses DB and auth checks
+    Use for testing UI without full database setup
+    
+    Request body: {"identifier": "test@example.com", "password": "anypassword"}
+    """
+    if settings.APP_ENV != "development":
+        return {"ok": False, "error": "Dev endpoints only available in development mode"}
+    
+    # Return mock token and user for dev testing
+    mock_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiZXhwIjoyNzQ0NzExMTIwfQ.dev-token-for-testing"
+    
+    return {
+        "ok": True,
+        "message": "Dev login successful",
+        "data": {
+            "user": {
+                "id_users": "1",
+                "full_name": "Test User",
+                "phone_number": "+6287825785182",
+                "email": credentials.get("identifier", "test@mamastoria.com"),
+                "is_verified": True,
+                "created_at": "2024-01-01T00:00:00"
+            },
+            "tokens": {
+                "access_token": mock_token,
+                "refresh_token": mock_token,
+                "token_type": "bearer"
+            }
+        }
+    }
+
+@app.post("/api/v1/auth/google/dev-verify-token", tags=["Development"])
+async def dev_google_login(token_data: dict):
+    """
+    Development mode Google login - bypasses Google verification
+    Use for testing Google login UI without internet/Firebase
+    
+    Request body: {"id_token": "any-string"}
+    """
+    if settings.APP_ENV != "development":
+        return {"ok": False, "error": "Dev endpoints only available in development mode"}
+    
+    # Return mock token and Google user for dev testing
+    mock_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiZXhwIjoyNzQ0NzExMTIwfQ.dev-token-for-testing"
+    
+    return {
+        "ok": True,
+        "message": "Dev Google login successful",
+        "data": {
+            "user": {
+                "id_users": "1",
+                "full_name": "Google Test User",
+                "phone_number": "google_1234567890",
+                "email": "testuser@gmail.com",
+                "is_verified": True,
+                "login_method": "google",
+                "external_id": "dev-google-id-123",
+                "profile_photo_path": "https://via.placeholder.com/150",
+                "created_at": "2024-01-01T00:00:00"
+            },
+            "tokens": {
+                "access_token": mock_token,
+                "refresh_token": mock_token,
+                "token_type": "bearer"
+            }
+        }
+    }
+
 # Include routers
 app.include_router(admin.setup_router, tags=["Setup"])  # NO AUTH - for initial setup
 app.include_router(comic_generator.router, tags=["Comic Generator"]) # Mixed paths (api + viewer)
@@ -157,9 +225,9 @@ from pathlib import Path
 static_dir = Path(__file__).parent.parent / "static"
 if static_dir.exists():
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
-    print(f"✓ Static files mounted from {static_dir}")
+    print(f"[OK] Static files mounted from {static_dir}")
 else:
-    print(f"⚠ Static directory not found: {static_dir}")
+    print(f"[WARNING] Static directory not found: {static_dir}")
 
 
 if __name__ == "__main__":
