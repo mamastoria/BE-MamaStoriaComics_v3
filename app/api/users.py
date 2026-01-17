@@ -29,9 +29,19 @@ from app.schemas.user import (
 from app.services.google_storage_service import GoogleStorageService
 from app.utils.email import send_email
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 import uuid
 
 router = APIRouter()
+
+def _normalize_kredit_amount(amount: Decimal) -> int:
+    """Coerce Decimal kredit to whole-number int (reject fractional)."""
+    if amount != amount.to_integral_value():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Kredit harus bilangan bulat (contoh: 10 atau 10.00)."
+        )
+    return int(amount)
 
 
 @router.get("/profile", response_model=dict)
@@ -505,15 +515,17 @@ async def update_kredit(
     #         detail="Permission denied. Only admins can manually update credits."
     #     )
 
+    amount_int = _normalize_kredit_amount(kredit_data.amount)
+
     if kredit_data.operation == "add":
-        user.kredit += kredit_data.amount
+        user.kredit += amount_int
     elif kredit_data.operation == "subtract":
-        if user.kredit < kredit_data.amount:
+        if user.kredit < amount_int:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Insufficient credits"
             )
-        user.kredit -= kredit_data.amount
+        user.kredit -= amount_int
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -565,7 +577,8 @@ async def add_user_kredit(
         raise HTTPException(status_code=404, detail="User not found")
     
     # Add credits
-    user.kredit += kredit_data.amount
+    amount_int = _normalize_kredit_amount(kredit_data.amount)
+    user.kredit += amount_int
     
     db.add(user)
     db.commit()
@@ -577,7 +590,7 @@ async def add_user_kredit(
         "data": {
             "user_id": user.id_users,
             "current_kredit": user.kredit,
-            "added_amount": kredit_data.amount
+            "added_amount": amount_int
         }
     }
 
@@ -616,14 +629,16 @@ async def subtract_user_kredit(
         )
     
     # Check if user has enough credits
-    if user.kredit < kredit_data.amount:
+    amount_int = _normalize_kredit_amount(kredit_data.amount)
+
+    if user.kredit < amount_int:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Insufficient credits. Current balance: {user.kredit}, Required: {kredit_data.amount}"
+            detail=f"Insufficient credits. Current balance: {user.kredit}, Required: {amount_int}"
         )
     
     # Subtract credits from authenticated user's account
-    user.kredit -= kredit_data.amount
+    user.kredit -= amount_int
     
     db.add(user)
     db.commit()
@@ -634,7 +649,7 @@ async def subtract_user_kredit(
         "message": "Credits deducted successfully",
         "data": {
             "current_kredit": user.kredit,
-            "deducted_amount": kredit_data.amount
+            "deducted_amount": amount_int
         }
     }
 
