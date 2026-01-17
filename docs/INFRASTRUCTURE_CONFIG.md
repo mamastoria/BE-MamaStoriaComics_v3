@@ -13,8 +13,8 @@ This document contains the current cloud infrastructure configuration for MamaSt
 | Parameter             | Value                                                            |
 | --------------------- | ---------------------------------------------------------------- |
 | **Service Name**      | nanobanana-backend                                               |
-| **Region**            | asia-southeast2 (Jakarta)                                        |
-| **URL**               | https://nanobanana-backend-1089713441636.asia-southeast2.run.app |
+| **Region**            | us-central1 (Iowa)                                               |
+| **URL**               | https://nanobanana-backend-1089713441636.us-central1.run.app     |
 | **CPU**               | 4 vCPU                                                           |
 | **Memory**            | 4 GB                                                             |
 | **Concurrency**       | 100 requests/instance                                            |
@@ -70,9 +70,9 @@ This document contains the current cloud infrastructure configuration for MamaSt
 
 | Parameter         | Value                                                          |
 | ----------------- | -------------------------------------------------------------- |
-| **Instance Name** | cloudsql-nanobanana-dev                                        |
-| **Connection**    | nanobananacomic-482111:asia-southeast2:cloudsql-nanobanana-dev |
-| **Region**        | asia-southeast2                                                |
+| **Instance Name** | cloudsql-nanobanana-us                                         |
+| **Connection**    | nanobananacomic-482111:us-central1:cloudsql-nanobanana-us      |
+| **Region**        | us-central1                                                    |
 | **Type**          | PostgreSQL                                                     |
 
 ---
@@ -175,12 +175,16 @@ This document contains the current cloud infrastructure configuration for MamaSt
 
 ### nanobanana-backend
 
-| Variable               | Description                 |
-| ---------------------- | --------------------------- |
-| DATABASE_URL           | Cloud SQL connection string |
-| SECRET_KEY             | JWT signing key             |
-| SMART_CROP_SERVICE_URL | Smart crop function URL     |
-| VERTEX_LOCATION        | Vertex AI region            |
-| GCS_BUCKET_NAME        | Storage bucket name         |
+| Variable                   | Description                      |
+| -------------------------- | -------------------------------- |
+| USE_CLOUD_SQL_CONNECTOR    | Enable Cloud SQL connector       |
+| CLOUD_SQL_CONNECTION_NAME  | Cloud SQL instance connection    |
+| DB_USER                    | Database user                    |
+| DB_PASS                    | Database password                |
+| DB_NAME                    | Database name                    |
+| SECRET_KEY                 | JWT signing key                  |
+| SMART_CROP_SERVICE_URL     | Smart crop function URL          |
+| VERTEX_LOCATION            | Vertex AI region                 |
+| GCS_BUCKET_NAME            | Storage bucket name              |
 
 

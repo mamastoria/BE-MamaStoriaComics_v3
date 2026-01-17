@@ -2,8 +2,10 @@
 Comics API endpoints
 Comic CRUD operations, draft generation, publishing
 """
+import os
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, BackgroundTasks
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import or_
 import logging
 from typing import Optional, List, Dict
 from pydantic import BaseModel
@@ -12,6 +14,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user, get_optional_user
 from app.models.user import User
 from app.models.comic import Comic
+from app.models.master_data import Genre
 from app.schemas.comic import (
     CreateStoryIdea,
     UpdateSummary,
@@ -63,7 +66,21 @@ async def list_comics(
     
     # Apply filters
     if genre:
-        query = query.filter(Comic.genre.contains([genre]))
+        raw_genres = [item.strip() for item in genre.split(",") if item.strip()]
+        genre_names = []
+        genre_ids = [int(item) for item in raw_genres if item.isdigit()]
+
+        if genre_ids:
+            genre_rows = db.query(Genre).filter(Genre.id.in_(genre_ids)).all()
+            genre_names.extend([row.name for row in genre_rows])
+
+        for item in raw_genres:
+            if not item.isdigit():
+                genre_names.append(item)
+
+        if genre_names:
+            genre_filters = [Comic.genre.contains([name]) for name in genre_names]
+            query = query.filter(or_(*genre_filters))
     
     if style:
         query = query.filter(Comic.style == style)
@@ -202,18 +219,27 @@ async def create_story_and_attributes(
         db.commit()
         db.refresh(comic)
         
-        logger.info(f"Comic {comic.id} queued for script generation (style={style_name}, user={current_user.id})")
+        # Log and return immediately
+        logger.info(
+            "Comic %s created and queued for script generation (style=%s, user=%s)",
+            comic.id,
+            style_name,
+            current_user.id_users,
+        )
         
         response_data = ComicDetail.model_validate(comic).model_dump()
         
         # Return immediately without waiting for script generation
         return {
+            "status": "success",
             "ok": True,
-            "message": "Draft created! Script generation started in background.",
+            "message": "Draft created! Script generation queued.",
             "data": response_data,
-            "comic_id": comic.id,
-            "generation_status": "PENDING",
-            "estimated_time_seconds": 120  # 1-3 menit typical
+            "meta": {
+                "comic_id": comic.id,
+                "generation_status": "PENDING",
+                "estimated_time_seconds": 120
+            }
         }
     except ValueError as e:
         raise HTTPException(
@@ -625,7 +651,9 @@ async def get_comic_by_id(
     try:
         data = ComicWithPanels.model_validate(comic).model_dump()
         return {
+            "status": "success",
             "ok": True,
+            "message": "Comic retrieved successfully",
             "data": data
         }
     except Exception as e:
@@ -729,21 +757,26 @@ async def get_draft_status(
             elif isinstance(g, dict):
                 genres_data.append({"id": g.get("id", i + 1), "name": g.get("name", str(g))})
     
+    # Build response matching frontend ComicDraft model
     return {
+        "status": "success",
         "ok": True,
+        "message": "Draft retrieved successfully",
         "data": {
             "id": comic.id,
-            "status": raw_status.upper(),  # Return actual status like SCRIPT_READY
+            "status": frontend_status,  # Return enum like "pending", "script_ready"
             "summary": detailed_summary,
             "title": comic.title,
-            "page_count": comic.page_count,  # snake_case for frontend
-            "draft_job_id": comic.draft_job_id,  # snake_case for frontend
-            "is_ready_to_generate": raw_status.upper() == "SCRIPT_READY",  # snake_case
+            "pageCount": comic.page_count,  # camelCase for Dart
+            "draftJobId": comic.draft_job_id,  # camelCase for Dart
+            "isReadyToGenerate": raw_status.upper() == "SCRIPT_READY",  # camelCase
             "panels": panels_data,
             "style": {"id": 1, "name": comic.style} if comic.style else None,
             "character": None,  # TODO: Add character data
             "genres": genres_data,
             "backgrounds": [],  # TODO: Add backgrounds data
+        },
+        "meta": {
             "progress": 0,
             "stage": raw_status,
             "error": None,
@@ -1213,7 +1246,7 @@ async def generate_comic_video(
     try:
         from app.services.video_queue import queue_video_generation
         
-        task_name = queue_video_generation(comic.id, panel_data)
+        task_name = queue_video_generation(comic.id, panel_data, user_id=current_user.id_users)
         
         if task_name:
             logger.info(f"Video generation queued to Cloud Tasks: {task_name}")
@@ -1223,6 +1256,7 @@ async def generate_comic_video(
                 "message": "Video generation queued to dedicated worker",
                 "data": {
                     "comic_id": id,
+                    "user_id": current_user.id_users,
                     "status": "QUEUED",
                     "task_id": task_name.split("/")[-1] if "/" in task_name else task_name,
                     "panels_count": len(panel_data),
@@ -1751,3 +1785,128 @@ async def debug_check_video(
         "title": comic.title,
         "preview_video_url": comic.preview_video_url
     }
+
+
+@router.get("/comics/video-queue/status", response_model=dict)
+async def check_video_queue_status(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Check if current user has any videos in the processing queue.
+    
+    Returns:
+    - List of user's comics that are currently in the video generation queue
+    - Each item includes: comic_id, title, user_id, queued_at status
+    
+    This endpoint helps users see which of their videos are waiting to be processed.
+    """
+    try:
+        from google.cloud import tasks_v2
+        from google.api_core import retry
+        import json
+        
+        # Initialize Cloud Tasks client
+        client = tasks_v2.CloudTasksClient()
+        
+        # Get the queue path - using us-central1 as we migrated the queue there
+        project = os.getenv("GOOGLE_PROJECT_ID", "nanobananacomic-482111")
+        queue = "video-generation-queue"
+        location = "us-central1"  # Queue is now in us-central1
+        
+        parent = client.queue_path(project, location, queue)
+        
+        # Get all tasks in the queue
+        try:
+            tasks_response = client.list_tasks(request={"parent": parent})
+            tasks = list(tasks_response)
+        except Exception as e:
+            logger.warning(f"Could not fetch tasks from Cloud Tasks: {e}")
+            tasks = []
+        
+        # Filter tasks that belong to current user
+        user_videos_in_queue = []
+        
+        for task in tasks:
+            try:
+                # Extract payload from the task
+                if hasattr(task, 'http_request') and task.http_request:
+                    http_body = task.http_request.body
+                    if http_body:
+                        if isinstance(http_body, bytes):
+                            payload = json.loads(http_body.decode('utf-8'))
+                        else:
+                            payload = json.loads(http_body)
+                        
+                        # Check if this task belongs to current user
+                        task_user_id = payload.get("user_id")
+                        if task_user_id == current_user.id_users:
+                            comic_id = payload.get("comic_id")
+                            
+                            # Get comic details
+                            comic = db.query(Comic).filter(Comic.id == comic_id).first()
+                            if comic:
+                                user_videos_in_queue.append({
+                                    "comic_id": comic_id,
+                                    "title": comic.title or f"Comic #{comic_id}",
+                                    "user_id": task_user_id,
+                                    "status": "QUEUED",
+                                    "queued_at": task.create_time.isoformat() if task.create_time else None,
+                                    "task_id": task.name.split("/")[-1] if "/" in task.name else task.name,
+                                    "panels_count": len(comic.panels) if hasattr(comic, 'panels') and comic.panels else 0
+                                })
+            except Exception as e:
+                logger.warning(f"Could not parse task payload: {e}")
+                continue
+        
+        return {
+            "ok": True,
+            "data": {
+                "user_id": current_user.id_users,
+                "videos_in_queue": user_videos_in_queue,
+                "total_in_queue": len(user_videos_in_queue),
+                "queue_location": location
+            }
+        }
+        
+    except Exception as e:
+        logger.exception(f"Error checking video queue status: {e}")
+        # Return empty list if there's an error, don't fail the request
+        return {
+            "ok": True,
+            "data": {
+                "user_id": current_user.id_users,
+                "videos_in_queue": [],
+                "total_in_queue": 0,
+                "error": str(e)
+            }
+        }
+
+
+@router.post("/debug/process-jobs", response_model=dict)
+async def debug_process_jobs(
+    db: Session = Depends(get_db)
+):
+    """
+    DEBUG ONLY: Manually trigger job processor for script generation.
+    This endpoint should be removed in production.
+    Normally this runs in background, but this is for testing.
+    """
+    try:
+        from app.services.job_processor import process_script_jobs
+        
+        logger.info("[DEBUG] Manually triggering script job processor...")
+        result = process_script_jobs(db)
+        
+        return {
+            "status": "success",
+            "message": "Job processor executed",
+            "result": result
+        }
+    except Exception as e:
+        logger.exception(f"[DEBUG] Job processor error: {e}")
+        return {
+            "status": "error",
+            "message": str(e),
+            "error": str(e)
+        }

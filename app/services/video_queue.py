@@ -13,11 +13,11 @@ logger = logging.getLogger(__name__)
 # Cloud Tasks settings
 # Priority: GCP_PROJECT -> GOOGLE_CLOUD_PROJECT -> default
 PROJECT_ID = os.getenv("GCP_PROJECT", os.getenv("GOOGLE_CLOUD_PROJECT", "nanobananacomic-482111"))
-LOCATION = os.getenv("GCP_REGION", "asia-southeast2")
+LOCATION = os.getenv("GCP_REGION", "us-central1")
 QUEUE_NAME = "video-generation-queue"
 VIDEO_WORKER_URL = os.getenv(
     "VIDEO_WORKER_URL", 
-    "https://video-worker-dxsgrit6eq-et.a.run.app/generate"
+    "https://video-worker-us-1089713441636.us-central1.run.app/generate"
 )
 SERVICE_ACCOUNT_EMAIL = os.getenv(
     "CLOUD_TASKS_SA", 
@@ -25,9 +25,14 @@ SERVICE_ACCOUNT_EMAIL = os.getenv(
 )
 
 
-def queue_video_generation(comic_id: int, panels_data: List[Dict[str, Any]]) -> Optional[str]:
+def queue_video_generation(comic_id: int, panels_data: List[Dict[str, Any]], user_id: Optional[int] = None) -> Optional[str]:
     """
     Queue a video generation job to Cloud Tasks.
+    
+    Args:
+        comic_id: ID of the comic to generate video for
+        panels_data: List of panel data with image URLs and narration
+        user_id: Optional user ID for tracking which user's video is being processed
     """
     try:
         from google.cloud import tasks_v2
@@ -38,9 +43,10 @@ def queue_video_generation(comic_id: int, panels_data: List[Dict[str, Any]]) -> 
         parent = client.queue_path(PROJECT_ID, LOCATION, QUEUE_NAME)
         logger.info(f"Targeting Cloud Tasks Queue: {parent}")
         
-        # Build the request payload
+        # Build the request payload with user_id
         payload = {
             "comic_id": comic_id,
+            "user_id": user_id,
             "panels": panels_data
         }
         

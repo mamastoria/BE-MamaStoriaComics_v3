@@ -21,6 +21,15 @@ from app.models.comic import Comic
 from app.models.comic_panel import ComicPanel
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+# Add verbose logging handler if not already added
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('[%(asctime)s] %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
 
 # Configuration
 JOB_CONFIG = {
@@ -94,13 +103,16 @@ def process_script_jobs(db: Session) -> Dict[str, Any]:
     worker_id = generate_worker_id("script")
     limit = JOB_CONFIG["script"]["max_parallel"]
     
-    logger.info(f"[{worker_id}] Starting script job processing (max {limit})...")
+    logger.info(f"[{worker_id}] ========== STARTING SCRIPT JOB PROCESSING ==========")
+    logger.info(f"[{worker_id}] Max parallel jobs: {limit}")
     
     # Get pending jobs
+    logger.debug(f"[{worker_id}] Querying database for pending jobs...")
     jobs = get_pending_script_jobs(db, limit)
+    logger.info(f"[{worker_id}] Found {len(jobs) if jobs else 0} pending jobs")
     
     if not jobs:
-        logger.info(f"[{worker_id}] No pending script jobs found")
+        logger.info(f"[{worker_id}] No pending script jobs found - exiting")
         return {"processed": 0, "success": 0, "failed": 0}
     
     results = {"processed": 0, "success": 0, "failed": 0, "jobs": []}
@@ -109,14 +121,19 @@ def process_script_jobs(db: Session) -> Dict[str, Any]:
         job_result = {"comic_id": comic.id, "status": "pending"}
         
         try:
+            logger.info(f"[{worker_id}] *** Processing comic #{comic.id} ***")
+            logger.debug(f"[{worker_id}] Story idea: {comic.story_idea[:50]}...")
+            logger.debug(f"[{worker_id}] Style: {comic.style}, Genres: {comic.genre}")
+            
             # Lock the job
             comic.locked_by = worker_id
             comic.locked_at = datetime.now()
             comic.draft_job_status = 'GENERATING_SCRIPT'
             comic.script_started_at = datetime.now()
             db.commit()
+            logger.debug(f"[{worker_id}] Comic #{comic.id} locked and status set to GENERATING_SCRIPT")
             
-            logger.info(f"[{worker_id}] Processing script for comic #{comic.id}")
+            logger.info(f"[{worker_id}] Starting script generation for comic #{comic.id}...")
             
             # Import core and generate script
             import sys
@@ -128,14 +145,17 @@ def process_script_jobs(db: Session) -> Dict[str, Any]:
             import core
             
             # Get style and genre info
+            logger.debug(f"[{worker_id}] Loading style and genre information...")
             from app.models.master_data import Style
             style = db.query(Style).filter(Style.id == int(comic.style or 1)).first()
             style_id_str = comic.style or "1"
             genre_ids = comic.genre if isinstance(comic.genre, list) else ["1"]
+            logger.debug(f"[{worker_id}] Style ID: {style_id_str}, Genre IDs: {genre_ids}")
 
             # Map DB values to core style/nuance keys for consistency
             try:
                 from app.models.master_data import Style, Genre
+                logger.debug(f"[{worker_id}] Mapping style and genres...")
 
                 style_name = None
                 if str(style_id_str).isdigit() and str(style_id_str) not in core.COMIC_STYLES:
@@ -157,31 +177,47 @@ def process_script_jobs(db: Session) -> Dict[str, Any]:
                     nuance_ids=[str(g) for g in genre_ids],
                     nuance_names=genre_names,
                 )
-            except Exception:
+                logger.debug(f"[{worker_id}] Mapped style: {mapped_style_id}, genres: {mapped_genres}")
+            except Exception as e:
+                logger.error(f"[{worker_id}] Error mapping style/genre: {e}")
                 mapped_style_id = str(style_id_str or "1")
                 mapped_genres = [str(g) for g in genre_ids]
             
             # Generate script
+            logger.info(f"[{worker_id}] === CALLING core.make_two_part_script() ===")
+            logger.info(f"[{worker_id}] Story: {comic.story_idea}")
+            logger.info(f"[{worker_id}] Style: {mapped_style_id}")
+            logger.info(f"[{worker_id}] Genres: {mapped_genres}")
+            
+            logger.info(f"[{worker_id}] Calling core.make_two_part_script()...")
             script = core.make_two_part_script(
                 comic.story_idea or "A short comic story",
                 mapped_style_id,
                 mapped_genres
             )
+            logger.info(f"[{worker_id}] Script generation completed!")
+            logger.debug(f"[{worker_id}] Script keys: {script.keys() if isinstance(script, dict) else 'not a dict'}")
             
             # Clear existing panels
+            logger.debug(f"[{worker_id}] Clearing existing panels...")
             db.query(ComicPanel).filter(ComicPanel.comic_id == comic.id).delete()
             
             # Save script as draft panels
             panel_counter = 0
             parts = script.get("parts", [])
+            logger.info(f"[{worker_id}] Found {len(parts)} parts in script")
             
-            for part in parts:
+            for part_idx, part in enumerate(parts):
                 if not part or not isinstance(part, dict):
+                    logger.debug(f"[{worker_id}] Skipping invalid part {part_idx}")
                     continue
                 part_no = int(part.get("part_no", 0))
                 if part_no not in (1, 2):
+                    logger.debug(f"[{worker_id}] Skipping part with invalid part_no: {part_no}")
                     continue
+                    
                 panels_script = part.get("panels", [])
+                logger.debug(f"[{worker_id}] Part {part_no} has {len(panels_script)} panels")
                 
                 for i, panel_data in enumerate(panels_script):
                     panel = ComicPanel(
@@ -200,6 +236,8 @@ def process_script_jobs(db: Session) -> Dict[str, Any]:
                     db.add(panel)
                     panel_counter += 1
             
+            logger.info(f"[{worker_id}] Created {panel_counter} panels total")
+            
             # Extract metadata
             global_data = script.get("global", {})
             ai_title = (global_data.get("comic_title") or script.get("suggested_title") or "").strip()
@@ -213,15 +251,18 @@ def process_script_jobs(db: Session) -> Dict[str, Any]:
             comic.title = ai_title or (comic.story_idea[:100] if comic.story_idea else "Untitled")
             
             db.commit()
+            logger.info(f"[{worker_id}] Database committed for comic #{comic.id}")
             
             results["success"] += 1
             job_result["status"] = "success"
             job_result["panels"] = panel_counter
             
-            logger.info(f"[{worker_id}] Comic #{comic.id} script generated successfully ({panel_counter} panels)")
+            logger.info(f"[{worker_id}] ✓ Comic #{comic.id} script generated successfully ({panel_counter} panels)")
+            logger.info(f"[{worker_id}] Status: {comic.draft_job_status}")
             
         except Exception as e:
-            logger.error(f"[{worker_id}] Script generation failed for comic #{comic.id}: {e}")
+            logger.error(f"[{worker_id}] ✗ Script generation FAILED for comic #{comic.id}")
+            logger.exception(f"[{worker_id}] Exception details: {e}")
             
             # Update failure status
             comic.draft_job_status = 'SCRIPT_FAILED'
@@ -239,7 +280,8 @@ def process_script_jobs(db: Session) -> Dict[str, Any]:
         results["processed"] += 1
         results["jobs"].append(job_result)
     
-    logger.info(f"[{worker_id}] Script processing complete: {results['success']} success, {results['failed']} failed")
+    logger.info(f"[{worker_id}] ========== SCRIPT PROCESSING COMPLETE ==========")
+    logger.info(f"[{worker_id}] Results: {results['processed']} processed, {results['success']} success, {results['failed']} failed")
     return results
 
 
