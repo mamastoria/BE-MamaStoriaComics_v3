@@ -4,21 +4,21 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:  # Allows manual trigger
+  workflow_dispatch: # Allows manual trigger
 
 env:
   PROJECT_ID: nanobananacomic-482111
   SERVICE_NAME: nanobanana-backend
-  REGION: asia-southeast2
+  REGION: us-central1
 
 jobs:
   deploy:
     name: Deploy to Cloud Run
     runs-on: ubuntu-latest
-    
+
     permissions:
       contents: read
-      id-token: write  # Required for Workload Identity Federation
+      id-token: write # Required for Workload Identity Federation
 
     steps:
       - name: Checkout code
@@ -52,7 +52,9 @@ jobs:
             --platform managed \
             --allow-unauthenticated \
             --service-account nanobanana-comic-sa@${{ env.PROJECT_ID }}.iam.gserviceaccount.com \
-            --add-cloudsql-instances ${{ env.PROJECT_ID }}:${{ env.REGION }}:cloudsql-nanobanana-dev \
+            --add-cloudsql-instances ${{ env.PROJECT_ID }}:${{ env.REGION }}:cloudsql-nanobanana-us \
+            --memory 2Gi \
+            --timeout 600 \
             --set-env-vars "APP_ENV=production,GOOGLE_CLOUD_PROJECT=${{ env.PROJECT_ID }},GOOGLE_PROJECT_ID=${{ env.PROJECT_ID }},GOOGLE_BUCKET_NAME=nanobanana-storage,VERTEX_LOCATION=${{ env.REGION }}" \
             --set-secrets "SECRET_KEY=SECRET_KEY:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,DATABASE_URL=DATABASE_URL:latest"
 
