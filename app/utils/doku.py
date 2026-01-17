@@ -73,6 +73,16 @@ class DokuClient:
         timestamp = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
         
         # Construct Request Body
+        customer_payload = {
+            "id": str(customer_data.get("id", "")),
+            "name": customer_data.get("name", "Customer"),
+            "email": customer_data.get("email", "nomail@example.com")
+        }
+        
+        # Only include phone if it is not empty
+        phone = customer_data.get("phone")
+            customer_payload["phone"] = phone
+
         body = {
             "order": {
                 "amount": amount,
@@ -91,12 +101,7 @@ class DokuClient:
             "payment": {
                 "payment_due_date": 60 # 60 minutes
             },
-            "customer": {
-                "id": str(customer_data.get("id", "")),
-                "name": customer_data.get("name", "Customer"),
-                "email": customer_data.get("email", "nomail@example.com"),
-                "phone": customer_data.get("phone", "")
-            }
+            "customer": customer_payload
         }
         
         json_body = json.dumps(body)
@@ -119,16 +124,21 @@ class DokuClient:
                 timeout=10
             )
             
-            response_data = response.json()
+            response_data = None
+            try:
+                response_data = response.json()
+            except:
+                pass
             
-            if response.status_code == 200 and "response" in response_data:
+            if response.status_code == 200 and response_data and "response" in response_data:
                 return response_data["response"]["payment"]["url"]
-            elif "message" in response_data:
+            elif response_data and "message" in response_data:
                  print(f"Doku Error: {response_data}")
                  raise Exception(f"Doku API Error: {response_data['message'][0] if isinstance(response_data['message'], list) else response_data['message']}")
             else:
                  print(f"Doku Unknown Response: {response.text}")
-                 raise Exception("Unknown error from Doku Payment Gateway")
+                 error_msg = response.text if response.text else "No response body"
+                 raise Exception(f"Unknown error from Doku Payment Gateway. Status: {response.status_code}, Response: {error_msg}")
                  
         except Exception as e:
             print(f"Doku Request Exception: {str(e)}")
