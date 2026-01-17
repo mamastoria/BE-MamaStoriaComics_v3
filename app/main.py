@@ -181,29 +181,53 @@ async def dev_google_login(token_data: dict):
     }
 
 # Include routers
-app.include_router(admin.setup_router, tags=["Setup"])  # NO AUTH - for initial setup
-app.include_router(comic_generator.router, tags=["Comic Generator"]) # Mixed paths (api + viewer)
-app.include_router(public.router, prefix="/api/v1/public", tags=["Public"]) # Public endpoints without auth
-app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
-app.include_router(users.router, prefix="/api/v1", tags=["Users"])
-app.include_router(master_data.router, prefix="/api/v1", tags=["Master Data"])
-app.include_router(history.router, prefix="/api/v1", tags=["History"])
-app.include_router(comics.router, prefix="/api/v1", tags=["Comics"])
-app.include_router(comments.router, prefix="/api/v1", tags=["Comments"])
-app.include_router(likes.router, prefix="/api/v1", tags=["Likes"])
-app.include_router(subscriptions.router, prefix="/api/v1", tags=["Subscriptions"])
-app.include_router(notifications.router, prefix="/api/v1", tags=["Notifications"])
-app.include_router(analytics.router, prefix="/api/v1", tags=["Analytics"])
-app.include_router(commissions.router, prefix="/api/v1", tags=["Commissions"])
-app.include_router(withdrawals.router, prefix="/api/v1", tags=["Withdrawals"])
-app.include_router(referrals.router, prefix="/api/v1", tags=["Referrals"])
-app.include_router(comic_requests.router, prefix="/api/v1", tags=["Comic Requests"])
-app.include_router(downloads.router, prefix="/api/v1", tags=["Downloads"])
-app.include_router(config_app.router, prefix="/api/v1", tags=["Configs"])
-app.include_router(follows.router, prefix="/api/v1", tags=["Follows"])
-app.include_router(worker.router, prefix="/tasks", tags=["Worker"])
-app.include_router(jobs.router, tags=["Job Queue"])  # Database-driven job queue
-app.include_router(admin.router, tags=["Admin"])  # Admin endpoints with prefix in router
+try:
+    from app.api import auth, master_data, users, comics, comments, likes, history, subscriptions, notifications, analytics, comic_generator, commissions, withdrawals, referrals, worker, comic_requests, downloads, config_app, follows, public, admin, jobs
+
+    app.include_router(admin.setup_router, tags=["Setup"])  # NO AUTH - for initial setup
+    app.include_router(comic_generator.router, tags=["Comic Generator"]) # Mixed paths (api + viewer)
+    app.include_router(public.router, prefix="/api/v1/public", tags=["Public"]) # Public endpoints without auth
+    app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
+    app.include_router(users.router, prefix="/api/v1", tags=["Users"])
+    app.include_router(master_data.router, prefix="/api/v1", tags=["Master Data"])
+    app.include_router(history.router, prefix="/api/v1", tags=["History"])
+    app.include_router(comics.router, prefix="/api/v1", tags=["Comics"])
+    app.include_router(comments.router, prefix="/api/v1", tags=["Comments"])
+    app.include_router(likes.router, prefix="/api/v1", tags=["Likes"])
+    app.include_router(subscriptions.router, prefix="/api/v1", tags=["Subscriptions"])
+    app.include_router(notifications.router, prefix="/api/v1", tags=["Notifications"])
+    app.include_router(analytics.router, prefix="/api/v1", tags=["Analytics"])
+    app.include_router(commissions.router, prefix="/api/v1", tags=["Commissions"])
+    app.include_router(withdrawals.router, prefix="/api/v1", tags=["Withdrawals"])
+    app.include_router(referrals.router, prefix="/api/v1", tags=["Referrals"])
+    app.include_router(comic_requests.router, prefix="/api/v1", tags=["Comic Requests"])
+    app.include_router(downloads.router, prefix="/api/v1", tags=["Downloads"])
+    app.include_router(config_app.router, prefix="/api/v1", tags=["Configs"])
+    app.include_router(follows.router, prefix="/api/v1", tags=["Follows"])
+    app.include_router(worker.router, prefix="/tasks", tags=["Worker"])
+    app.include_router(jobs.router, tags=["Job Queue"])
+    app.include_router(admin.router, tags=["Admin"])
+
+except Exception as e:
+    import traceback
+    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    print("CRITICAL ERROR DURING STARTUP - ROUTER IMPORT FAILED")
+    print(str(e))
+    traceback.print_exc()
+    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    
+    # Define fallback endpoints to prevent container crash
+    @app.get("/api/v1/{rest_of_path:path}")
+    def fallback_api(rest_of_path: str):
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": "Critical Startup Error",
+                "detail": str(e),
+                "type": type(e).__name__
+            }
+        )
 
 
 @app.on_event("startup")
