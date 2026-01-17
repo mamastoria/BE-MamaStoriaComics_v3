@@ -91,5 +91,54 @@ class Settings(BaseSettings):
         extra = "ignore"
 
 
-# Create global settings instance
-settings = Settings()
+# Create global settings instance with error handling
+try:
+    settings = Settings()
+except Exception as e:
+    import traceback
+    import sys
+    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    print("CRITICAL CONFIG ERROR - FAILED TO LOAD SETTINGS")
+    print(f"Error: {e}")
+    traceback.print_exc()
+    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    
+    # Fallback/Dummy settings to prevent container from crashing immediately
+    # This allows the app to start so we can see the error logs in Cloud Run
+    class DummySettings:
+        APP_NAME = "CRASHED_APP"
+        APP_ENV = "error"
+        SECRET_KEY = "dummy_key_for_startup_investigation"
+        DEBUG = True
+        DATABASE_URL = None
+        JWT_SECRET_KEY = "dummy_jwt_key"
+        GOOGLE_PROJECT_ID = "dummy_project_id"
+        VERTEX_LOCATION = "us-central1"
+        SMTP_SERVER = "localhost"
+        SMTP_PORT = 1025
+        SMTP_USERNAME = "admin"
+        SMTP_PASSWORD = "password"
+        DOKU_CLIENT_ID = "dummy"
+        DOKU_SECRET_KEY = "dummy"
+        DOKU_NOTIFICATION_SECRET = "dummy"
+        DOKU_IS_PRODUCTION = False
+        USE_MOCK_PAYMENT = True
+        CORS_ORIGINS = "*"
+        MAX_UPLOAD_SIZE = 10000000
+        DEFAULT_PAGE_SIZE = 20
+        MAX_PAGE_SIZE = 100
+        
+        @property
+        def cors_origins_list(self):
+            return ["*"]
+            
+        @property
+        def allowed_image_extensions_list(self):
+            return ["jpg", "png"]
+            
+        @property
+        def allowed_audio_extensions_list(self):
+            return ["mp3"]
+
+    settings = DummySettings()
+    print("WARNING: USED DUMMY SETTINGS - APP WILL NOT FUNCTION CORRECTLY")
