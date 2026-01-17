@@ -6,6 +6,8 @@ steps:
         "build",
         "-t",
         "us-central1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/nanobanana-backend:latest",
+        "-t",
+        "us-central1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/nanobanana-backend:$COMMIT_SHA",
         ".",
       ]
 
