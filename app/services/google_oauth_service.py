@@ -12,6 +12,7 @@ from firebase_admin import credentials as firebase_credentials
 from firebase_admin import auth as firebase_auth
 
 from app.models.user import User
+from decimal import Decimal
 from app.core.config import settings
 from app.core.security import generate_verification_code
 from app.services.auth_service import AuthService
@@ -181,8 +182,8 @@ class GoogleOAuthService:
             referral_code_id=AuthService.generate_referral_code(),
             profile_photo_path=google_info.get('picture'),
             role='user',
-            kredit=0,
-            balance=0,
+            kredit=Decimal("0.00"),
+            balance=Decimal("0.00"),
             publish_quota=5  # Default quota
         )
         

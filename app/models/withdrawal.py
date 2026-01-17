@@ -1,7 +1,8 @@
 """
 Withdrawal model - SQLAlchemy ORM
 """
-from sqlalchemy import Column, BigInteger, Integer, String, DateTime
+from sqlalchemy import Column, BigInteger, Integer, String, DateTime, Numeric
+from decimal import Decimal
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
@@ -19,7 +20,7 @@ class Withdrawal(Base):
     id_user = Column(Integer, nullable=False)
 
     # Withdrawal details
-    amount = Column(BigInteger, nullable=False)
+    amount = Column(Numeric(12, 2), default=Decimal("0.00"), nullable=False)
     status = Column(String(255), nullable=False)
     
     # Bank Details

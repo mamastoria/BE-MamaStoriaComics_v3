@@ -5,6 +5,7 @@ List and add withdrawals
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import Optional
+from decimal import Decimal
 from datetime import date
 from sqlalchemy.sql import func
 
@@ -49,7 +50,9 @@ async def list_withdrawals(
 
     # Calculate total withdrawal for the user (before pagination)
     from sqlalchemy import func
-    total_withdrawal = db.query(func.sum(Withdrawal.amount)).filter(Withdrawal.id_user == id_user).scalar() or 0
+    total_withdrawal = db.query(func.sum(Withdrawal.amount)).filter(
+        Withdrawal.id_user == id_user
+    ).scalar() or Decimal("0.00")
 
     # Paginate
     page, per_page = get_pagination_params(page, per_page)

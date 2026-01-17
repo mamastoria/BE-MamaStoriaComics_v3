@@ -4,6 +4,7 @@ Common/Shared Pydantic schemas
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Any
 from datetime import datetime
+from decimal import Decimal
 
 
 class ResponseBase(BaseModel):
@@ -65,4 +66,4 @@ class RefreshTokenRequest(BaseModel):
 
 
 # Config for all schemas
-ORMConfig = ConfigDict(from_attributes=True)
+ORMConfig = ConfigDict(from_attributes=True, json_encoders={Decimal: lambda v: float(v)})

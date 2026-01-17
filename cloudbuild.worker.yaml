@@ -1,0 +1,11 @@
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "build"
+      - "-f"
+      - "Dockerfile.worker"
+      - "-t"
+      - "us-central1-docker.pkg.dev/nanobananacomic-482111/cloud-run-source-deploy/nanobanana-worker-us:latest"
+      - "."
+images:
+  - "us-central1-docker.pkg.dev/nanobananacomic-482111/cloud-run-source-deploy/nanobanana-worker-us:latest"

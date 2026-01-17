@@ -2,6 +2,7 @@
 Subscription and Payment models
 """
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, BigInteger, Text, Numeric
+from decimal import Decimal
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
@@ -18,7 +19,7 @@ class SubscriptionPackage(Base):
     price = Column(BigInteger, nullable=False)  # in cents/smallest currency unit
     duration_days = Column(Integer, nullable=False)
     publish_quota = Column(Integer, nullable=False)  # Number of comics can publish
-    bonus_credits = Column(Integer, default=0)
+    bonus_credits = Column(Numeric(12, 2), default=Decimal("0.00"))
     
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
@@ -74,7 +75,7 @@ class PaymentTransaction(Base):
     subscription_id = Column(Integer, ForeignKey('subscriptions.id'), nullable=True)
     
     invoice_number = Column(String, unique=True, nullable=False, index=True)
-    amount = Column(BigInteger, nullable=False)
+    amount = Column(Numeric(12, 2), default=Decimal("0.00"), nullable=False)
     payment_method = Column(String, nullable=True)
     
     status = Column(String, nullable=False, default='pending')  # pending, success, failed, expired
@@ -104,7 +105,7 @@ class Transaction(Base):
     user_id = Column(Integer, ForeignKey('users.id_users', ondelete='CASCADE'), nullable=False, index=True)
     
     type = Column(String, nullable=False)  # credit, debit, referral_bonus, withdrawal
-    amount = Column(BigInteger, nullable=False)
+    amount = Column(Numeric(12, 2), default=Decimal("0.00"), nullable=False)
     description = Column(Text, nullable=True)
     reference_id = Column(String, nullable=True)  # Reference to related record
     

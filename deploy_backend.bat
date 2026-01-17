@@ -3,13 +3,13 @@ echo ===================================================
 echo  MamaStoria Backend Deployment Script
 echo ===================================================
 echo.
-echo Deploying to Cloud Run (asia-southeast2)...
+echo Deploying to Cloud Run (us-central1)...
 
 cd /d d:\laragon\www\BE_MamaStoria_v3
 
 echo.
 echo Deploying from source (Cloud Build auto-detect)...
-call gcloud run deploy nanobanana-backend --source . --region asia-southeast2 --allow-unauthenticated --quiet
+call gcloud run deploy nanobanana-backend --source . --region us-central1 --allow-unauthenticated --quiet
 
 echo.
 echo Waiting 10 seconds for service to stabilize...
@@ -17,7 +17,7 @@ timeout /t 10 /nobreak
 
 echo.
 echo Patching Database (Adding timing columns)...
-curl -X POST "https://nanobanana-backend-1089713441636.asia-southeast2.run.app/api/v1/admin/db-patch-timing" -H "Content-Type: application/json"
+curl -X POST "https://nanobanana-backend-1089713441636.us-central1.run.app/api/v1/admin/db-patch-timing" -H "Content-Type: application/json"
 
 echo.
 echo ===================================================

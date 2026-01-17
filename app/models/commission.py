@@ -1,7 +1,8 @@
 """
 Commission model - SQLAlchemy ORM
 """
-from sqlalchemy import Column, BigInteger, Integer, Text, DateTime, ForeignKey, String
+from sqlalchemy import Column, BigInteger, Integer, Text, DateTime, ForeignKey, String, Numeric
+from decimal import Decimal
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
@@ -19,7 +20,7 @@ class Commission(Base):
     id_user = Column(BigInteger, ForeignKey("users.id_users"), nullable=False)
 
     # Commission details
-    kredit = Column(Integer, nullable=True)
+    kredit = Column(Numeric(12, 2), default=Decimal("0.00"), nullable=True)
     type = Column(String, nullable=True)
     keterangan = Column(Text, nullable=True)
 

@@ -22,7 +22,7 @@ Buka link berikut:
    - **Title**: `API Backend Health Check`
    - **Protocol**: HTTPS
    - **Resource Type**: URL
-   - **Hostname**: `nanobanana-backend-1089713441636.asia-southeast2.run.app`
+   - **Hostname**: `nanobanana-backend-1089713441636.us-central1.run.app`
    - **Path**: `/health`
    - **Check Frequency**: 5 minutes
    - **Regions**: Asia Pacific, USA
@@ -213,7 +213,7 @@ Untuk test apakah alert bekerja:
 # gcloud run services update nanobanana-backend --min-instances=0 --max-instances=0
 
 # Atau generate error dengan request invalid
-curl -X POST https://nanobanana-backend-1089713441636.asia-southeast2.run.app/api/v1/test-error
+curl -X POST https://nanobanana-backend-1089713441636.us-central1.run.app/api/v1/test-error
 
 # Check Slack channel dalam 5-10 menit
 ```

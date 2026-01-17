@@ -8,7 +8,7 @@ from sqlalchemy import create_engine, text
 import bcrypt
 
 # Database connection
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+pg8000://postgres:your_password@/nanobanana_db?unix_sock=/cloudsql/nanobananacomic-482111:asia-southeast2:cloudsql-nanobanana-dev/.s.PGSQL.5432")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+pg8000://postgres:your_password@/nanobanana_db?unix_sock=/cloudsql/nanobananacomic-482111:us-central1:cloudsql-nanobanana-us/.s.PGSQL.5432")
 
 engine = create_engine(DATABASE_URL)
 

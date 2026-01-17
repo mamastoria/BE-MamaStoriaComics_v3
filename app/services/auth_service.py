@@ -10,6 +10,7 @@ import random
 import string
 
 from app.models.user import User
+from decimal import Decimal
 from app.models.referral import Referral
 from app.core.security import (
     verify_password,
@@ -100,8 +101,8 @@ class AuthService:
             verification_code=verification_code,
             last_verification_sent_at=datetime.now(timezone.utc),
             is_verified=False,
-            kredit=1,
-            balance=0,
+            kredit=Decimal("1.00"),
+            balance=Decimal("0.00"),
             publish_quota=0
         )
 

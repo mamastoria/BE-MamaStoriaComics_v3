@@ -4,6 +4,7 @@ Commission Pydantic schemas for request/response validation
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
+from decimal import Decimal
 from app.schemas.common import ORMConfig
 
 
@@ -12,7 +13,7 @@ from app.schemas.common import ORMConfig
 class CommissionCreate(BaseModel):
     """Schema for creating a commission"""
     id_user: int = Field(..., description="User ID")
-    kredit: Optional[int] = Field(None, description="Commission credit amount")
+    kredit: Optional[Decimal] = Field(None, description="Commission credit amount")
     type: Optional[str] = Field(None, description="Commission type")
     keterangan: Optional[str] = Field(None, description="Commission description")
 
@@ -23,7 +24,7 @@ class CommissionBase(BaseModel):
     """Base commission schema"""
     id: int
     id_user: int
-    kredit: Optional[int]
+    kredit: Optional[Decimal]
     type: Optional[str]
     keterangan: Optional[str]
     created_at: Optional[datetime] = None

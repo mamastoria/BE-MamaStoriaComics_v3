@@ -15,7 +15,7 @@ from typing import Dict, List, Any, Optional
 import json
 
 # Configuration
-BASE_URL = os.getenv("API_BASE_URL", "https://nanobanana-backend-1089713441636.asia-southeast2.run.app")
+BASE_URL = os.getenv("API_BASE_URL", "https://nanobanana-backend-1089713441636.us-central1.run.app")
 TEST_EMAIL = os.getenv("TEST_EMAIL", "test@example.com")
 TEST_PASSWORD = os.getenv("TEST_PASSWORD", "password123")
 

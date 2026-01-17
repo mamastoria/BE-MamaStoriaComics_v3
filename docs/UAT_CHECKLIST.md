@@ -8,7 +8,7 @@
 
 | Item           | Value                                                            |
 | -------------- | ---------------------------------------------------------------- |
-| Backend URL    | https://nanobanana-backend-1089713441636.asia-southeast2.run.app |
+| Backend URL    | https://nanobanana-backend-1089713441636.us-central1.run.app     |
 | Frontend URL   | https://app.mamastoria.com                                       |
 | Tester Name    |                                                                  |
 | Test Date      |                                                                  |

@@ -9,6 +9,7 @@ from typing import Optional
 from datetime import datetime, timedelta, timezone, date
 from sqlalchemy.sql import func
 from pydantic import BaseModel, Field, ConfigDict
+from decimal import Decimal
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
@@ -31,7 +32,7 @@ class SubscriptionPackageResponse(BaseModel):
     price: int
     duration_days: int
     publish_quota: int
-    bonus_credits: int
+    bonus_credits: Decimal
     
     class Config:
         from_attributes = True
@@ -67,7 +68,7 @@ class PaymentHistoryItem(BaseModel):
     """Payment history item"""
     id: int
     invoice_number: Optional[str] = Field(None, alias="invoiceNumber") # Mapped from doku_order_id
-    amount: int
+    amount: Decimal
     status: str
     payment_method: Optional[str]
     created_at: datetime

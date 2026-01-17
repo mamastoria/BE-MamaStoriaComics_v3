@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from datetime import date
 from typing import Optional
+from decimal import Decimal
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
@@ -56,7 +57,7 @@ async def list_commissions(
     # The current code calculates `total_commission` with `filter(Commission.id_user == id_user)`.
     # I will KEEP the total commission calculation UNFILTERED unless instructed otherwise, assuming it displays the "Total Earnings" card on top of the list.
     
-    total_commission = total_commission_query.scalar() or 0
+    total_commission = total_commission_query.scalar() or Decimal("0.00")
     
     # Paginate
     page, per_page = get_pagination_params(page, per_page)

@@ -79,7 +79,7 @@ class DokuClient:
                 "invoice_number": order_id,
                 "currency": "IDR",
                 # Prefer provided callback_url (from request/base_url) and fallback to configured/default
-                "callback_url": callback_url if callback_url else "https://nanobanana-backend-1089713441636.asia-southeast2.run.app/api/v1/subscriptions/payment-callback",
+                "callback_url": callback_url if callback_url else "https://nanobanana-backend-1089713441636.us-central1.run.app/api/v1/subscriptions/payment-callback",
                 "line_items": [
                     {
                         "name": package_name,

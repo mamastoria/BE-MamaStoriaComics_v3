@@ -4,6 +4,7 @@ User Pydantic schemas for request/response validation
 from pydantic import BaseModel, EmailStr, Field, validator, ConfigDict
 from typing import Optional
 from datetime import datetime
+from decimal import Decimal
 from app.schemas.common import ORMConfig
 
 
@@ -88,7 +89,7 @@ class UpdateProfile(BaseModel):
 
 class UpdateKredit(BaseModel):
     """Schema for updating user credits (Admin endpoint)"""
-    amount: int = Field(..., description="Amount to add/subtract") # Credits amount
+    amount: Decimal = Field(..., description="Amount to add/subtract") # Credits amount
     operation: str = Field(..., pattern="^(add|subtract)$", alias="type")
     description: Optional[str] = None
     
@@ -97,7 +98,7 @@ class UpdateKredit(BaseModel):
 
 class UserKreditAmount(BaseModel):
     """Schema for user credit operations (simplified for user endpoints)"""
-    amount: int = Field(..., gt=0, description="Amount of credits")
+    amount: Decimal = Field(..., gt=0, description="Amount of credits")
     description: Optional[str] = Field(None, description="Optional description of the transaction")
 
 
@@ -137,8 +138,8 @@ class UserResponse(UserBase):
     city: Optional[str]
     role: str
     login_method: str
-    kredit: int
-    balance: int
+    kredit: Decimal
+    balance: Decimal
     profile_photo_path: Optional[str]
     publish_quota: int
     watermark: bool

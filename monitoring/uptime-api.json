@@ -4,7 +4,7 @@
         "type": "uptime_url",
         "labels": {
             "project_id": "nanobananacomic-482111",
-            "host": "nanobanana-backend-1089713441636.asia-southeast2.run.app"
+            "host": "nanobanana-backend-1089713441636.us-central1.run.app"
         }
     },
     "httpCheck": {

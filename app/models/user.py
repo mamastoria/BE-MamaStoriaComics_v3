@@ -2,7 +2,8 @@
 User model - SQLAlchemy ORM
 Converted from Laravel User model
 """
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, BigInteger, Text
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, BigInteger, Text, Numeric
+from decimal import Decimal
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
@@ -41,8 +42,8 @@ class User(Base):
     external_id = Column(String, nullable=True)  # For Google OAuth
     
     # Credits & Balance
-    kredit = Column(BigInteger, default=0, nullable=False)
-    balance = Column(BigInteger, default=0, nullable=False)
+    kredit = Column(Numeric(12, 2), default=Decimal("0.00"), nullable=False)
+    balance = Column(Numeric(12, 2), default=Decimal("0.00"), nullable=False)
     
     # Profile
     profile_photo_path = Column(String, nullable=True)

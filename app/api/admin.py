@@ -4,6 +4,7 @@ Admin API endpoints for Cloud Logging integration and performance monitoring.
 
 from fastapi import APIRouter, Query, HTTPException, Depends, Body
 from typing import Optional, List
+from decimal import Decimal
 from datetime import datetime, timedelta
 import logging
 import re
@@ -585,7 +586,7 @@ async def create_test_user(
     phone_number: str = Query(..., description="Phone number for login"),
     password: str = Query("loadtest123", description="Password for login"),
     full_name: str = Query("Load Test User", description="User's full name"),
-    kredit: int = Query(10000, description="Initial credits")
+    kredit: Decimal = Query(Decimal("10000.00"), description="Initial credits")
 ):
     """
     Create a new test user for load testing purposes.
@@ -850,7 +851,7 @@ async def create_initial_admin(
         if existing:
             # Update to admin role
             existing.role = "admin"
-            existing.kredit = 999999
+            existing.kredit = Decimal("999999.00")
             existing.is_verified = True
             db.commit()
             return {
@@ -872,7 +873,7 @@ async def create_initial_admin(
             phone_number=phone_number,
             password=password_hash,
             full_name=full_name,
-            kredit=999999,
+            kredit=Decimal("999999.00"),
             is_verified=True,
             referral_code_id=referral_code,
             role="admin"
@@ -888,7 +889,7 @@ async def create_initial_admin(
             "user_id": new_user.id_users,
             "phone_number": phone_number,
             "password": password,
-            "credits": 999999,
+            "credits": Decimal("999999.00"),
             "note": "Use these credentials to login to dashboard"
         }
     except Exception as e:

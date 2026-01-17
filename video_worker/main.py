@@ -66,6 +66,7 @@ class PanelData(BaseModel):
 
 class VideoGenerationRequest(BaseModel):
     comic_id: int
+    user_id: Optional[int] = None
     panels: List[Dict[str, Any]]
 
 
@@ -73,6 +74,7 @@ class VideoGenerationResponse(BaseModel):
     ok: bool
     message: str
     comic_id: int
+    user_id: Optional[int] = None
     video_url: Optional[str] = None
     error: Optional[str] = None
 
@@ -157,6 +159,7 @@ async def generate_video(request: VideoGenerationRequest):
                 ok=True,
                 message="Video generated successfully",
                 comic_id=comic_id,
+                user_id=request.user_id,
                 video_url=video_url
             )
         else:
@@ -185,6 +188,7 @@ async def generate_video(request: VideoGenerationRequest):
                 ok=False,
                 message="Video generation failed",
                 comic_id=comic_id,
+                user_id=request.user_id,
                 error="Video generator returned None"
             )
             
@@ -214,6 +218,7 @@ async def generate_video(request: VideoGenerationRequest):
             ok=False,
             message="Video generation failed",
             comic_id=comic_id,
+            user_id=None,
             error=str(e)
         )
 

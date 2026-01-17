@@ -4,6 +4,7 @@ Withdrawal Pydantic schemas for request/response validation
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
+from decimal import Decimal
 from app.schemas.common import ORMConfig
 
 
@@ -12,7 +13,7 @@ from app.schemas.common import ORMConfig
 class WithdrawalCreate(BaseModel):
     """Schema for creating a withdrawal"""
     id_user: int = Field(..., description="User ID")
-    amount: int = Field(..., gt=0, description="Withdrawal amount")
+    amount: Decimal = Field(..., gt=0, description="Withdrawal amount")
     status: Optional[str] = Field("pending", description="Withdrawal status")
     
     # Bank Details
@@ -27,7 +28,7 @@ class WithdrawalBase(BaseModel):
     """Base withdrawal schema"""
     id: int
     id_user: int
-    amount: int
+    amount: Decimal
     status: str
     bank_name: Optional[str]
     account_number: Optional[str]

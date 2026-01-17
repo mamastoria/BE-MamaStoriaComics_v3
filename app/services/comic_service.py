@@ -7,6 +7,7 @@ from sqlalchemy import or_, cast
 from sqlalchemy.dialects.postgresql import JSONB
 from typing import List, Optional, Dict, Any
 from datetime import datetime
+import logging
 
 from app.models.comic import Comic
 from app.models.user import User
@@ -15,6 +16,7 @@ from app.models.master_data import Style, Genre, Character, Background
 
 class ComicService:
     """Service for comic operations"""
+    logger = logging.getLogger(__name__)
     
     @staticmethod
     def create_comic_from_story_idea(
@@ -77,8 +79,13 @@ class ComicService:
         )
         
         # DEBUG: Log style and genre being saved
-        from app.core.logging_config import logger
-        logger.info(f"💾 Creating comic with style={style_key} (from {style.name}), genres={genre_keys} (from {[g.name for g in genres]})")
+        ComicService.logger.info(
+            "Creating comic with style=%s (from %s), genres=%s (from %s)",
+            style_key,
+            style.name,
+            genre_keys,
+            [g.name for g in genres],
+        )
         
         db.add(comic)
         db.commit()

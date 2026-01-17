@@ -3,7 +3,7 @@ Write-Host "Starting deployment..." -ForegroundColor Cyan
 
 # Set variables
 $PROJECT = "nanobananacomic-482111"
-$REGION = "asia-southeast2"
+$REGION = "us-central1"
 $SERVICE = "nanobanana-backend"
 
 Write-Host "Project: $PROJECT"

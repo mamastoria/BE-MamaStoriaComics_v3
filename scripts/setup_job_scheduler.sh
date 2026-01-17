@@ -5,8 +5,8 @@
 # =============================================================================
 
 PROJECT_ID="nanobananacomic-482111"
-REGION="asia-southeast2"
-BACKEND_URL="https://nanobanana-backend-1089713441636.asia-southeast2.run.app"
+REGION="us-central1"
+BACKEND_URL="https://nanobanana-backend-1089713441636.us-central1.run.app"
 
 # Service account for invoking Cloud Run
 SERVICE_ACCOUNT="cloud-tasks-invoker@${PROJECT_ID}.iam.gserviceaccount.com"

@@ -90,7 +90,7 @@ echo -n "e68865f98e54264001d49d780a52e3e024e819bcbca523c91350a241dd51" | \
 echo -n "a22e901209dbd89a1b9c95dc6c9fe3b1bf5ce88a1030d07a2970b63094cb32ddd" | \
   gcloud secrets create JWT_SECRET_KEY --data-file=- --project=$PROJECT_ID
 
-echo -n "postgresql://postgres:Aihebat@1@/nanobanana_db?host=/cloudsql/nanobananacomic-482111:asia-southeast2:cloudsql-nanobanana-dev" | \
+echo -n "postgresql://postgres:Aihebat@1@/nanobanana_db?host=/cloudsql/nanobananacomic-482111:us-central1:cloudsql-nanobanana-us" | \
   gcloud secrets create DATABASE_URL --data-file=- --project=$PROJECT_ID
 
 # Grant Cloud Run access to secrets

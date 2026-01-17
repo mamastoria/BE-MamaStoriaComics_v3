@@ -4,7 +4,7 @@ import json
 import sys
 
 # URL Backend Anda
-BASE_URL = "https://nanobanana-backend-1089713441636.asia-southeast2.run.app"
+BASE_URL = "https://nanobanana-backend-1089713441636.us-central1.run.app"
 
 # Token dari login terakhir Anda (yang gagal di profile)
 TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjEsImV4cCI6MTc2NzAyMDQxNiwidHlwZSI6ImFjY2VzcyJ9.61j43ZWIJM-KgG-TqtiJAhnYFCe1vW87oL43-D3my1g"
