@@ -79,6 +79,7 @@ class DokuClient:
             "email": customer_data.get("email", "nomail@example.com")
         }
         
+        
         # Only include phone if it is not empty
         phone = customer_data.get("phone")
         if phone:
