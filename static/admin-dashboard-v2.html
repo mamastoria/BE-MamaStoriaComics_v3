@@ -1,0 +1,2001 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MamaStoria Ops Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            line-height: 1.5;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        /* LOGIN */
+        .login-section {
+            background: #1e293b;
+            padding: 40px;
+            border-radius: 12px;
+            max-width: 450px;
+            margin: 100px auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+            border: 1px solid #334155;
+        }
+        
+        .login-section h2 {
+            margin-bottom: 30px;
+            color: #38bdf8;
+            font-size: 1.8rem;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #cbd5e1;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #475569;
+            border-radius: 8px;
+            font-size: 14px;
+            background: #0f172a;
+            color: #e2e8f0;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: #38bdf8;
+            background: #1e293b;
+        }
+        
+        button {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(56, 189, 248, 0.3);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        /* HEADER */
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border: 1px solid #334155;
+            border-radius: 12px;
+        }
+        
+        header h1 {
+            font-size: 2rem;
+            color: #38bdf8;
+            margin: 0;
+        }
+        
+        .logout-btn {
+            background: #ef4444;
+            width: auto;
+            padding: 10px 24px;
+            margin: 0;
+        }
+        
+        .logout-btn:hover {
+            box-shadow: 0 10px 30px rgba(239, 68, 68, 0.3);
+        }
+        
+        /* TABS */
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #334155;
+            flex-wrap: wrap;
+        }
+        
+        .tab {
+            padding: 12px 24px;
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            color: #94a3b8;
+            font-weight: 500;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+        
+        .tab:hover {
+            color: #38bdf8;
+        }
+        
+        .tab.active {
+            color: #38bdf8;
+            border-bottom-color: #38bdf8;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+
+        /* ===================== SPACING & TYPOGRAPHY UTILITIES ===================== */
+        
+        /* Spacing */
+        .p-8 { padding: 8px; }
+        .p-12 { padding: 12px; }
+        .p-16 { padding: 16px; }
+        .p-20 { padding: 20px; }
+        
+        .m-0 { margin: 0; }
+        .m-8 { margin: 8px; }
+        .m-12 { margin: 12px; }
+        .m-16 { margin: 16px; }
+        .m-20 { margin: 20px; }
+        
+        .mb-8 { margin-bottom: 8px; }
+        .mb-12 { margin-bottom: 12px; }
+        .mb-16 { margin-bottom: 16px; }
+        .mb-20 { margin-bottom: 20px; }
+        
+        .gap-8 { gap: 8px; }
+        .gap-12 { gap: 12px; }
+        .gap-16 { gap: 16px; }
+        .gap-20 { gap: 20px; }
+        
+        /* Typography */
+        .text-sm { font-size: 0.875rem; }
+        .text-base { font-size: 1rem; }
+        .text-lg { font-size: 1.125rem; }
+        .text-xl { font-size: 1.25rem; }
+        .text-2xl { font-size: 1.5rem; }
+        
+        .font-500 { font-weight: 500; }
+        .font-600 { font-weight: 600; }
+        .font-700 { font-weight: 700; }
+        
+        .text-muted { color: #94a3b8; }
+        .text-light { color: #cbd5e1; }
+        .text-primary { color: #38bdf8; }
+        
+        .uppercase { text-transform: uppercase; }
+        .letter-spacing { letter-spacing: 0.5px; }
+        
+        /* Grid Layout */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+        
+        @media (min-width: 1024px) {
+            .dashboard-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            /* Full width on desktop for certain sections */
+            .section-full {
+                grid-column: 1 / -1;
+            }
+        }
+        
+        /* Card Component */
+        .card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        
+        .card:hover {
+            border-color: #475569;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        .card-header {
+            padding: 16px;
+            border-bottom: 1px solid #334155;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        }
+        
+        .card-header-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: #38bdf8;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .card-header-subtitle {
+            font-size: 0.875rem;
+            color: #94a3b8;
+            margin: 4px 0 0 0;
+            font-weight: 500;
+        }
+        
+        .card-body {
+            padding: 20px;
+            flex: 1;
+            overflow: auto;
+        }
+        
+        .card-footer {
+            padding: 12px 20px;
+            border-top: 1px solid #334155;
+            background: rgba(15, 23, 42, 0.3);
+            font-size: 0.875rem;
+            color: #94a3b8;
+        }
+        
+        /* Mobile Responsive */
+        @media (max-width: 1023px) {
+            .container {
+                padding: 12px;
+            }
+            
+            header {
+                flex-direction: column;
+                gap: 16px;
+                text-align: center;
+                margin-bottom: 16px;
+            }
+            
+            header h1 {
+                font-size: 1.5rem;
+            }
+            
+            .card-body {
+                padding: 16px;
+            }
+            
+            .card-header {
+                padding: 12px 16px;
+            }
+            
+            /* Horizontal scroll for tables */
+            .table-container {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+            
+            table {
+                min-width: 100%;
+            }
+        }
+        
+        /* HEALTH BANNER */
+        .health-banner {
+            margin-bottom: 25px;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #334155;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .health-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .health-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 1.1rem;
+            min-width: fit-content;
+        }
+        
+        .health-emoji {
+            font-size: 1.3rem;
+        }
+        
+        .health-status {
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .health-badge.healthy {
+            background: rgba(34, 197, 94, 0.15);
+            color: #22c55e;
+            border: 2px solid #22c55e;
+            box-shadow: 0 0 12px rgba(34, 197, 94, 0.2);
+        }
+        
+        .health-badge.degraded {
+            background: rgba(234, 179, 8, 0.15);
+            color: #eab308;
+            border: 2px solid #eab308;
+            box-shadow: 0 0 12px rgba(234, 179, 8, 0.2);
+        }
+        
+        .health-badge.down {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+            border: 2px solid #ef4444;
+            box-shadow: 0 0 12px rgba(239, 68, 68, 0.2);
+        }
+        
+        .health-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #cbd5e1;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .health-metrics-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px;
+        }
+        
+        .health-metric-box {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding: 12px;
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid #334155;
+            border-radius: 8px;
+        }
+        
+        .health-metric-label {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+        
+        .health-metric-value {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #38bdf8;
+            font-family: 'Monaco', 'Menlo', monospace;
+        }
+        
+        /* SUMMARY CARDS */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        
+        .summary-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            padding: 20px;
+            border-radius: 12px;
+            transition: all 0.3s;
+        }
+        
+        .summary-card:hover {
+            border-color: #38bdf8;
+            box-shadow: 0 10px 30px rgba(56, 189, 248, 0.1);
+        }
+        
+        .summary-card-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #94a3b8;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+        
+        .summary-card-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #e2e8f0;
+            margin-bottom: 8px;
+        }
+        
+        .summary-card-delta {
+            font-size: 0.85rem;
+            color: #64748b;
+        }
+        
+        /* STAGE BARS */
+        .stage-container {
+            background: #1e293b;
+            border: 1px solid #334155;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+        }
+        
+        .stage-item {
+            margin-bottom: 25px;
+        }
+        
+        .stage-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .stage-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 10px;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .stage-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .stage-name {
+            font-weight: 700;
+            color: #e2e8f0;
+            font-size: 1rem;
+        }
+        
+        .stage-sla-badge {
+            display: inline-block;
+            padding: 2px 10px;
+            background: rgba(148, 163, 184, 0.2);
+            border: 1px solid #475569;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            color: #cbd5e1;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            width: fit-content;
+        }
+        
+        .stage-metrics {
+            display: flex;
+            gap: 12px;
+            font-size: 0.85rem;
+            flex-wrap: wrap;
+        }
+        
+        .stage-metric {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        
+        .stage-metric-label {
+            color: #94a3b8;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .stage-metric-value {
+            color: #e2e8f0;
+            font-weight: 600;
+            font-size: 0.9rem;
+            font-family: 'Monaco', 'Menlo', monospace;
+        }
+        
+        .bar-wrapper {
+            position: relative;
+            height: 35px;
+            background: #0f172a;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid #334155;
+            display: flex;
+            align-items: center;
+        }
+        
+        .bar-fill {
+            height: 100%;
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: white;
+            position: relative;
+            z-index: 2;
+            transition: all 0.3s ease;
+            min-width: 50px;
+            white-space: nowrap;
+            gap: 8px;
+        }
+        
+        .bar-fill.green {
+            background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);
+        }
+        
+        .bar-fill.yellow {
+            background: linear-gradient(90deg, #f59e0b 0%, #d97706 100%);
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.3);
+        }
+        
+        .bar-fill.red {
+            background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%);
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.3);
+        }
+        
+        .bar-fill.empty {
+            background: #334155;
+            color: #94a3b8;
+            font-style: italic;
+        }
+        
+        .sla-indicator {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: rgba(255, 255, 255, 0.4);
+            z-index: 1;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding-top: 1px;
+        }
+        
+        .sla-indicator::after {
+            content: 'SLA';
+            font-size: 0.65rem;
+            color: #cbd5e1;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            white-space: nowrap;
+            text-shadow: 0 0 3px rgba(0, 0, 0, 0.8);
+            letter-spacing: 1px;
+        }
+        
+        .bar-empty-state {
+            color: #94a3b8;
+            padding: 12px;
+            text-align: center;
+            font-style: italic;
+            font-size: 0.9rem;
+        }
+        
+        /* FILTERS */
+        .filter-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            padding: 15px;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+        }
+        
+        .filter-label {
+            color: #94a3b8;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+        }
+        
+        .filter-button {
+            padding: 8px 16px;
+            background: #0f172a;
+            border: 1px solid #475569;
+            color: #cbd5e1;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s;
+        }
+        
+        .filter-button:hover {
+            border-color: #38bdf8;
+            color: #38bdf8;
+        }
+        
+        .filter-button.active {
+            background: #38bdf8;
+            border-color: #38bdf8;
+            color: #0f172a;
+        }
+        
+        /* TABLE */
+        .table-container {
+            background: #1e293b;
+            border: 1px solid #334155;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 100%;
+        }
+        
+        th {
+            background: #0f172a;
+            padding: 12px;
+            text-align: left;
+            border-bottom: 2px solid #334155;
+            color: #38bdf8;
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #334155;
+            color: #cbd5e1;
+            font-size: 0.95rem;
+        }
+        
+        tr {
+            transition: background-color 0.2s;
+        }
+        
+        tr:hover {
+            background: rgba(56, 189, 248, 0.05);
+        }
+        
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+        
+        /* BADGES */
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        
+        .badge-completed {
+            background: rgba(34, 197, 94, 0.1);
+            color: #22c55e;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+        
+        .badge-failed {
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+        
+        .badge-rendering {
+            background: rgba(56, 189, 248, 0.1);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.3);
+        }
+        
+        .badge-pending {
+            background: rgba(148, 163, 184, 0.1);
+            color: #cbd5e1;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+        }
+        
+        /* FAILURES */
+        .failure-causes {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        
+        .failure-cause-item {
+            background: #1e293b;
+            border-left: 4px solid #ef4444;
+            padding: 15px;
+            border-radius: 8px;
+            border-top: 1px solid #334155;
+            border-right: 1px solid #334155;
+            border-bottom: 1px solid #334155;
+        }
+        
+        .failure-cause-code {
+            font-size: 0.85rem;
+            color: #38bdf8;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+        
+        .failure-cause-message {
+            font-size: 0.9rem;
+            color: #cbd5e1;
+            margin-bottom: 10px;
+            line-height: 1.4;
+        }
+        
+        .failure-cause-count {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .failure-cause-num {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #ef4444;
+        }
+        
+        .failure-cause-pct {
+            font-size: 0.85rem;
+            color: #94a3b8;
+        }
+        
+        /* ACTION BUTTONS */
+        .action-buttons {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        
+        .action-btn {
+            padding: 6px 12px;
+            background: #0ea5e9;
+            border: none;
+            color: white;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: auto;
+            margin: 0;
+        }
+        
+        .action-btn:hover:not(:disabled) {
+            background: #0284c7;
+            transform: translateY(-1px);
+        }
+        
+        .action-btn:disabled {
+            background: #475569;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+        
+        .action-btn.danger {
+            background: #ef4444;
+        }
+        
+        .action-btn.danger:hover:not(:disabled) {
+            background: #dc2626;
+        }
+        
+        /* MODAL */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-overlay.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            max-width: 700px;
+            width: 90%;
+            max-height: 80vh;
+            overflow: auto;
+            padding: 0;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid #334155;
+            position: sticky;
+            top: 0;
+            background: #0f172a;
+        }
+        
+        .modal-header h3 {
+            color: #38bdf8;
+            margin: 0;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0;
+            width: auto;
+            margin: 0;
+        }
+        
+        .modal-close:hover {
+            color: #e2e8f0;
+        }
+        
+        .modal-body {
+            padding: 20px;
+            color: #cbd5e1;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.85rem;
+            white-space: pre-wrap;
+            word-break: break-word;
+            background: #0f172a;
+            max-height: calc(80vh - 80px);
+            overflow: auto;
+        }
+        
+        /* TOAST */
+        .toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .toast {
+            padding: 15px 20px;
+            border-radius: 8px;
+            border-left: 4px solid;
+            background: #1e293b;
+            color: #e2e8f0;
+            min-width: 300px;
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        .toast.success {
+            border-left-color: #22c55e;
+            background: rgba(34, 197, 94, 0.1);
+            color: #22c55e;
+        }
+        
+        .toast.error {
+            border-left-color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+        }
+        
+        .toast.info {
+            border-left-color: #38bdf8;
+            background: rgba(56, 189, 248, 0.1);
+            color: #38bdf8;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        /* TOOLTIP */
+        .tooltip-icon {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            background: #38bdf8;
+            color: #0f172a;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 18px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            cursor: help;
+            position: relative;
+        }
+        
+        .tooltip-icon:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #0f172a;
+            color: #38bdf8;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            white-space: nowrap;
+            border: 1px solid #38bdf8;
+            z-index: 1000;
+        }
+        
+        /* STATUS */
+        .loading, .error, .success {
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .loading {
+            color: #94a3b8;
+        }
+        
+        .error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #ef4444;
+        }
+        
+        .success {
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            color: #22c55e;
+        }
+        
+        /* RESPONSIVE */
+        @media (max-width: 768px) {
+            .summary-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 15px;
+            }
+            
+            .health-details {
+                flex-direction: column;
+            }
+            
+            .filter-bar {
+                flex-direction: column;
+            }
+            
+            table {
+                font-size: 0.85rem;
+            }
+            
+            th, td {
+                padding: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- LOGIN -->
+        <div id="login-section" class="login-section">
+            <h2>🔐 Admin Access</h2>
+            <div id="login-error" class="error" style="display:none;"></div>
+            <div class="form-group">
+                <label>Phone Number</label>
+                <input type="text" id="phone" placeholder="0811814563">
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="password" placeholder="Enter password">
+            </div>
+            <button onclick="login()">Sign In</button>
+        </div>
+
+        <!-- DASHBOARD -->
+        <div id="dashboard-section" style="display:none;">
+            <header>
+                <h1>📊 MamaStoria Operations Dashboard</h1>
+                <button class="logout-btn" onclick="logout()">Logout</button>
+            </header>
+
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('overview')">Overview</button>
+                <button class="tab" onclick="switchTab('comics')">Comic Analytics</button>
+                <button class="tab" onclick="switchTab('database')">Database</button>
+                <button class="tab" onclick="switchTab('storage')">Storage</button>
+            </div>
+
+            <!-- OVERVIEW TAB -->
+            <div id="tab-overview" class="tab-content active">
+                <!-- Health Banner -->
+                <div id="health-banner" class="health-banner">
+                    <div class="health-badge healthy">
+                        <span>✓</span> <span>HEALTHY</span>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="filter-bar mb-20">
+                    <span class="filter-label">📅 Time Range:</span>
+                    <button class="filter-button" onclick="setTimeRange('today', event)">Today</button>
+                    <button class="filter-button" onclick="setTimeRange(24, event)">Last 24h</button>
+                    <button class="filter-button" onclick="setTimeRange(168, event)">Last 7d</button>
+                    <button class="filter-button active" onclick="setTimeRange(720, event)">Last 30d</button>
+                </div>
+
+                <!-- Summary Cards - Full Width -->
+                <div class="summary-grid mb-20" id="summary-cards">
+                    <div class="loading">Loading metrics...</div>
+                </div>
+
+                <!-- Main Grid: 2 columns on desktop, 1 on mobile -->
+                <div class="dashboard-grid">
+                    <!-- Stage Performance Card -->
+                    <div class="card section-full">
+                        <div class="card-header">
+                            <h3 class="card-header-title">⏱️ Processing Time by Stage</h3>
+                            <p class="card-header-subtitle">Average, Min, Max durations per pipeline stage</p>
+                        </div>
+                        <div class="card-body">
+                            <div id="stage-bars">
+                                <div class="loading">Loading stage data...</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Comics Card -->
+                    <div class="card section-full">
+                        <div class="card-header">
+                            <h3 class="card-header-title">📚 Recent Comic Generations</h3>
+                            <p class="card-header-subtitle">Latest 20 comics with status and processing details</p>
+                        </div>
+                        <div class="card-body">
+                            <div id="recent-comics">
+                                <div class="loading">Loading recent comics...</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Top Failure Causes Card -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-header-title">❌ Top Failure Causes</h3>
+                            <p class="card-header-subtitle">Most common error codes</p>
+                        </div>
+                        <div class="card-body">
+                            <div class="failure-causes" id="failure-causes">
+                                <div class="loading">Loading failure data...</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Placeholder for future metrics -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-header-title">📈 Performance Trend</h3>
+                            <p class="card-header-subtitle">Coming soon</p>
+                        </div>
+                        <div class="card-body">
+                            <div style="color: #94a3b8; text-align: center; padding: 40px 20px;">
+                                Chart visualization coming in next release
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COMICS TAB -->
+            <div id="tab-comics" class="tab-content">
+                <div class="card section-full">
+                    <div class="card-header">
+                        <h3 class="card-header-title">📊 Comic Generation Analytics</h3>
+                        <p class="card-header-subtitle">All comics with detailed generation information</p>
+                    </div>
+                    <div class="card-body">
+                        <div id="comics-detail" class="loading">Loading...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DATABASE TAB -->
+            <div id="tab-database" class="tab-content">
+                <div class="dashboard-grid">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-header-title">📋 Tables</h3>
+                            <p class="card-header-subtitle">Select a table to preview</p>
+                        </div>
+                        <div class="card-body">
+                            <select id="table-select" onchange="loadTablePreview()" style="width: 100%;">
+                                <option value="">-- Select Table --</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="card section-full">
+                        <div class="card-header">
+                            <h3 class="card-header-title">👁️ Table Preview</h3>
+                            <p class="card-header-subtitle">Data preview and inspection</p>
+                        </div>
+                        <div class="card-body">
+                            <div id="table-preview" class="loading">Select a table to preview</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STORAGE TAB -->
+            <div id="tab-storage" class="tab-content">
+                <div class="dashboard-grid">
+                    <div class="card section-full">
+                        <div class="card-header">
+                            <h3 class="card-header-title">🪣 GCS Storage Browser</h3>
+                            <p class="card-header-subtitle">Browse and inspect Cloud Storage objects</p>
+                        </div>
+                        <div class="card-body">
+                            <div style="display: grid; grid-template-columns: 1fr auto; gap: 12px;">
+                                <input type="text" id="storage-prefix" placeholder="e.g., comics/123/" style="margin: 0;">
+                                <button onclick="loadStorage()" style="width: auto; padding: 12px 24px;">Load</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card section-full">
+                        <div class="card-header">
+                            <h3 class="card-header-title">📂 Objects</h3>
+                            <p class="card-header-subtitle">Files and directories found</p>
+                        </div>
+                        <div class="card-body">
+                            <div id="storage-list" class="loading">Enter prefix and click Load</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOG MODAL -->
+    <div id="log-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📋 Comic Generation Log</h3>
+                <button class="modal-close" onclick="closeLogModal()">✕</button>
+            </div>
+            <div class="modal-body" id="log-modal-content">Loading...</div>
+        </div>
+    </div>
+
+    <!-- TOAST CONTAINER -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script>
+        // ===================== TYPES & CONSTANTS =====================
+        const SLA_THRESHOLDS = {
+            script: { min: 0, max: 1 },      // Draft AI: < 1 min
+            render: { min: 0, max: 2 },      // Halaman: < 2 min
+            clipping: { min: 0, max: 0.3 },  // PDF: < 0.3 min
+            video: { min: 0, max: 4 }        // Video: < 4 min
+        };
+
+        let authToken = null;
+        let currentTimeRange = 720; // Default: Last 30d
+        let serverTimezone = null; // Will be fetched from server
+        const API_BASE = "https://nanobanana-backend-1089713441636.us-central1.run.app";
+
+        // ===================== HELPER FUNCTIONS =====================
+
+        function getHealthStatus(failureRate, p95TotalTime) {
+            failureRate = parseFloat(failureRate);
+            p95TotalTime = parseFloat(p95TotalTime) || 0;
+
+            if (failureRate > 15 || p95TotalTime > 10) return { status: 'DOWN', emoji: '❌' };
+            if (failureRate >= 5 || p95TotalTime >= 6) return { status: 'DEGRADED', emoji: '⚠️' };
+            return { status: 'HEALTHY', emoji: '✓' };
+        }
+
+        function computeFailureRate(metrics) {
+            if (!metrics || typeof metrics !== 'object') return 0;
+            const completed = parseInt(metrics.completed_comics) || 0;
+            const failed = parseInt(metrics.failed_comics) || 0;
+            const total = completed + failed;
+            
+            if (total === 0) return 0;
+            return parseFloat(((failed / total) * 100).toFixed(1));
+        }
+
+        function computeP95Total(recentComics) {
+            if (!recentComics || recentComics.length === 0) return 0;
+            
+            // Try to use total_seconds if available
+            const totalsInSeconds = recentComics
+                .map(c => {
+                    if (c.total_seconds !== undefined && c.total_seconds !== null) {
+                        return parseFloat(c.total_seconds) || 0;
+                    }
+                    // Fallback: sum available stage durations
+                    const stageSum = (parseFloat(c.script_seconds) || 0) +
+                                    (parseFloat(c.render_seconds) || 0) +
+                                    (parseFloat(c.clipping_seconds) || 0) +
+                                    (parseFloat(c.video_seconds) || 0);
+                    return stageSum > 0 ? stageSum : 0;
+                })
+                .filter(s => s > 0)
+                .sort((a, b) => b - a); // Sort descending for P95 calculation
+
+            if (totalsInSeconds.length === 0) return 0;
+            
+            // Calculate P95: 95th percentile
+            const index = Math.ceil((totalsInSeconds.length * 0.95) - 1);
+            const p95Seconds = totalsInSeconds[Math.max(0, index)];
+            return parseFloat((p95Seconds / 60).toFixed(1)); // Convert to minutes
+        }
+
+        function computeAverageTotal(recentComics) {
+            if (!recentComics || recentComics.length === 0) return 0;
+            
+            const totalsInSeconds = recentComics
+                .map(c => {
+                    if (c.total_seconds !== undefined && c.total_seconds !== null) {
+                        return parseFloat(c.total_seconds) || 0;
+                    }
+                    const stageSum = (parseFloat(c.script_seconds) || 0) +
+                                    (parseFloat(c.render_seconds) || 0) +
+                                    (parseFloat(c.clipping_seconds) || 0) +
+                                    (parseFloat(c.video_seconds) || 0);
+                    return stageSum > 0 ? stageSum : 0;
+                })
+                .filter(s => s > 0);
+
+            if (totalsInSeconds.length === 0) return 0;
+            const avgSeconds = totalsInSeconds.reduce((a, b) => a + b, 0) / totalsInSeconds.length;
+            return parseFloat((avgSeconds / 60).toFixed(1)); // Convert to minutes
+        }
+
+        function findBottleneckStage(stages) {
+            if (!stages || typeof stages !== 'object') return 'N/A';
+            
+            const stageNames = {
+                script: '1️⃣ Draft AI',
+                render: '2️⃣ Halaman Komik',
+                clipping: '3️⃣ PDF',
+                video: '4️⃣ Video'
+            };
+
+            let maxAvg = 0;
+            let bottleneck = 'N/A';
+
+            Object.keys(stageNames).forEach(key => {
+                const stageData = stages[key];
+                if (stageData && stageData.avg !== undefined && stageData.avg !== null) {
+                    const avg = parseFloat(stageData.avg) || 0;
+                    if (avg > maxAvg) {
+                        maxAvg = avg;
+                        bottleneck = stageNames[key];
+                    }
+                }
+            });
+
+            return bottleneck;
+        }
+
+        function formatDuration(seconds) {
+            if (!seconds) return 'N/A';
+            if (seconds < 60) return `${seconds}s`;
+            const minutes = (seconds / 60).toFixed(1);
+            return `${minutes}m`;
+        }
+
+        function formatElapsed(createdAtMs) {
+            const now = Date.now();
+            const elapsed = Math.floor((now - createdAtMs) / 1000);
+            const minutes = Math.floor(elapsed / 60);
+            const seconds = elapsed % 60;
+            return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+
+        // ===================== TOAST NOTIFICATIONS =====================
+        
+        function showToast(message, type = 'info', duration = 3000) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.remove();
+            }, duration);
+        }
+
+        // ===================== MODAL FUNCTIONS =====================
+        
+        async function viewComicLog(comicId, title) {
+            const modal = document.getElementById('log-modal');
+            const content = document.getElementById('log-modal-content');
+            
+            content.innerHTML = '<div class="loading">Loading logs...</div>';
+            modal.classList.add('active');
+            
+            try {
+                // TODO: API endpoint not yet implemented
+                // Endpoint: GET /api/v1/admin/comics/{comic_id}/logs
+                // Expected response: { logs: string | { log_text: string } }
+                const response = await apiCall(`/api/v1/admin/comics/${comicId}/logs`);
+                
+                const logText = response.log_text || response.logs || 'No log data available';
+                content.textContent = logText;
+            } catch (error) {
+                content.textContent = `Log untuk komik #${comicId} belum tersedia.\n${error.message || ''}`.trim();
+                content.style.color = '#f59e0b';
+                showToast('Log belum tersedia', 'warning');
+            }
+        }
+
+        function closeLogModal() {
+            document.getElementById('log-modal').classList.remove('active');
+        }
+
+        // ===================== COMIC ACTIONS =====================
+        
+        async function retryComic(comicId) {
+            if (!confirm(`Retry comic #${comicId}?`)) return;
+            
+            const button = event.target;
+            button.disabled = true;
+            button.textContent = '⏳ Retrying...';
+            
+            try {
+                // TODO: API endpoint not yet implemented
+                // Endpoint: POST /api/v1/admin/comics/{comic_id}/retry
+                // Expected: { ok: true, message: string }
+                const response = await fetch(`${API_BASE}/api/v1/admin/comics/${comicId}/retry`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                showToast(`✅ Comic #${comicId} retry initiated`, 'success');
+                
+                // Reload dashboard after 1s
+                setTimeout(() => loadDashboard(), 1000);
+            } catch (error) {
+                showToast(`❌ Failed to retry comic #${comicId}: ${error.message}`, 'error');
+                console.error('Retry error:', error);
+            } finally {
+                button.disabled = false;
+                button.textContent = '🔄 Retry';
+            }
+        }
+
+        async function resumeComic(comicId) {
+            if (!confirm(`Resume comic #${comicId}?`)) return;
+            
+            const button = event.target;
+            button.disabled = true;
+            button.textContent = '⏳ Resuming...';
+            
+            try {
+                // TODO: API endpoint not yet implemented
+                // Endpoint: POST /api/v1/admin/comics/{comic_id}/resume
+                // Expected: { ok: true, message: string }
+                const response = await fetch(`${API_BASE}/api/v1/admin/comics/${comicId}/resume`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                showToast(`✅ Comic #${comicId} resumed`, 'success');
+                
+                // Reload dashboard after 1s
+                setTimeout(() => loadDashboard(), 1000);
+            } catch (error) {
+                showToast(`❌ Failed to resume comic #${comicId}: ${error.message}`, 'error');
+                console.error('Resume error:', error);
+            } finally {
+                button.disabled = false;
+                button.textContent = '▶️ Resume';
+            }
+        }
+
+        // ===================== UTILITY: Close modal on escape =====================
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeLogModal();
+            }
+        });
+        
+        // ===================== UTILITY: Close modal on overlay click =====================
+        document.addEventListener('click', (e) => {
+            const modal = document.getElementById('log-modal');
+            if (e.target === modal) {
+                closeLogModal();
+            }
+        });
+        
+
+        function getSLAColor(actual, threshold) {
+            if (actual <= threshold * 0.8) return 'green';
+            if (actual <= threshold) return 'yellow';
+            return 'red';
+        }
+
+        function groupAndSort(items, key, limit = 5) {
+            const grouped = {};
+            items.forEach(item => {
+                const k = item[key] || 'Unknown';
+                grouped[k] = (grouped[k] || 0) + 1;
+            });
+            
+            return Object.entries(grouped)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, limit)
+                .map(([k, v]) => ({ key: k, count: v }));
+        }
+
+        // ===================== AUTHENTICATION =====================
+        
+        async function login() {
+            const phone = document.getElementById('phone').value;
+            const password = document.getElementById('password').value;
+            const errorEl = document.getElementById('login-error');
+
+            errorEl.style.display = 'none';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/auth/login`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({phone_number: phone, password: password})
+                });
+
+                const data = await response.json();
+                
+                if (!response.ok || !data.ok) {
+                    throw new Error(data.error || 'Login failed');
+                }
+
+                authToken = data.data.tokens.access_token;
+                localStorage.setItem('admin_token', authToken);
+                
+                document.getElementById('login-section').style.display = 'none';
+                document.getElementById('dashboard-section').style.display = 'block';
+                
+                // Fetch server timezone info first, then load dashboard
+                await fetchServerTimezone();
+                loadDashboard();
+            } catch (error) {
+                errorEl.textContent = '❌ ' + error.message;
+                errorEl.style.display = 'block';
+            }
+        }
+
+        function logout() {
+            authToken = null;
+            localStorage.removeItem('admin_token');
+            document.getElementById('login-section').style.display = 'block';
+            document.getElementById('dashboard-section').style.display = 'none';
+        }
+
+        // ===================== API CALLS =====================
+        
+        async function apiCall(endpoint) {
+            if (!authToken) throw new Error('No auth token');
+            
+            const response = await fetch(`${API_BASE}${endpoint}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${authToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (response.status === 401 || response.status === 403) {
+                logout();
+                throw new Error('Unauthorized - please login again');
+            }
+            
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.detail || `HTTP ${response.status}`);
+            }
+            
+            return response.json();
+        }
+
+        // ===================== FILTERING HELPERS =====================
+
+        async function fetchServerTimezone() {
+            try {
+                const data = await apiCall('/api/v1/admin/server/info');
+                serverTimezone = data;
+                console.log('Server timezone:', data);
+                return data;
+            } catch (error) {
+                console.warn('Failed to fetch server timezone, using UTC fallback');
+                return null;
+            }
+        }
+
+        function getHoursSinceMidnightUTC() {
+            const now = new Date();
+            const startOfDayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+            const nowUTC = now.getTime();
+            const diffMs = nowUTC - startOfDayUTC;
+            const hours = Math.ceil(diffMs / (1000 * 60 * 60));
+            return Math.max(1, hours);
+        }
+
+        async function getHoursForTodayFilter() {
+            // Try to use server timezone info if available
+            if (serverTimezone && serverTimezone.current_time?.hours_since_jakarta_midnight) {
+                return Math.ceil(serverTimezone.current_time.hours_since_jakarta_midnight);
+            }
+            
+            // Fallback to UTC calculation
+            return getHoursSinceMidnightUTC();
+        }
+
+        function filterComicsByTimeRange(comics, hours) {
+            if (!comics || comics.length === 0) return comics;
+            const now = Date.now();
+            const cutoffMs = hours * 60 * 60 * 1000;
+            
+            return comics.filter(comic => {
+                if (!comic.created_at) return true; // Include if no timestamp
+                try {
+                    const comicTimeMs = new Date(comic.created_at).getTime();
+                    return (now - comicTimeMs) <= cutoffMs;
+                } catch {
+                    return true; // Include if date parsing fails
+                }
+            });
+        }
+
+        // ===================== UI COMPONENTS =====================
+        
+        function createSummaryCard(label, value, emoji, delta = null) {
+            return `
+                <div class="summary-card">
+                    <div class="summary-card-label">${emoji} ${label}</div>
+                    <div class="summary-card-value">${value}</div>
+                    ${delta ? `<div class="summary-card-delta">${delta}</div>` : ''}
+                </div>
+            `;
+        }
+
+        function createHealthBanner(status, failureRate, avgTotal, p95Time, bottleneckStage) {
+            const { emoji } = getHealthStatus(failureRate, p95Time);
+            const statusClass = status.toLowerCase();
+            
+            return `
+                <div class="health-banner">
+                    <div class="health-header">
+                        <div class="health-badge ${statusClass}">
+                            <span class="health-emoji">${emoji}</span>
+                            <span class="health-status">${status}</span>
+                        </div>
+                        <div class="health-title">System Health</div>
+                    </div>
+                    <div class="health-metrics-row">
+                        <div class="health-metric-box">
+                            <div class="health-metric-label">Failure Rate</div>
+                            <div class="health-metric-value">${failureRate !== null ? failureRate + '%' : 'N/A'}</div>
+                        </div>
+                        <div class="health-metric-box">
+                            <div class="health-metric-label">Avg Total Time</div>
+                            <div class="health-metric-value">${avgTotal > 0 ? formatDuration(avgTotal * 60) : 'N/A'}</div>
+                        </div>
+                        <div class="health-metric-box">
+                            <div class="health-metric-label">P95 Total Time</div>
+                            <div class="health-metric-value">${p95Time > 0 ? formatDuration(p95Time * 60) : 'N/A'}</div>
+                        </div>
+                        <div class="health-metric-box">
+                            <div class="health-metric-label">Bottleneck Stage</div>
+                            <div class="health-metric-value">${bottleneckStage || 'N/A'}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function createStageBars(stages) {
+            const stageNames = [
+                { key: 'script', name: '1️⃣ Draft AI', sla: SLA_THRESHOLDS.script.max },
+                { key: 'render', name: '2️⃣ Halaman Komik', sla: SLA_THRESHOLDS.render.max },
+                { key: 'clipping', name: '3️⃣ PDF', sla: SLA_THRESHOLDS.clipping.max },
+                { key: 'video', name: '4️⃣ Video', sla: SLA_THRESHOLDS.video.max }
+            ];
+
+            // Calculate max average for proportional scaling
+            let maxAvg = 0;
+            stageNames.forEach(stage => {
+                const avg = stages[stage.key]?.avg || 0;
+                if (avg > maxAvg) maxAvg = avg;
+            });
+            // Ensure minimum scale of 1.5x highest SLA for better visualization
+            const scaleBase = Math.max(maxAvg, Math.max(...stageNames.map(s => s.sla * 1.2)));
+
+            return stageNames.map(stage => {
+                const data = stages[stage.key] || { avg: 0, min: 0, max: 0, count: 0 };
+                const avg = data.avg || 0;
+                const min = data.min || 0;
+                const max = data.max || 0;
+                const count = data.count || 0;
+                
+                // Calculate bar width proportional to average
+                const barPercent = avg > 0 ? Math.min((avg / scaleBase) * 100, 100) : 0;
+                const color = avg > 0 ? getSLAColor(avg, stage.sla) : 'empty';
+                
+                // Calculate SLA position on bar for reference
+                const slaPercent = Math.min((stage.sla / scaleBase) * 100, 100);
+
+                return `
+                    <div class="stage-item">
+                        <div class="stage-header">
+                            <div class="stage-info">
+                                <div class="stage-name">${stage.name}</div>
+                                <div class="stage-sla-badge">SLA: ${stage.sla}m</div>
+                            </div>
+                            <div class="stage-metrics">
+                                <div class="stage-metric">
+                                    <div class="stage-metric-label">Min</div>
+                                    <div class="stage-metric-value">${formatDuration(min * 60)}</div>
+                                </div>
+                                <div class="stage-metric">
+                                    <div class="stage-metric-label">Avg</div>
+                                    <div class="stage-metric-value">${formatDuration(avg * 60)}</div>
+                                </div>
+                                <div class="stage-metric">
+                                    <div class="stage-metric-label">Max</div>
+                                    <div class="stage-metric-value">${formatDuration(max * 60)}</div>
+                                </div>
+                                <div class="stage-metric">
+                                    <div class="stage-metric-label">Count</div>
+                                    <div class="stage-metric-value">${count}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bar-wrapper">
+                            ${avg > 0 ? `
+                                <div class="bar-fill ${color}" style="width: ${barPercent}%;">
+                                    ${formatDuration(avg * 60)}
+                                </div>
+                                ${slaPercent < 100 ? `
+                                    <div class="sla-indicator" style="left: ${slaPercent}%;"></div>
+                                ` : ''}
+                            ` : `
+                                <div class="bar-fill empty">
+                                    No data
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function createRecentTable(comics) {
+            if (!comics || comics.length === 0) {
+                return '<div class="error">No data available</div>';
+            }
+
+            return `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Comic ID</th>
+                            <th>Title</th>
+                            <th>User</th>
+                            <th>Status</th>
+                            <th>⏱️ Elapsed</th>
+                            <th>1️⃣ Draft</th>
+                            <th>2️⃣ Pages</th>
+                            <th>3️⃣ PDF</th>
+                            <th>4️⃣ Video</th>
+                            <th>⏱️ Total</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${comics.slice(0, 20).map(c => {
+                            const statusClass = c.status === 'COMPLETED' ? 'completed' : 
+                                              c.status === 'FAILED' ? 'failed' : 
+                                              c.status === 'RENDERING' ? 'rendering' : 
+                                              c.status === 'SCRIPT_READY' ? 'pending' : 'pending';
+                            
+                            const elapsedStr = c.status === 'RENDERING' ? 
+                                formatElapsed(new Date(c.created_at).getTime()) : '-';
+                            
+                            return `
+                                <tr>
+                                    <td><strong>#${c.comic_id}</strong></td>
+                                    <td>${c.title || 'Untitled'}</td>
+                                    <td>${c.user?.name || 'N/A'}</td>
+                                    <td><span class="badge badge-${statusClass}" title="${c.status}">${c.status}</span></td>
+                                    <td>${elapsedStr}</td>
+                                    <td>${formatDuration(c.timing?.script_duration_seconds)}</td>
+                                    <td>${formatDuration(c.timing?.render_duration_seconds)}</td>
+                                    <td>${formatDuration(c.timing?.clipping_duration_seconds)}</td>
+                                    <td>${formatDuration(c.timing?.video_duration_seconds)}</td>
+                                    <td><strong>${formatDuration(c.timing?.total_duration_seconds)}</strong></td>
+                                    <td>
+                                        <div class="action-buttons">
+                                            <button class="action-btn" onclick="viewComicLog(${c.comic_id}, '${c.title || 'Comic'}')">📋 Log</button>
+                                            ${c.status === 'FAILED' ? `<button class="action-btn" onclick="retryComic(${c.comic_id})">🔄 Retry</button>` : ''}
+                                            ${c.status === 'SCRIPT_READY' ? `<button class="action-btn" onclick="resumeComic(${c.comic_id})">▶️ Resume</button>` : ''}
+                                        </div>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        // ===================== LOAD FUNCTIONS =====================
+        
+        async function loadDashboard() {
+            try {
+                const perfData = await apiCall(`/api/v1/admin/logs/performance?hours=${currentTimeRange}&limit=500`);
+                const comicData = await apiCall(`/api/v1/admin/comics/generation-stats?hours=${currentTimeRange}&limit=100`);
+
+                // Frontend filtering fallback (if backend doesn't filter by time)
+                const filteredComics = filterComicsByTimeRange(comicData.comics, currentTimeRange);
+
+                // Health Banner - Compute metrics from data
+                const failureRate = computeFailureRate(perfData.summary);
+                const p95Time = computeP95Total(filteredComics);
+                const avgTotal = computeAverageTotal(filteredComics);
+                const bottleneckStage = findBottleneckStage(perfData.stages);
+                const health = getHealthStatus(failureRate, p95Time);
+                
+                document.getElementById('health-banner').innerHTML = createHealthBanner(health.status, failureRate, avgTotal, p95Time, bottleneckStage);
+
+                // Summary Cards
+                const totalDuration = perfData.summary.completed + perfData.summary.failed + perfData.summary.in_progress;
+                document.getElementById('summary-cards').innerHTML = `
+                    ${createSummaryCard('Total Comics', totalDuration, '📊')}
+                    ${createSummaryCard('Completed', perfData.summary.completed, '✅', `${((perfData.summary.completed / totalDuration) * 100).toFixed(1)}%`)}
+                    ${createSummaryCard('Failed', perfData.summary.failed, '❌', `${failureRate}%`)}
+                    ${createSummaryCard('In Progress', perfData.summary.in_progress, '⏳')}
+                    ${createSummaryCard('Avg Total Time', formatDuration((avgTotal || 0) * 60), '⏱️')}
+                    ${createSummaryCard('P95 Total Time', formatDuration((p95Time || 0) * 60), '📈')}
+                `;
+
+                // Stage Bars
+                document.getElementById('stage-bars').innerHTML = createStageBars(perfData.stages);
+
+                // Recent Comics (use filtered data)
+                document.getElementById('recent-comics').innerHTML = createRecentTable(filteredComics);
+                document.getElementById('comics-detail').innerHTML = createRecentTable(filteredComics);
+
+                // Top Failure Causes
+                const failures = filteredComics.filter(c => c.status === 'FAILED');
+                const failureCauses = groupAndSort(failures, 'error_code', 5);
+                
+                if (failureCauses.length > 0) {
+                    document.getElementById('failure-causes').innerHTML = failureCauses.map((fc, i) => `
+                        <div class="failure-cause-item">
+                            <div class="failure-cause-code">#${i+1} ${fc.key}</div>
+                            <div class="failure-cause-count">
+                                <div class="failure-cause-num">${fc.count}</div>
+                                <div class="failure-cause-pct">${((fc.count / failures.length) * 100).toFixed(1)}%</div>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    document.getElementById('failure-causes').innerHTML = '<div class="success">✅ No failures in this period</div>';
+                }
+
+            } catch (error) {
+                document.getElementById('summary-cards').innerHTML = `<div class="error">${error.message}</div>`;
+                document.getElementById('stage-bars').innerHTML = `<div class="error">${error.message}</div>`;
+            }
+        }
+
+        function setTimeRange(range, evt) {
+            const target = evt?.target || event.target;
+            
+            if (range === 'today') {
+                // For Today, we need to fetch server time asynchronously
+                getHoursForTodayFilter().then(hours => {
+                    currentTimeRange = hours;
+                    document.querySelectorAll('.filter-button').forEach(btn => btn.classList.remove('active'));
+                    if (target) target.classList.add('active');
+                    loadDashboard();
+                });
+            } else {
+                currentTimeRange = range;
+                document.querySelectorAll('.filter-button').forEach(btn => btn.classList.remove('active'));
+                if (target) target.classList.add('active');
+                loadDashboard();
+            }
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+
+            if (tabName === 'database') loadTables();
+            if (tabName === 'storage') document.getElementById('storage-list').innerHTML = '<div class="loading">Enter prefix and click Load</div>';
+        }
+
+        async function loadTables() {
+            try {
+                const data = await apiCall('/api/v1/admin/db/tables');
+                const select = document.getElementById('table-select');
+                select.innerHTML = '<option value="">-- Select Table --</option>';
+                data.tables.forEach(table => {
+                    select.innerHTML += `<option value="${table}">${table}</option>`;
+                });
+            } catch (error) {
+                console.error('Failed to load tables:', error);
+            }
+        }
+
+        async function loadTablePreview() {
+            const table = document.getElementById('table-select').value;
+            if (!table) {
+                document.getElementById('table-preview').innerHTML = 'Select a table to preview';
+                return;
+            }
+
+            document.getElementById('table-preview').innerHTML = '<div class="loading">Loading...</div>';
+            
+            try {
+                const data = await apiCall(`/api/v1/admin/db/preview/${table}?limit=50`);
+                
+                if (!data.rows || data.rows.length === 0) {
+                    document.getElementById('table-preview').innerHTML = '<div class="error">No data</div>';
+                    return;
+                }
+
+                const columns = Object.keys(data.rows[0]);
+                let html = '<table><thead><tr>';
+                columns.forEach(col => html += `<th>${col}</th>`);
+                html += '</tr></thead><tbody>';
+                
+                data.rows.forEach(row => {
+                    html += '<tr>';
+                    columns.forEach(col => html += `<td>${JSON.stringify(row[col]) || 'NULL'}</td>`);
+                    html += '</tr>';
+                });
+                
+                html += '</tbody></table>';
+                document.getElementById('table-preview').innerHTML = html;
+            } catch (error) {
+                document.getElementById('table-preview').innerHTML = `<div class="error">${error.message}</div>`;
+            }
+        }
+
+        async function loadStorage() {
+            const prefix = document.getElementById('storage-prefix').value;
+            document.getElementById('storage-list').innerHTML = '<div class="loading">Loading...</div>';
+            
+            try {
+                const data = await apiCall(`/api/v1/admin/storage/list?prefix=${encodeURIComponent(prefix)}&limit=100`);
+                
+                if (!data.objects || data.objects.length === 0) {
+                    document.getElementById('storage-list').innerHTML = '<div class="error">No objects found</div>';
+                    return;
+                }
+
+                let html = '<table><thead><tr><th>Name</th><th>Size</th><th>Updated</th><th>Type</th><th>Actions</th></tr></thead><tbody>';
+                
+                data.objects.forEach(obj => {
+                    html += `
+                        <tr>
+                            <td><a href="${obj.public_url}" target="_blank" style="color: #38bdf8;">${obj.name}</a></td>
+                            <td>${Math.round(obj.size / 1024)} KB</td>
+                            <td>${new Date(obj.updated).toLocaleString()}</td>
+                            <td>${obj.content_type}</td>
+                            <td><button onclick="deleteObject('${obj.name}')" style="width:auto;padding:6px 12px;background:#ef4444;">Delete</button></td>
+                        </tr>
+                    `;
+                });
+                
+                html += '</tbody></table>';
+                document.getElementById('storage-list').innerHTML = html;
+            } catch (error) {
+                document.getElementById('storage-list').innerHTML = `<div class="error">${error.message}</div>`;
+            }
+        }
+
+        async function deleteObject(path) {
+            if (!confirm(`Delete ${path}?`)) return;
+            
+            try {
+                await fetch(`${API_BASE}/api/v1/admin/storage/delete?path=${encodeURIComponent(path)}`, {
+                    method: 'DELETE',
+                    headers: {'Authorization': `Bearer ${authToken}`}
+                });
+                loadStorage();
+            } catch (error) {
+                alert('Failed to delete: ' + error.message);
+            }
+        }
+
+        // ===================== INIT =====================
+        window.onload = () => {
+            const savedToken = localStorage.getItem('admin_token');
+            if (savedToken) {
+                authToken = savedToken;
+                document.getElementById('login-section').style.display = 'none';
+                document.getElementById('dashboard-section').style.display = 'block';
+                loadDashboard();
+            }
+        };
+    </script>
+</body>
+</html>

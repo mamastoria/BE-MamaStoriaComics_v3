@@ -11,6 +11,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.models.user import User
 from app.models.comic_request import ComicRequest
+from app.models.subscription import Transaction
 from app.schemas.comic_request import ComicRequestCreate, ComicRequestResponse
 from app.utils.pagination import paginate, get_pagination_params
 from app.utils.responses import paginated_response
@@ -44,6 +45,14 @@ async def create_comic_request(
     
     # 2. Deduct credits
     current_user.kredit -= REQUEST_COST
+    amount_int = int(REQUEST_COST)
+
+    transaction = Transaction(
+        user_id=current_user.id_users,
+        type="debit",
+        amount=amount_int,
+        description="Kredit digunakan untuk request komik",
+    )
     
     # 3. Create request record
     new_request = ComicRequest(
@@ -56,6 +65,7 @@ async def create_comic_request(
     )
     
     db.add(new_request)
+    db.add(transaction)
     
     try:
         db.commit()

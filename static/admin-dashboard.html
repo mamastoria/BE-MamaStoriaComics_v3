@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MamaStoria Admin Dashboard</title>
+    <title>MamaStoria Ops Dashboard</title>
+    <!-- REFACTORED TO OPS-GRADE: See admin-dashboard-v2.html for latest version -->
+    <!-- This file is deprecated. Use: https://nanobanana-backend-1089713441636.us-central1.run.app/static/admin-dashboard-v2.html -->
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -306,7 +308,7 @@
 
     <script>
         let authToken = null;
-        const API_BASE = window.location.origin;
+        const API_BASE = "https://nanobanana-backend-1089713441636.us-central1.run.app";
 
         async function login() {
             const phone = document.getElementById('phone').value;
@@ -489,34 +491,84 @@
 
         async function loadPerformance() {
             try {
-                const data = await apiCall('/api/v1/admin/logs/performance?hours=24&limit=100');
+                const data = await apiCall('/api/v1/admin/logs/performance?hours=720&limit=500');
                 
                 const summary = data.summary;
+                const stages = data.stages;
+                
+                const formatTime = (minutes) => {
+                    return minutes ? `${minutes} min` : 'N/A';
+                };
+                
                 document.getElementById('perf-stats').innerHTML = `
-                    <div class="stat">
-                        <span class="stat-label">Total Jobs</span>
-                        <span class="stat-value">${summary.total_jobs}</span>
+                    <div style="margin-bottom: 20px;">
+                        <h4 style="margin-bottom: 10px; color: #667eea;">📊 Summary (Last ${data.hours}h = ${Math.round(data.hours/24)} days)</h4>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px;">
+                            <div class="stat">
+                                <span class="stat-label">Total Comics</span>
+                                <span class="stat-value">${summary.total_jobs}</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">With Timing</span>
+                                <span class="stat-value" style="color: #10b981;">${summary.with_timing_data || 0}</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">Completed</span>
+                                <span class="stat-value" style="color: #10b981;">${summary.completed}</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">Failed</span>
+                                <span class="stat-value" style="color: #ef4444;">${summary.failed}</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">In Progress</span>
+                                <span class="stat-value" style="color: #f59e0b;">${summary.in_progress}</span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="stat">
-                        <span class="stat-label">Completed</span>
-                        <span class="stat-value">${summary.completed}</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-label">Failed</span>
-                        <span class="stat-value">${summary.failed}</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-label">Avg Duration</span>
-                        <span class="stat-value">${summary.avg_duration_seconds ? (summary.avg_duration_seconds + 's') : 'N/A'}</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-label">Min Duration</span>
-                        <span class="stat-value">${summary.min_duration_seconds ? (summary.min_duration_seconds + 's') : 'N/A'}</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-label">Max Duration</span>
-                        <span class="stat-value">${summary.max_duration_seconds ? (summary.max_duration_seconds + 's') : 'N/A'}</span>
-                    </div>
+                    
+                    <h4 style="margin: 20px 0 10px 0; color: #667eea;">⏱️ Processing Time by Stage (Minutes)</h4>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: #f3f4f6;">
+                                <th style="padding: 10px; text-align: left; border: 1px solid #e5e7eb;">Stage</th>
+                                <th style="padding: 10px; text-align: center; border: 1px solid #e5e7eb;">Min</th>
+                                <th style="padding: 10px; text-align: center; border: 1px solid #e5e7eb;">Average</th>
+                                <th style="padding: 10px; text-align: center; border: 1px solid #e5e7eb;">Max</th>
+                                <th style="padding: 10px; text-align: center; border: 1px solid #e5e7eb;">Count</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 10px; border: 1px solid #e5e7eb;"><strong>1️⃣ Draft AI</strong></td>
+                                <td style="padding: 10px; text-align: center; border: 1px solid #e5e7eb;">${formatTime(stages.script.min)}</td>
+                                <td style="padding: 10px; text-align: center; border: 1px solid #e5e7eb; background: #fef3c7;">${formatTime(stages.script.avg)}</td>
+                                <td style="padding: 10px; text-align: center; border: 1px solid #e5e7eb;">${formatTime(stages.script.max)}</td>
+                                <td style="padding: 10px; text-align: center; border: 1px solid #e5e7eb;">${stages.script.count}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 10px; border: 1px solid #e5e7eb;"><strong>2️⃣ Halaman Komik</strong></td>
+                                <td style="padding: 10px; text-align: center; border: 1px solid #e5e7eb;">${formatTime(stages.render.min)}</td>
+                                <td style="padding: 10px; text-align: center; border: 1px solid #e5e7eb; background: #fef3c7;">${formatTime(stages.render.avg)}</td>
+                                <td style="padding: 10px; text-align: center; border: 1px solid #e5e7eb;">${formatTime(stages.render.max)}</td>
+                                <td style="padding: 10px; text-align: center; border: 1px solid #e5e7eb;">${stages.render.count}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 10px; border: 1px solid #e5e7eb;"><strong>3️⃣ PDF</strong></td>
+                                <td style="padding: 10px; text-align: center; border: 1px solid #e5e7eb;">${formatTime(stages.pdf.min)}</td>
+                                <td style="padding: 10px; text-align: center; border: 1px solid #e5e7eb; background: #fef3c7;">${formatTime(stages.pdf.avg)}</td>
+                                <td style="padding: 10px; text-align: center; border: 1px solid #e5e7eb;">${formatTime(stages.pdf.max)}</td>
+                                <td style="padding: 10px; text-align: center; border: 1px solid #e5e7eb;">${stages.pdf.count}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 10px; border: 1px solid #e5e7eb;"><strong>4️⃣ Video</strong></td>
+                                <td style="padding: 10px; text-align: center; border: 1px solid #e5e7eb;">${formatTime(stages.video.min)}</td>
+                                <td style="padding: 10px; text-align: center; border: 1px solid #e5e7eb; background: #fef3c7;">${formatTime(stages.video.avg)}</td>
+                                <td style="padding: 10px; text-align: center; border: 1px solid #e5e7eb;">${formatTime(stages.video.max)}</td>
+                                <td style="padding: 10px; text-align: center; border: 1px solid #e5e7eb;">${stages.video.count}</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 `;
             } catch (error) {
                 document.getElementById('perf-stats').innerHTML = `<div class="error">${error.message}</div>`;

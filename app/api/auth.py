@@ -151,7 +151,7 @@ async def login(
         "ok": True,
         "message": "Login successful",
         "data": {
-            "user": UserResponse.model_validate(user).model_dump(),
+            "user": UserResponse.model_validate(user).model_dump(exclude_none=True),
             "tokens": tokens
         }
     }
@@ -188,7 +188,7 @@ async def verify_otp(
         "ok": True,
         "message": message,
         "data": {
-            "user": UserResponse.model_validate(user).model_dump(),
+            "user": UserResponse.model_validate(user).model_dump(exclude_none=True),
             "tokens": tokens
         }
     }
@@ -359,8 +359,9 @@ async def google_oauth_callback(
         "ok": True,
         "message": "Google login successful",
         "data": {
-            "user": UserResponse.model_validate(user).model_dump(),
-            "tokens": tokens
+            "access_token": tokens["access_token"],
+            "refresh_token": tokens["refresh_token"],
+            "user": UserResponse.model_validate(user).model_dump(exclude_none=True)
         }
     }
 
@@ -401,7 +402,8 @@ async def google_verify_token(
         "ok": True,
         "message": "Google login successful",
         "data": {
-            "user": UserResponse.model_validate(user).model_dump(),
-            "tokens": tokens
+            "access_token": tokens["access_token"],
+            "refresh_token": tokens["refresh_token"],
+            "user": UserResponse.model_validate(user).model_dump(exclude_none=True)
         }
     }

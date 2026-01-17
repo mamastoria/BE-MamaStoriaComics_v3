@@ -1,12 +1,16 @@
 from fastapi import APIRouter, HTTPException, Query, Request, Depends, status
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
+from starlette.background import BackgroundTask
 from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Optional
 from pathlib import Path
 import sys
 import os
+import io
+import tempfile
+import logging
 
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, get_optional_user
 from app.models.user import User
 
 # Add root directory to python path to import core
@@ -18,10 +22,82 @@ if str(ROOT_DIR) not in sys.path:
 # NOTE: core is imported lazily inside functions to avoid blocking startup
 # with Google Cloud credential loading
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 STATIC_DIR = ROOT_DIR / "static"
+WATERMARK_IMG = ROOT_DIR / "assets" / "img" / "mamastoria-large.png"
+
+# ============================================================
+# WATERMARK UTIL
+# ============================================================
+
+def add_watermark_to_pdf(pdf_path: Path, watermark_path: Path) -> Optional[Path]:
+    """Return path to a temporary PDF with watermark applied; return None on failure."""
+    try:
+        from PyPDF2 import PdfReader, PdfWriter
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.utils import ImageReader
+    except ImportError as e:
+        logger.warning("Watermark dependencies missing: %s", e)
+        return None
+
+    if not watermark_path.exists():
+        logger.warning("Watermark image not found at %s", watermark_path)
+        return None
+
+    try:
+        reader = PdfReader(str(pdf_path))
+        writer = PdfWriter()
+        img = ImageReader(str(watermark_path))
+
+        for page in reader.pages:
+            width = float(page.mediabox.width)
+            height = float(page.mediabox.height)
+
+            buf = io.BytesIO()
+            c = canvas.Canvas(buf, pagesize=(width, height))
+
+            # Scale logo to ~90px width, preserve aspect, place at bottom-right with margin
+            logo_target_w = 90
+            img_w, img_h = img.getSize()
+            ratio = logo_target_w / float(img_w)
+            logo_w = logo_target_w
+            logo_h = img_h * ratio
+            margin = 16
+            pos_x = max(margin, width - logo_w - margin)
+            pos_y = margin  # bottom-right
+
+            try:
+                c.saveState()
+                if hasattr(c, "setFillAlpha"):
+                    c.setFillAlpha(0.3)
+                c.drawImage(img, pos_x, pos_y, width=logo_w, height=logo_h, mask="auto")
+                c.restoreState()
+            except Exception as img_err:
+                logger.warning("Failed to draw watermark image: %s", img_err)
+            c.showPage()
+            c.save()
+
+            buf.seek(0)
+            wm_page = PdfReader(buf).pages[0]
+
+            # Merge watermark page onto original page
+            if hasattr(page, "merge_page"):
+                page.merge_page(wm_page)
+            else:
+                page.mergePage(wm_page)
+            writer.add_page(page)
+
+        temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+        with open(temp_pdf.name, "wb") as f:
+            writer.write(f)
+
+        return Path(temp_pdf.name)
+    except Exception as e:
+        logger.warning("Failed to apply watermark: %s", e)
+        return None
 
 # ============================================================
 # REQUEST MODELS
@@ -211,29 +287,51 @@ def api_read(job_id: str):
 
 
 @router.get("/api/pdf/{job_id}")
-def api_pdf(job_id: str, download: int = Query(0)):
+def api_pdf(
+  job_id: str,
+  download: int = Query(0),
+  current_user: Optional[User] = Depends(get_optional_user)
+):
     """
     Serve the final comic as PDF (1 panel per page).
     """
     try:
-        pdf_path = core.ensure_job_pdf(job_id)
+      import core
+      pdf_path = core.ensure_job_pdf(job_id)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+      raise HTTPException(status_code=500, detail=str(e))
+
+    # Decide whether to watermark: default True if unauthenticated, otherwise use user preference
+    should_watermark = True
+    if current_user is not None:
+      should_watermark = bool(getattr(current_user, "watermark", True))
+
+    watermarked_path: Optional[Path] = None
+    if should_watermark:
+      watermarked_path = add_watermark_to_pdf(pdf_path, WATERMARK_IMG)
+
+    serve_path = watermarked_path or pdf_path
 
     filename = f"nanobanana_comic_{job_id}.pdf"
-    disp = "attachment" if download == 1 else "inline"
+    cleanup_task = None
+
+    # If we created a temp watermarked file, schedule cleanup after response is sent
+    if watermarked_path:
+      cleanup_task = BackgroundTask(lambda p=str(serve_path): os.remove(p) if os.path.exists(p) else None)
 
     return FileResponse(
-        str(pdf_path),
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'{disp}; filename="{filename}"'},
+      path=str(serve_path),
+      media_type="application/pdf",
+      filename=filename,
+      headers={"Cache-Control": "no-cache"},
+      background=cleanup_task,
     )
 
 
 @router.get("/api/preview/{job_id}/{part_no}")
 def api_preview(job_id: str, part_no: int):
     """
-    Return full 3×3 page image before split.
+    Return full 3x3 page image before split.
     """
     core.cleanup_jobs()
     job = core.get_job(job_id)

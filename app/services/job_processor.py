@@ -485,7 +485,40 @@ def process_image_jobs(db: Session) -> Dict[str, Any]:
             # Set cover from first panel
             if all_panel_urls:
                 comic.cover_url = all_panel_urls[0]
-            
+
+            # Auto-queue video generation once images are ready (>= 18 panels)
+            if len(all_panel_urls) >= 18 and comic.preview_video_url is None:
+                try:
+                    from app.services.video_queue import queue_video_generation
+
+                    panels_for_video = db.query(ComicPanel).filter(
+                        ComicPanel.comic_id == comic.id,
+                        ComicPanel.image_url.isnot(None)
+                    ).order_by(ComicPanel.page_number, ComicPanel.panel_number).all()
+
+                    panels_data = [{
+                        "image_url": p.image_url,
+                        "narration": p.narration or p.page_narration or "",
+                        "dialogue": p.dialogues or [],
+                        "description": p.description or p.page_description or ""
+                    } for p in panels_for_video]
+
+                    task_name = queue_video_generation(
+                        comic.id,
+                        panels_data,
+                        user_id=comic.user_id
+                    )
+                    if task_name:
+                        logger.info(
+                            f"[{worker_id}] Auto-queued video for comic #{comic.id}: {task_name}"
+                        )
+                    else:
+                        logger.warning(
+                            f"[{worker_id}] Auto-queue video failed for comic #{comic.id}"
+                        )
+                except Exception as e:
+                    logger.warning(f"[{worker_id}] Auto-queue video error for comic #{comic.id}: {e}")
+
             db.commit()
             
             results["success"] += 1

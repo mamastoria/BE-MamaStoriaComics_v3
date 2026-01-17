@@ -43,10 +43,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"http(s)?://localhost.*|http(s)?://127\.0\.0\.1.*",
-    allow_origins=[
-        "https://nanobanana-backend-1089713441636.us-central1.run.app",
-    ],
+    allow_origins=["*"],  # Allow all origins
     allow_credentials=True,  # Allow credentials (cookies, auth headers)
     allow_methods=["*"],
     allow_headers=["*"],

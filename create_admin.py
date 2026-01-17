@@ -8,14 +8,14 @@ from sqlalchemy import create_engine, text
 import bcrypt
 
 # Database connection
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+pg8000://postgres:your_password@/nanobanana_db?unix_sock=/cloudsql/nanobananacomic-482111:us-central1:cloudsql-nanobanana-us/.s.PGSQL.5432")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:Nanobanana2024SuperSecure@127.0.0.1:5555/nanobanana_db")
 
 engine = create_engine(DATABASE_URL)
 
 # Admin credentials
-PHONE = "+6281234567890"
+PHONE = "0811814563"
 PASSWORD = "admin123"
-FULL_NAME = "Admin Dashboard"
+FULL_NAME = "Founder Mamastoria"
 KREDIT = 999999
 
 # Hash password

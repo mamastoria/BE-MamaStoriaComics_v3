@@ -5,7 +5,8 @@ Comic CRUD operations, draft generation, publishing
 import os
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, BackgroundTasks
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_
+from sqlalchemy import or_, cast
+from sqlalchemy.dialects.postgresql import JSONB
 import logging
 from typing import Optional, List, Dict
 from pydantic import BaseModel
@@ -15,6 +16,8 @@ from app.core.dependencies import get_current_user, get_optional_user
 from app.models.user import User
 from app.models.comic import Comic
 from app.models.master_data import Genre
+from app.models.subscription import Transaction
+from decimal import Decimal
 from app.schemas.comic import (
     CreateStoryIdea,
     UpdateSummary,
@@ -69,6 +72,7 @@ async def list_comics(
         raw_genres = [item.strip() for item in genre.split(",") if item.strip()]
         genre_names = []
         genre_ids = [int(item) for item in raw_genres if item.isdigit()]
+        genre_id_strings = [str(item) for item in genre_ids]
 
         if genre_ids:
             genre_rows = db.query(Genre).filter(Genre.id.in_(genre_ids)).all()
@@ -78,8 +82,17 @@ async def list_comics(
             if not item.isdigit():
                 genre_names.append(item)
 
+        genre_filters = []
         if genre_names:
-            genre_filters = [Comic.genre.contains([name]) for name in genre_names]
+            genre_filters.extend(
+                [cast(Comic.genre, JSONB).contains([name]) for name in genre_names]
+            )
+        if genre_id_strings:
+            genre_filters.extend(
+                [cast(Comic.genre, JSONB).contains([gid]) for gid in genre_id_strings]
+            )
+
+        if genre_filters:
             query = query.filter(or_(*genre_filters))
     
     if style:
@@ -707,14 +720,19 @@ async def get_draft_status(
     panels_data = []
     if comic.panels:
         for i, p in enumerate(comic.panels):
+            # Use page_narration if narration is not available (AI output)
+            narration_text = p.narration or p.page_narration or p.description or ""
             panels_data.append({
                 "panel_id": p.id,
                 "page_number": p.page_number,
                 "panel_number": p.panel_number or (i + 1),
                 "image_url": p.image_url,
-                "description": p.description,
-                "narration": p.narration,
-                "dialogue": p.dialogues
+                "description": p.description or p.page_description,
+                "narration": narration_text,
+                "dialogue": p.dialogues,
+                "page_narration": p.page_narration,  # AI output
+                "dialogues": p.dialogues,  # Explicit dialogues field
+                "main_characters": p.main_characters_on_page,
             })
     
     # Build detailed summary from panels (title + all narrations + dialogues)
@@ -1192,6 +1210,8 @@ async def generate_comic_video(
     This endpoint queues the video generation to a dedicated worker service
     via Cloud Tasks for isolated processing with dedicated resources (8GB RAM).
     
+    Cost: 5 credits per video generation
+    
     Features:
     - Ken Burns effect (zoom/pan animation)
     - Fade transitions between panels
@@ -1201,6 +1221,28 @@ async def generate_comic_video(
     The video URL will be stored in comic.preview_video_url when complete.
     """
     from app.models.comic_panel import ComicPanel
+    
+    # VIDEO GENERATION COST
+    VIDEO_GENERATION_COST = Decimal("5.00")
+    
+    # 1. Check if user has enough credits
+    if current_user.kredit < VIDEO_GENERATION_COST:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Insufficient credits for video generation. Cost: {VIDEO_GENERATION_COST}, Available: {current_user.kredit}"
+        )
+    
+    # 2. Deduct credits
+    current_user.kredit -= VIDEO_GENERATION_COST
+    amount_int = int(VIDEO_GENERATION_COST)
+    
+    transaction = Transaction(
+        user_id=current_user.id_users,
+        type="debit",
+        amount=amount_int,
+        description="Kredit digunakan untuk pembuatan video",
+    )
+    db.add(transaction)
     
     comic = db.query(Comic).filter(
         Comic.id == id,
@@ -1242,6 +1284,19 @@ async def generate_comic_video(
             "description": p.description or p.page_description or ""
         })
     
+    # 3. Commit credit deduction after validation
+    try:
+        db.commit()
+        db.refresh(current_user)
+        logger.info(f"Video generation: Deducted 5 credits from user {current_user.id_users}. Remaining: {current_user.kredit}")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to deduct credits: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process credit deduction: {str(e)}"
+        )
+    
     # Try to queue to Cloud Tasks (dedicated video worker)
     try:
         from app.services.video_queue import queue_video_generation
@@ -1268,7 +1323,8 @@ async def generate_comic_video(
                         "TTS narration (Indonesian)",
                         "9:16 vertical format"
                     ]
-                }
+                },
+                "remaining_credits": float(current_user.kredit)
             }
     except Exception as queue_error:
         logger.warning(f"Cloud Tasks queueing failed, falling back to background task: {queue_error}")
@@ -1336,7 +1392,8 @@ async def generate_comic_video(
                 "TTS narration (Indonesian)",
                 "9:16 vertical format"
             ]
-        }
+        },
+        "remaining_credits": float(current_user.kredit)
     }
 
 

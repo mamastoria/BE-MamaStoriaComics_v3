@@ -10,6 +10,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.core.security import verify_password, get_password_hash, generate_verification_code
 from app.models.user import User
+from app.models.subscription import Transaction
 from app.schemas.user import (
     UserResponse,
     UpdateProfile,
@@ -532,15 +533,14 @@ async def update_kredit(
             detail="Invalid operation. Use 'add' or 'subtract'"
         )
     
-    # Optional: Log to Transaction table if you have one
-    # from app.models.subscription import Transaction
-    # transaction = Transaction(
-    #    user_id=user.id_users,
-    #    type="credit_update",
-    #    amount=kredit_data.amount if kredit_data.operation == "add" else -kredit_data.amount,
-    #    description=kredit_data.description or f"Manual credit {kredit_data.operation}"
-    # )
-    # db.add(transaction)
+    transaction = Transaction(
+        user_id=user.id_users,
+        type="credit" if kredit_data.operation == "add" else "debit",
+        amount=amount_int,
+        description=kredit_data.description
+        or ("Kredit ditambah" if kredit_data.operation == "add" else "Kredit digunakan"),
+    )
+    db.add(transaction)
     
     db.add(user) # Mark as modified
     db.commit()
@@ -579,6 +579,14 @@ async def add_user_kredit(
     # Add credits
     amount_int = _normalize_kredit_amount(kredit_data.amount)
     user.kredit += amount_int
+
+    transaction = Transaction(
+        user_id=user.id_users,
+        type="credit",
+        amount=amount_int,
+        description=kredit_data.description or "Kredit ditambah",
+    )
+    db.add(transaction)
     
     db.add(user)
     db.commit()
@@ -639,6 +647,14 @@ async def subtract_user_kredit(
     
     # Subtract credits from authenticated user's account
     user.kredit -= amount_int
+
+    transaction = Transaction(
+        user_id=user.id_users,
+        type="debit",
+        amount=amount_int,
+        description=kredit_data.description or "Kredit digunakan",
+    )
+    db.add(transaction)
     
     db.add(user)
     db.commit()

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from pydantic import BaseModel
 
 from app.core.database import get_db
@@ -273,6 +273,8 @@ async def get_yearly_stats(
 async def get_transaction_history(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -290,6 +292,11 @@ async def get_transaction_history(
     query = db.query(Transaction).filter(
         Transaction.user_id == current_user.id_users
     ).order_by(Transaction.created_at.desc())
+
+    if start_date:
+        query = query.filter(func.date(Transaction.created_at) >= start_date)
+    if end_date:
+        query = query.filter(func.date(Transaction.created_at) <= end_date)
     
     page, per_page = get_pagination_params(page, per_page)
     items, total = paginate(query, page, per_page)

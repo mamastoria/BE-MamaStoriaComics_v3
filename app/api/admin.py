@@ -15,6 +15,11 @@ from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_admin
 from app.core.database import get_db
+from app.utils.timezone import (
+    get_jakarta_now, 
+    get_hours_since_jakarta_midnight,
+    JAKARTA_TZ
+)
 
 logger = logging.getLogger("admin_api")
 
@@ -202,29 +207,193 @@ async def get_cloud_logs(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/logs/performance")
-async def get_performance_metrics(
-    hours: int = Query(24, ge=1, le=168),
-    limit: int = Query(100, ge=10, le=500)
+@router.get("/comics/{comic_id}/logs")
+async def get_comic_logs(
+    comic_id: int,
+    hours: int = Query(72, ge=1, le=720),
+    limit: int = Query(200, ge=10, le=1000)
 ):
     """
-    Analyze logs to extract performance metrics for comic generation.
-    Returns timing data for each job/comic.
+    Fetch log lines related to a specific comic ID from Cloud Logging.
     """
+    client, DESCENDING = _get_logging_client()
+    if not client:
+        raise HTTPException(status_code=503, detail="Cloud Logging client unavailable")
+
+    try:
+        time_filter = (datetime.utcnow() - timedelta(hours=hours)).isoformat() + "Z"
+        comic_id_str = str(comic_id)
+        filter_str = f'''
+            resource.type="cloud_run_revision"
+            timestamp>="{time_filter}"
+            (
+                textPayload=~"comic[_\\s]?id[:= ]*{comic_id_str}"
+                OR textPayload=~"Comic ID:\\s*{comic_id_str}"
+                OR textPayload=~"comic\\s*#\\s*{comic_id_str}"
+            )
+        '''
+
+        entries = []
+        for entry in client.list_entries(
+            filter_=filter_str,
+            order_by=DESCENDING,
+            max_results=limit
+        ):
+            message = entry.payload if isinstance(entry.payload, str) else str(entry.payload)
+            timestamp = entry.timestamp.isoformat() if entry.timestamp else ""
+            severity = entry.severity or "DEFAULT"
+            entries.append(f"[{timestamp}] {severity}: {message}")
+
+        entries.reverse()
+        log_text = "\n".join(entries) if entries else "No logs found for this comic."
+
+        return {
+            "success": True,
+            "source": "cloud_logging",
+            "comic_id": comic_id,
+            "count": len(entries),
+            "log_text": log_text
+        }
+    except Exception as e:
+        logger.exception("Failed to fetch comic logs")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/server/info")
+async def get_server_info():
+    """
+    Get server timezone and current time information.
+    Useful for synchronizing dashboard filters with server time.
+    """
+    now_utc = datetime.utcnow()
+    now_jakarta = get_jakarta_now()
+    hours_since_midnight = get_hours_since_jakarta_midnight()
     
-    # Return mock data for now (Cloud Logging may not be configured)
     return {
         "success": True,
-        "source": "mock",
-        "summary": {
-            "total_jobs": 0,
-            "completed": 0,
-            "failed": 0,
-            "avg_duration_seconds": None,
-            "min_duration_seconds": None,
-            "max_duration_seconds": None
+        "timezone": {
+            "name": "Asia/Jakarta",
+            "offset": "+07:00",
+            "abbreviation": "WIB"
         },
-        "jobs": []
+        "current_time": {
+            "utc": now_utc.isoformat() + "Z",
+            "jakarta": now_jakarta.isoformat(),
+            "hours_since_jakarta_midnight": round(hours_since_midnight, 2)
+        },
+        "recommendation": "Use 'hours_since_jakarta_midnight' for Today filter to match database timezone"
+    }
+
+
+@router.get("/logs/performance")
+async def get_performance_metrics(
+    hours: int = Query(720, ge=1, le=8760),  # Default 720h = 30 days
+    limit: int = Query(500, ge=10, le=1000),
+    db: Session = Depends(get_db)
+):
+    """
+    Analyze database to extract performance metrics for comic generation.
+    Returns timing data for each processing stage (Draft AI, Render, PDF, Video).
+    Default: last 30 days (720 hours)
+    """
+    from app.models.comic import Comic
+    from sqlalchemy import func
+    
+    # Get comics from the last N hours
+    cutoff_time = datetime.now() - timedelta(hours=hours)
+    
+    comics = db.query(Comic).filter(
+        Comic.created_at >= cutoff_time
+    ).limit(limit).all()
+    
+    # Calculate durations for each stage
+    def calc_duration_minutes(start, end):
+        """Calculate duration in minutes"""
+        if start and end:
+            return (end - start).total_seconds() / 60.0
+        return None
+    
+    stage_durations = {
+        'script': [],
+        'render': [],
+        'pdf': [],
+        'video': []
+    }
+    
+    total_jobs = len(comics)
+    completed = 0
+    failed = 0
+    
+    for comic in comics:
+        # Script (Draft AI) duration
+        if comic.script_started_at and comic.script_completed_at:
+            duration = calc_duration_minutes(comic.script_started_at, comic.script_completed_at)
+            if duration and duration > 0:
+                stage_durations['script'].append(duration)
+        
+        # Render (Halaman Komik) duration
+        if comic.render_started_at and comic.render_completed_at:
+            duration = calc_duration_minutes(comic.render_started_at, comic.render_completed_at)
+            if duration and duration > 0:
+                stage_durations['render'].append(duration)
+        
+        # PDF duration (using clipping times as proxy)
+        if comic.clipping_started_at and comic.clipping_completed_at:
+            duration = calc_duration_minutes(comic.clipping_started_at, comic.clipping_completed_at)
+            if duration and duration > 0:
+                stage_durations['pdf'].append(duration)
+        
+        # Video duration
+        if comic.video_started_at and comic.video_completed_at:
+            duration = calc_duration_minutes(comic.video_started_at, comic.video_completed_at)
+            if duration and duration > 0:
+                stage_durations['video'].append(duration)
+        
+        # Count completion status based on draft_job_status or timing
+        if comic.draft_job_status == "COMPLETED" or comic.video_completed_at:
+            completed += 1
+        elif comic.draft_job_status == "FAILED" or comic.last_error_message:
+            failed += 1
+    
+    # Calculate statistics for each stage
+    def calc_stats(durations):
+        if not durations:
+            return {"min": None, "avg": None, "max": None, "count": 0}
+        return {
+            "min": round(min(durations), 2),
+            "avg": round(sum(durations) / len(durations), 2),
+            "max": round(max(durations), 2),
+            "count": len(durations)
+        }
+    
+    stages_stats = {
+        "script": calc_stats(stage_durations['script']),
+        "render": calc_stats(stage_durations['render']),
+        "pdf": calc_stats(stage_durations['pdf']),
+        "video": calc_stats(stage_durations['video'])
+    }
+    
+    # Calculate total samples with timing data
+    total_with_timing = max(
+        stages_stats['script']['count'],
+        stages_stats['render']['count'],
+        stages_stats['pdf']['count'],
+        stages_stats['video']['count']
+    )
+    
+    return {
+        "success": True,
+        "source": "database",
+        "hours": hours,
+        "summary": {
+            "total_jobs": total_jobs,
+            "completed": completed,
+            "failed": failed,
+            "in_progress": total_jobs - completed - failed,
+            "with_timing_data": total_with_timing,
+            "without_timing_data": total_jobs - total_with_timing
+        },
+        "stages": stages_stats
     }
     
     # TODO: Enable Cloud Logging integration later

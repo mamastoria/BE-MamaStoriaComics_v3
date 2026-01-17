@@ -268,6 +268,7 @@ def generate_cinematic_video(
     
     work_dir = tempfile.mkdtemp(prefix="comic_video_")
     logger.info(f"Working directory created: {work_dir}")
+    watermark_path = Path(__file__).parent / "assets" / "img" / "mamastoria-large.png"
     
     # Initialize variable to prevent UnboundLocalError
     final_with_audio = None
@@ -608,17 +609,20 @@ def generate_cinematic_video(
                 
                 subprocess.run(cmd, capture_output=True, timeout=300)
                 
-                if os.path.exists(final_with_audio):
-                    shutil.copy(final_with_audio, output_path)
-                else:
-                    if concatenated_video and os.path.exists(concatenated_video):
-                        shutil.copy(concatenated_video, output_path)
+                pass
+        
+        base_video = None
+        if final_with_audio and os.path.exists(final_with_audio):
+            base_video = final_with_audio
+        elif concatenated_video and os.path.exists(concatenated_video):
+            base_video = concatenated_video
+        
+        if base_video:
+            if watermark_path.exists():
+                if not add_watermark(base_video, output_path, str(watermark_path)):
+                    shutil.copy(base_video, output_path)
             else:
-                if concatenated_video and os.path.exists(concatenated_video):
-                    shutil.copy(concatenated_video, output_path)
-        else:
-            if concatenated_video and os.path.exists(concatenated_video):
-                shutil.copy(concatenated_video, output_path)
+                shutil.copy(base_video, output_path)
         
         logger.info(f"Video generated successfully: {output_path}")
         return True
@@ -660,6 +664,33 @@ def fix_video_compatibility(input_path: str, output_path: str) -> bool:
         return False
     except Exception as e:
         logger.error(f"Fix video exception: {str(e)}")
+        return False
+
+
+def add_watermark(input_path: str, output_path: str, watermark_path: str) -> bool:
+    """Overlay watermark logo at bottom-right."""
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", input_path,
+        "-i", watermark_path,
+        "-filter_complex", "[1]scale=96:-1[wm];[0][wm]overlay=W-w-20:H-h-20",
+        "-c:v", "libx264",
+        "-preset", "fast",
+        "-crf", "23",
+        "-pix_fmt", "yuv420p",
+        "-c:a", "copy",
+        "-map", "0:v:0",
+        "-map", "0:a?",
+        output_path
+    ]
+    try:
+        subprocess.run(cmd, check=True, capture_output=True, timeout=300)
+        return True
+    except subprocess.CalledProcessError as e:
+        logger.warning(f"Watermark ffmpeg failed: {e.stderr.decode('utf-8') if e.stderr else str(e)}")
+        return False
+    except Exception as e:
+        logger.warning(f"Watermark failed: {str(e)}")
         return False
 
 
