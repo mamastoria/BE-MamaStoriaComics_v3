@@ -10,6 +10,10 @@ from typing import Optional
 
 class DokuClient:
     def __init__(self):
+        self._refresh_settings()
+
+    def _refresh_settings(self):
+        """Reload settings from global settings object to ensure environment changes are picked up"""
         self.client_id = settings.DOKU_CLIENT_ID
         self.secret_key = settings.DOKU_SECRET_KEY
         self.is_production = settings.DOKU_IS_PRODUCTION
@@ -41,6 +45,7 @@ class DokuClient:
         Validate Signature from Doku Notification
         Uses DOKU_NOTIFICATION_SECRET if defined, otherwise falls back to DOKU_SECRET_KEY
         """
+        self._refresh_settings()
         # Determine which secret to use for notifications
         secret = settings.DOKU_NOTIFICATION_SECRET if settings.DOKU_NOTIFICATION_SECRET else self.secret_key
         
@@ -68,6 +73,7 @@ class DokuClient:
         """
         Generate Doku Checkout Payment URL
         """
+        self._refresh_settings()
         target_path = "/checkout/v1/payment"
         request_id = str(uuid.uuid4())
         timestamp = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -154,11 +160,7 @@ class DokuClient:
         Check Transaction Status from Doku API
         Refetch settings to ensure environment switch works without restart
         """
-        # RELOAD SETTINGS DYNAMICALLY
-        self.is_production = settings.DOKU_IS_PRODUCTION
-        self.client_id = settings.DOKU_CLIENT_ID
-        self.secret_key = settings.DOKU_SECRET_KEY
-        self.base_url = "https://api.doku.com" if self.is_production else "https://api-sandbox.doku.com"
+        self._refresh_settings()
         
         target_path = f"/orders/v1/status/{invoice_number}"
         request_id = str(uuid.uuid4())
