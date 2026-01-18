@@ -8,7 +8,7 @@ on:
 
 env:
   PROJECT_ID: nanobananacomic-482111
-  SERVICE_NAME: nanobanana-backend
+  SERVICE_NAME: nanobanana-backend-v2
   REGION: us-central1
 
 jobs:

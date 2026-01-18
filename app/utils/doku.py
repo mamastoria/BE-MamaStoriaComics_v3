@@ -83,11 +83,6 @@ class DokuClient:
         target_path = "/checkout/v1/payment"
         request_id = str(uuid.uuid4())
         timestamp = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-
-        # AGGRESSIVE DEBUG - REMOVE AFTER FIXING
-        # This will force the API to fail but tell us EXACTLY what credentials are being used
-        # If you don't see this error message, you are hitting the WRONG SERVER/SERVICE
-        raise Exception(f"DEBUG PROBE: ActiveID={self.client_id} | IsProd={self.is_production} | URL={self.base_url}")
         
         # Construct Request Body
         customer_payload = {

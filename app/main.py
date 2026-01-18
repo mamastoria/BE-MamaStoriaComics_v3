@@ -72,6 +72,24 @@ async def root():
         "environment": settings.APP_ENV
     }
 
+@app.get("/version", tags=["Health"])
+async def check_version():
+    """Verify currently deployed version and Doku Config"""
+    from app.core.config import settings
+    # Force reload settings to be sure
+    from app.utils.doku import doku_client
+    doku_client._refresh_settings()
+    
+    return {
+        "ok": True,
+        "commit": "FORCE_DOKU_V2", 
+        "doku_config": {
+            "client_id_masked": f"{doku_client.client_id[:8]}...",
+            "is_production": doku_client.is_production,
+            "base_url": doku_client.base_url
+        }
+    }
+
 
 @app.get("/health", tags=["Health"])
 async def health_check():
