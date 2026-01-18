@@ -18,6 +18,12 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
+# FORCE LOG TO VERIFY DEPLOYMENT VERSION
+print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+print("!!! DEPLOYMENT VERSION: HARDCODED DOKU FIX ACTIVE (REV 2) !!!")
+print("!!! IF YOU SEE THIS, THE NEW CODE IS RUNNING              !!!")
+print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+
 # Global Exception Handler to ensure CORS headers are always present on 500 errors
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
