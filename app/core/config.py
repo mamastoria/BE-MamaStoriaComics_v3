@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     DOKU_SECRET_KEY: str = "SK-Mb7Lbo9POYkyOCpv1vG2"
     DOKU_NOTIFICATION_SECRET: str = "SK-Mb7Lbo9POYkyOCpv1vG2"
     DOKU_IS_PRODUCTION: bool = True
-    USE_MOCK_PAYMENT: bool = False  # Set to True to use local mock payment page instead of Doku API
+    USE_MOCK_PAYMENT: bool = True  # Re-enabled because Doku credentials are invalid
     
     # CORS
     CORS_ORIGINS: str = "*"
