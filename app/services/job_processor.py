@@ -241,6 +241,7 @@ def process_script_jobs(db: Session) -> Dict[str, Any]:
             # Extract metadata
             global_data = script.get("global", {})
             ai_title = (global_data.get("comic_title") or script.get("suggested_title") or "").strip()
+            ai_synopsis = (global_data.get("synopsis") or global_data.get("summary") or "").strip()
             
             # Update comic
             comic.draft_job_status = 'SCRIPT_READY'
@@ -249,6 +250,18 @@ def process_script_jobs(db: Session) -> Dict[str, Any]:
             comic.locked_by = None
             comic.locked_at = None
             comic.title = ai_title or (comic.story_idea[:100] if comic.story_idea else "Untitled")
+            
+            # Ensure synopsis/summary is populated
+            if ai_synopsis:
+                comic.synopsis = ai_synopsis
+                comic.summary = ai_synopsis
+            else:
+                # Fallback: Use story idea if AI didn't generate a synopsis
+                preview_text = (comic.story_idea or "")[:500]
+                if not comic.synopsis:
+                    comic.synopsis = preview_text
+                if not comic.summary:
+                    comic.summary = preview_text
             
             db.commit()
             logger.info(f"[{worker_id}] Database committed for comic #{comic.id}")
