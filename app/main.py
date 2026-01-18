@@ -13,7 +13,7 @@ from app.core.config import settings
 app = FastAPI(
     title=settings.APP_NAME,
     description="API untuk platform pembuatan komik dengan AI",
-    version="2.0.1",
+    version="2.0.2",
     docs_url="/docs",
     redoc_url="/redoc"
 )
@@ -62,7 +62,7 @@ async def root():
     return {
         "ok": True,
         "message": f"Welcome to {settings.APP_NAME} API",
-        "version": "2.0.0",
+        "version": "2.0.2",
         "environment": settings.APP_ENV
     }
 
