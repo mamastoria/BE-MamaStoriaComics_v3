@@ -14,20 +14,14 @@ class DokuClient:
 
     def _refresh_settings(self):
         """Reload settings from global settings object to ensure environment changes are picked up"""
-        self.client_id = settings.DOKU_CLIENT_ID
-        self.secret_key = settings.DOKU_SECRET_KEY
-        
-        # FAIL-SAFE: If Client ID looks like Sandbox (BRN-...), FORCE Sandbox URL
-        # This overrides any misconfigured DOKU_IS_PRODUCTION env var
-        if self.client_id and self.client_id.startswith("BRN-"):
-            print(f"DOKU FORCE SANDBOX: Client ID {self.client_id} detected as Sandbox format.")
-            self.is_production = False
-            self.base_url = "https://api-sandbox.doku.com"
-        else:
-            self.is_production = settings.DOKU_IS_PRODUCTION
-            self.base_url = "https://api.doku.com" if self.is_production else "https://api-sandbox.doku.com"
+        # HARDCODED OVERRIDE FOR DEBUGGING/FIXING
+        # To eliminate any possibility of Env Var interference
+        self.client_id = "BRN-0280-1765767732062"
+        self.secret_key = "SK-Mb7Lbo9POYkyOCpv1vG2"
+        self.is_production = False
+        self.base_url = "https://api-sandbox.doku.com"
             
-        print(f"DOKU CONFIG: ID={self.client_id}, Env={'Production' if self.is_production else 'Sandbox'}, URL={self.base_url}")
+        print(f"DOKU CONFIG (HARDCODED): ID={self.client_id}, Env={'Production' if self.is_production else 'Sandbox'}, URL={self.base_url}")
 
     def generate_digest(self, json_body: str) -> str:
         """Generate Digest from request body"""
@@ -156,7 +150,7 @@ class DokuClient:
             else:
                  print(f"Doku Unknown Response: {response.text}")
                  error_msg = response.text if response.text else "No response body"
-                 raise Exception(f"Unknown error from Doku Payment Gateway. Status: {response.status_code}, Response: {error_msg}")
+                 raise Exception(f"Unknown error from Doku Payment Gateway using ID {self.client_id}. Status: {response.status_code}, Response: {error_msg}")
                  
         except Exception as e:
             print(f"Doku Request Exception: {str(e)}")
