@@ -20,7 +20,7 @@ class CreateStoryIdea(BaseModel):
 
 class UpdateSummary(BaseModel):
     """Schema for updating comic summary"""
-    summary: str = Field(..., min_length=50)
+    summary: str = Field(..., min_length=5)
 
 
 class UpdateCharacter(BaseModel):
