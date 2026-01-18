@@ -14,14 +14,13 @@ class DokuClient:
 
     def _refresh_settings(self):
         """Reload settings from global settings object to ensure environment changes are picked up"""
-        # HARDCODED OVERRIDE FOR DEBUGGING/FIXING
-        # To eliminate any possibility of Env Var interference
-        self.client_id = "BRN-0280-1765767732062"
-        self.secret_key = "SK-Mb7Lbo9POYkyOCpv1vG2"
-        self.is_production = False
-        self.base_url = "https://api-sandbox.doku.com"
+        # Load from settings (environment variables or .env)
+        self.client_id = settings.DOKU_CLIENT_ID
+        self.secret_key = settings.DOKU_SECRET_KEY
+        self.is_production = settings.DOKU_IS_PRODUCTION
+        self.base_url = "https://api.doku.com" if self.is_production else "https://api-sandbox.doku.com"
             
-        print(f"DOKU CONFIG (HARDCODED): ID={self.client_id}, Env={'Production' if self.is_production else 'Sandbox'}, URL={self.base_url}")
+        print(f"DOKU CONFIG: ID={self.client_id}, Env={'Production' if self.is_production else 'Sandbox'}, URL={self.base_url}")
 
     def generate_digest(self, json_body: str) -> str:
         """Generate Digest from request body"""
