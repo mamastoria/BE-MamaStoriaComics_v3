@@ -33,6 +33,20 @@ from app.schemas.comic import (
 from app.services.comic_service import ComicService
 from app.utils.pagination import paginate, get_pagination_params
 from app.utils.responses import paginated_response
+from app.core.database import get_session_local
+from app.services.job_processor import process_script_jobs
+
+def trigger_script_generation_background():
+    """Background task to trigger script generation immediately"""
+    SessionLocal = get_session_local()
+    db = SessionLocal()
+    try:
+        logger.info("Background: Auto-triggering script generation for new draft...")
+        process_script_jobs(db)
+    except Exception as e:
+        logger.error(f"Background script generation failed: {e}")
+    finally:
+        db.close()
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -193,6 +207,7 @@ async def get_comic_detail(
 @router.post("/comics/story-idea", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def create_story_and_attributes(
     story_data: CreateStoryIdea,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -241,6 +256,9 @@ async def create_story_and_attributes(
         )
         
         response_data = ComicDetail.model_validate(comic).model_dump()
+        
+        # Trigger background generation immediately
+        background_tasks.add_task(trigger_script_generation_background)
         
         # Return immediately without waiting for script generation
         return {
