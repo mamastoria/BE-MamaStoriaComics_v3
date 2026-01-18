@@ -1,0 +1,121 @@
+﻿python : C:\Users\shwen\Docu
+ments\DATA TPA\New folder\BE
+-MamaStoriaComics_v3\test_do
+ku_detailed.py:30: 
+DeprecationWarning: 
+datetime.datetime.utcnow() 
+is deprecated and scheduled 
+for removal in a future 
+version. Use timezone-aware 
+objects to represent 
+datetimes in UTC: datetime.d
+atetime.now(datetime.UTC).
+At line:1 char:1
++ python 
+test_doku_detailed.py 2>&1 
+| Out-File -Encoding utf8 
+doku_outp ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~
+    + CategoryInfo          
+    : NotSpecified: (C:\Us  
+  ers\shwen\...(datetime.   
+ UTC).:String) [], Remot    
+eException
+    + FullyQualifiedErrorId 
+    : NativeCommandError
+ 
+  timestamp = datetime.utcno
+w().strftime("%Y-%m-%dT%H:%M
+:%SZ")
+================================================================================
+DOKU API DETAILED TEST
+================================================================================
+Client ID: BRN-0280-1765767732062
+Secret Key: SK-Mb7Lbo9POYkyOCpv1vG2
+Base URL: https://api-sandbox.doku.com
+================================================================================
+
+Request ID: db31a5ab-97b8-4bb4-9e25-5e0ea8711c8d
+Timestamp: 2026-01-18T11:00:36Z
+Target Path: /checkout/v1/payment
+
+Request Body Length: 313 bytes
+
+================================================================================
+STEP 1: DIGEST CALCULATION
+================================================================================
+Digest (Base64): UZxBSEDf7kvNXcDzTcJmkOKbmBXLYh5KUDf6ahvQMlM=
+
+================================================================================
+STEP 2: SIGNATURE CALCULATION
+================================================================================
+Raw Signature String:
+----------------------------------------
+Client-Id:BRN-0280-1765767732062
+Request-Id:db31a5ab-97b8-4bb4-9e25-5e0ea8711c8d
+Request-Timestamp:2026-01-18T11:00:36Z
+Request-Target:/checkout/v1/payment
+Digest:UZxBSEDf7kvNXcDzTcJmkOKbmBXLYh5KUDf6ahvQMlM=
+----------------------------------------
+
+Signature: HMACSHA256=hUlUnlbNAvj1ZGQeDDNojZSN51m/GI4E15urObmZJ1A=
+
+================================================================================
+STEP 3: REQUEST HEADERS
+================================================================================
+Content-Type: application/json
+Client-Id: BRN-0280-1765767732062
+Request-Id: db31a5ab-97b8-4bb4-9e25-5e0ea8711c8d
+Request-Timestamp: 2026-01-18T11:00:36Z
+Signature: HMACSHA256=hUlUnlbNAvj1ZGQeDDNojZSN51m/GI4E15urObmZJ1A=
+
+================================================================================
+STEP 4: SENDING REQUEST TO DOKU
+================================================================================
+URL: https://api-sandbox.doku.com/checkout/v1/payment
+
+================================================================================
+RESPONSE FROM DOKU
+================================================================================
+Status Code: 400
+
+Response Headers:
+  Date: Sun, 18 Jan 2026 11:00:35 GMT
+  Content-Type: application/json;charset=ISO-8859-1
+  Content-Length: 99
+  Connection: keep-alive
+  Vary: Origin, Access-Control-Request-Method, Access-Control-Request-Headers
+  Client-Id: BRN-0280-1765767732062
+  Request-Id: db31a5ab-97b8-4bb4-9e25-5e0ea8711c8d
+  Response-Timestamp: 2026-01-18T11:00:36Z
+
+Response Body:
+{
+  "error": {
+    "code": "invalid_client_id",
+    "message": "Invalid Client-Id",
+    "type": "invalid_request_error"
+  }
+}
+
+================================================================================
+[ERROR 400] BAD REQUEST
+
+Error Code: invalid_client_id
+Error Message: Invalid Client-Id
+
+DIAGNOSIS: Invalid Client ID
+  - Pastikan Client ID benar dari dashboard Doku
+  - Cek apakah untuk Sandbox atau Production
+  - Coba copy-paste ulang dari dashboard
+================================================================================
+
+================================================================================
+TROUBLESHOOTING CHECKLIST
+================================================================================
+1. [OK] Client ID benar (sudah dikonfirmasi)
+2. [?] Secret Key - TOLONG CEK LAGI DI DASHBOARD DOKU
+3. [?] Environment - Pastikan Sandbox credentials untuk Sandbox API
+4. [?] Status Account - Pastikan account Doku aktif
+================================================================================
