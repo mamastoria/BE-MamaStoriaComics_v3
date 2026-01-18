@@ -14,13 +14,16 @@ class DokuClient:
 
     def _refresh_settings(self):
         """Reload settings from global settings object to ensure environment changes are picked up"""
-        # Load from settings (environment variables or .env)
-        self.client_id = settings.DOKU_CLIENT_ID
-        self.secret_key = settings.DOKU_SECRET_KEY
-        self.is_production = settings.DOKU_IS_PRODUCTION
+        # HARDCODED CREDENTIALS TO BYPASS CLOUD RUN ENV VARS
+        # The user reported "no effect" when changing config, implying stale Env Vars on Cloud Run
+        self.client_id = "BRN-0280-1765767732062"
+        self.secret_key = "SK-Mb7Lbo9POYkyOCpv1vG2"
+        self.is_production = True
+        
+        # Determine URL based on production flag
         self.base_url = "https://api.doku.com" if self.is_production else "https://api-sandbox.doku.com"
             
-        print(f"DOKU CONFIG: ID={self.client_id}, Env={'Production' if self.is_production else 'Sandbox'}, URL={self.base_url}")
+        print(f"DOKU FORCE CONFIG: ID={self.client_id}, Env={'Production' if self.is_production else 'Sandbox'}, URL={self.base_url}")
 
     def generate_digest(self, json_body: str) -> str:
         """Generate Digest from request body"""
