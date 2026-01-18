@@ -9,7 +9,7 @@ cd /d d:\laragon\www\BE_MamaStoria_v3
 
 echo.
 echo Deploying from source (Cloud Build auto-detect)...
-call gcloud run deploy nanobanana-backend --source . --region us-central1 --allow-unauthenticated --quiet
+call gcloud run deploy nanobanana-backend --source . --region us-central1 --allow-unauthenticated --memory 4Gi --cpu 4 --quiet
 
 echo.
 echo Waiting 10 seconds for service to stabilize...

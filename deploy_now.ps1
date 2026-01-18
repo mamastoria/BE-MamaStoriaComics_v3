@@ -13,7 +13,7 @@ Write-Host ""
 
 # Deploy from source
 Write-Host "Deploying from source..." -ForegroundColor Yellow
-gcloud run deploy $SERVICE --source . --region $REGION --project $PROJECT --allow-unauthenticated --quiet
+gcloud run deploy $SERVICE --source . --region $REGION --project $PROJECT --allow-unauthenticated --memory 4Gi --cpu 4 --quiet
 
 Write-Host ""
 Write-Host "Deployment complete!" -ForegroundColor Green
