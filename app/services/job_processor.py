@@ -243,6 +243,19 @@ def process_script_jobs(db: Session) -> Dict[str, Any]:
             ai_title = (global_data.get("comic_title") or script.get("suggested_title") or "").strip()
             ai_synopsis = (global_data.get("synopsis") or global_data.get("summary") or "").strip()
             
+            # Map additional metadata
+            comic.theme = global_data.get("theme")
+            comic.mood = global_data.get("mood")
+            
+            # Handle keywords (ensure list)
+            raw_keywords = global_data.get("keywords")
+            if isinstance(raw_keywords, str):
+                comic.keywords = [k.strip() for k in raw_keywords.split(",") if k.strip()]
+            elif isinstance(raw_keywords, list):
+                comic.keywords = raw_keywords
+            else:
+                comic.keywords = []
+            
             # Update comic
             comic.draft_job_status = 'SCRIPT_READY'
             comic.script_completed_at = datetime.now()

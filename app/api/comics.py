@@ -4,6 +4,9 @@ Comic CRUD operations, draft generation, publishing
 """
 import os
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, BackgroundTasks
+from fastapi.responses import StreamingResponse
+import asyncio
+import json
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, cast
 from sqlalchemy.dialects.postgresql import JSONB
@@ -693,6 +696,62 @@ async def get_comic_by_id(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error processing comic data: {str(e)}"
         )
+
+
+@router.get("/comics/{id}/stream-status")
+async def stream_draft_status(id: int):
+    """
+    SSE Stream for real-time draft status updates.
+    Yields JSON data: {"status": "...", "synopsis": "..."}
+    Use EventSource API in frontend to consume this.
+    """
+    async def event_generator():
+        # Use a new session for the stream
+        SessionLocal = get_session_local()
+        db = SessionLocal()
+        try:
+            while True:
+                # Check comic status and data
+                comic = db.query(Comic).filter(Comic.id == id).first()
+                if not comic:
+                    error_data = {"error": "Comic not found"}
+                    yield f"data: {json.dumps(error_data)}\n\n"
+                    break
+                
+                status_raw = comic.draft_job_status or "PENDING"
+                
+                # Construct data payload
+                data = {
+                    "id": comic.id,
+                    "status": status_raw,
+                    "is_ready": status_raw == "SCRIPT_READY",
+                    "synopsis": comic.synopsis,
+                    "summary": comic.summary,
+                    "title": comic.title,
+                    "theme": comic.theme,
+                    "keywords": comic.keywords,
+                    "mood": comic.mood
+                }
+                
+                yield f"data: {json.dumps(data)}\n\n"
+                
+                # Stop if ready or failed (terminal states)
+                if status_raw in ["SCRIPT_READY", "COMPLETED", "FAILED", "SCRIPT_FAILED"]:
+                    break
+                
+                # Wait 2 seconds before next polling
+                await asyncio.sleep(2)
+                
+                # Invalidate session cache to ensure fresh data on next query
+                db.expire_all()
+                
+        except Exception as e:
+            logger.error(f"Stream error for comic {id}: {e}")
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+        finally:
+            db.close()
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 @router.get("/comics/{id}/draft/status", response_model=dict)
