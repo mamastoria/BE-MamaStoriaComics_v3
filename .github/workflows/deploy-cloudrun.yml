@@ -12,20 +12,19 @@ env:
   REGION: us-central1
 
 jobs:
-  deploy:
-    name: Deploy to Cloud Run
+  deploy-backend:
+    name: Deploy Backend (US)
     runs-on: ubuntu-latest
 
     permissions:
       contents: read
-      id-token: write # Required for Workload Identity Federation
+      id-token: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Google Auth via Workload Identity Federation
-        id: auth
+      - name: Google Auth
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
@@ -36,15 +35,15 @@ jobs:
         with:
           project_id: ${{ env.PROJECT_ID }}
 
-      - name: Authorize Docker push to Artifact Registry
+      - name: Authorize Docker
         run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
-      - name: Build and Push Container
+      - name: Build and Push Backend
         run: |
           docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/cloud-run-source-deploy/${{ env.SERVICE_NAME }}:${{ github.sha }} .
           docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/cloud-run-source-deploy/${{ env.SERVICE_NAME }}:${{ github.sha }}
 
-      - name: Deploy to Cloud Run
+      - name: Deploy Backend
         run: |
           gcloud run deploy ${{ env.SERVICE_NAME }} \
             --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/cloud-run-source-deploy/${{ env.SERVICE_NAME }}:${{ github.sha }} \
@@ -59,7 +58,60 @@ jobs:
             --set-env-vars "APP_ENV=production,GOOGLE_CLOUD_PROJECT=${{ env.PROJECT_ID }},GOOGLE_PROJECT_ID=${{ env.PROJECT_ID }},GOOGLE_BUCKET_NAME=nanobanana-storage,VERTEX_LOCATION=${{ env.REGION }},USE_CLOUD_SQL_CONNECTOR=true,CLOUD_SQL_CONNECTION_NAME=${{ env.PROJECT_ID }}:${{ env.REGION }}:cloudsql-nanobanana-us,DOKU_IS_PRODUCTION=false" \
             --set-secrets "SECRET_KEY=SECRET_KEY:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,DATABASE_URL=DATABASE_URL:latest"
 
-      - name: Show Service URL
+      - name: Show Backend URL
         run: |
-          echo "🚀 Deployed to:"
+          echo "🚀 Backend deployed:"
           gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format='value(status.url)'
+
+  deploy-worker:
+    name: Deploy Worker (Asia)
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Google Auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Authorize Docker (Asia)
+        run: gcloud auth configure-docker asia-southeast2-docker.pkg.dev --quiet
+
+      - name: Build and Push Worker
+        run: |
+          docker build -f Dockerfile.worker -t asia-southeast2-docker.pkg.dev/${{ env.PROJECT_ID }}/cloud-run-source-deploy/nanobanana-worker:${{ github.sha }} .
+          docker push asia-southeast2-docker.pkg.dev/${{ env.PROJECT_ID }}/cloud-run-source-deploy/nanobanana-worker:${{ github.sha }}
+
+      - name: Deploy Worker
+        run: |
+          gcloud run deploy nanobanana-worker \
+            --image asia-southeast2-docker.pkg.dev/${{ env.PROJECT_ID }}/cloud-run-source-deploy/nanobanana-worker:${{ github.sha }} \
+            --region asia-southeast2 \
+            --platform managed \
+            --no-allow-unauthenticated \
+            --service-account nanobanana-comic-sa@${{ env.PROJECT_ID }}.iam.gserviceaccount.com \
+            --add-cloudsql-instances ${{ env.PROJECT_ID }}:us-central1:cloudsql-nanobanana-us \
+            --memory 8Gi \
+            --cpu 4 \
+            --timeout 3600 \
+            --min-instances 0 \
+            --max-instances 10 \
+            --set-env-vars "APP_ENV=production,GOOGLE_CLOUD_PROJECT=${{ env.PROJECT_ID }},GOOGLE_PROJECT_ID=${{ env.PROJECT_ID }},GOOGLE_BUCKET_NAME=nanobanana-storage,VERTEX_LOCATION=us-central1,USE_CLOUD_SQL_CONNECTOR=true,CLOUD_SQL_CONNECTION_NAME=${{ env.PROJECT_ID }}:us-central1:cloudsql-nanobanana-us,IS_WORKER=true" \
+            --set-secrets "SECRET_KEY=SECRET_KEY:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,DATABASE_URL=DATABASE_URL:latest"
+
+      - name: Show Worker URL
+        run: |
+          echo "🚀 Worker deployed:"
+          gcloud run services describe nanobanana-worker --region asia-southeast2 --format='value(status.url)'
