@@ -40,7 +40,7 @@ steps:
       - "--timeout"
       - "900"
       - "--set-env-vars"
-      - "APP_ENV=production,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_PROJECT_ID=$PROJECT_ID,GOOGLE_BUCKET_NAME=nanobanana-storage,VERTEX_LOCATION=us-central1,USE_CLOUD_SQL_CONNECTOR=true,CLOUD_SQL_CONNECTION_NAME=$PROJECT_ID:us-central1:cloudsql-nanobanana-us"
+      - "APP_ENV=production,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_PROJECT_ID=$PROJECT_ID,GOOGLE_BUCKET_NAME=nanobanana-storage,VERTEX_LOCATION=us-central1,USE_CLOUD_SQL_CONNECTOR=true,CLOUD_SQL_CONNECTION_NAME=$PROJECT_ID:us-central1:cloudsql-nanobanana-us,DOKU_IS_PRODUCTION=false"
       - "--set-secrets"
       - "SECRET_KEY=SECRET_KEY:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,DATABASE_URL=DATABASE_URL:latest"
 

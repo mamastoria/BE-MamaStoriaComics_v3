@@ -167,6 +167,27 @@ async def list_packages(db: Session = Depends(get_db)):
     }
 
 
+@router.get("/subscriptions/debug/doku-config", response_model=dict)
+async def debug_doku_config():
+    """
+    Debug endpoint to check Doku configuration
+    
+    Returns current Doku settings (Client ID partially masked for security)
+    """
+    from app.utils.doku import doku_client
+    
+    return {
+        "ok": True,
+        "data": {
+            "DOKU_IS_PRODUCTION": settings.DOKU_IS_PRODUCTION,
+            "DOKU_CLIENT_ID": settings.DOKU_CLIENT_ID[:15] + "..." if len(settings.DOKU_CLIENT_ID) > 15 else settings.DOKU_CLIENT_ID,
+            "base_url": doku_client.base_url,
+            "environment": "Production" if settings.DOKU_IS_PRODUCTION else "Sandbox",
+            "USE_MOCK_PAYMENT": settings.USE_MOCK_PAYMENT
+        }
+    }
+
+
 @router.get("/payment-methods", response_model=dict)
 async def get_payment_methods():
     """
