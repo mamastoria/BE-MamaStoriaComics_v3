@@ -18,7 +18,6 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-
 # FORCE LOG TO VERIFY DEPLOYMENT VERSION
 print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 print("!!! DEPLOYMENT VERSION: HARDCODED DOKU FIX ACTIVE (REV 2) !!!")
