@@ -13,6 +13,7 @@ ENV GOOGLE_PROJECT_ID=nanobananacomic-482111
 ENV VERTEX_LOCATION=us-central1
 ENV APP_ENV=production
 ENV SMART_CROP_SERVICE_URL=https://smart-crop-worker-dxsgrit6eq-et.a.run.app
+ENV DOKU_IS_PRODUCTION=false
 
 WORKDIR /app
 
