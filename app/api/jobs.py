@@ -145,6 +145,47 @@ async def get_locked_jobs(db: Session = Depends(get_db)):
     }
 
 
+@router.post("/unlock-stuck")
+async def unlock_stuck_jobs(db: Session = Depends(get_db)):
+    """
+    Unlock jobs that have been locked for too long (stuck)
+    
+    Criteria:
+    - Locked for more than 30 minutes
+    - Reset lock and allow retry
+    """
+    from app.models.comic import Comic
+    from datetime import datetime, timedelta
+    
+    timeout = datetime.now() - timedelta(minutes=30)
+    
+    stuck_jobs = db.query(Comic).filter(
+        Comic.locked_by.isnot(None),
+        Comic.locked_at < timeout
+    ).all()
+    
+    unlocked_count = 0
+    for comic in stuck_jobs:
+        logger.info(f"Unlocking stuck job: comic_id={comic.id}, locked_by={comic.locked_by}, locked_at={comic.locked_at}")
+        comic.locked_by = None
+        comic.locked_at = None
+        unlocked_count += 1
+    
+    db.commit()
+    
+    return {
+        "ok": True,
+        "message": f"Unlocked {unlocked_count} stuck jobs",
+        "unlocked": unlocked_count,
+        "jobs": [{
+            "id": c.id,
+            "status": c.draft_job_status,
+            "was_locked_by": c.locked_by,
+            "was_locked_at": str(c.locked_at) if c.locked_at else None
+        } for c in stuck_jobs]
+    }
+
+
 @router.get("/stats")
 async def get_status_breakdown(db: Session = Depends(get_db)):
     """
