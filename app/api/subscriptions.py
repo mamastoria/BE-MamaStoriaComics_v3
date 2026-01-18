@@ -43,6 +43,7 @@ class PurchaseSubscription(BaseModel):
     package_id: Optional[int] = Field(None, description="Subscription package ID", alias="packageId")
     package_slug: Optional[str] = Field(None, description="Package slug/name (e.g. credits-20)", alias="packageSlug")
     payment_method: Optional[str] = Field(None, description="Payment method code", alias="paymentMethod")
+    callback_url: Optional[str] = Field(None, description="Callback URL for redirect after payment", alias="callbackUrl")
     
     model_config = ConfigDict(populate_by_name=True)
 
@@ -310,7 +311,8 @@ async def purchase_subscription(
             # Real Doku API call
             # Build callback URL based on current request base URL to avoid environment mismatches
             base_url = str(request.base_url).rstrip("/")
-            cb_url = f"{base_url}/api/v1/subscriptions/payment-callback"
+            # Use provided callback_url (e.g. for mobile deep link) or fallback to backend default
+            cb_url = purchase_data.callback_url if purchase_data.callback_url else f"{base_url}/api/v1/subscriptions/payment-callback"
             payment_url = doku_client.generate_payment_url(
                 order_id=order_id,
                 amount=package.price,
