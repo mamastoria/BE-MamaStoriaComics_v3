@@ -494,6 +494,37 @@ async def payment_callback(
     
     # Handle payment success
     if transaction_status == "SUCCESS":
+        # Extract Payment Method from Doku Response
+        try:
+            channel_id = body.get("channel", {}).get("id")
+            if channel_id:
+                # Basic update
+                transaction.payment_method = channel_id
+                
+                # Enhance with specifics (VA Number / Payment Code / Etc)
+                # This handles "no rek" (VA) and "payment code" (O2O/Retail)
+                detail_number = None
+                
+                # 1. Virtual Account
+                if "virtual_account_info" in body:
+                    detail_number = body["virtual_account_info"].get("virtual_account_number")
+                
+                # 2. Offline (Alfamart/Indomaret)
+                elif "online_to_offline_info" in body:
+                    detail_number = body["online_to_offline_info"].get("payment_code")
+                    
+                # 3. OVO usually uses phone number, but Doku might return it in specific fields
+                # If we have a specific field for card/wallet info in future, add here.
+                
+                if detail_number:
+                    # Format: "VIRTUAL_ACCOUNT_BRI - 88880000123"
+                    transaction.payment_method = f"{channel_id} - {detail_number}"
+                
+                print(f"Payment Method Updated: {transaction.payment_method}")
+                
+        except Exception as e:
+            print(f"Failed to extract payment method: {e}")
+
         if transaction.status == "pending":
             if process_successful_payment(db, transaction):
                 return {"ok": True, "message": "Payment processed successfully"}
@@ -559,6 +590,27 @@ async def check_payment_status(
                 if is_doku_success:
                     print(f"✅ Doku confirm SUCCESS for {invoice_number}")
                     
+                    # Update Payment Method from Doku Response
+                    try:
+                        channel_id = status_response.get("channel", {}).get("id")
+                        if channel_id:
+                            transaction.payment_method = channel_id
+                            
+                            # Enhance with specifics (VA Number / Payment Code)
+                            detail_number = None
+                            
+                            if "virtual_account_info" in status_response:
+                                detail_number = status_response["virtual_account_info"].get("virtual_account_number")
+                            elif "online_to_offline_info" in status_response:
+                                detail_number = status_response["online_to_offline_info"].get("payment_code")
+                            
+                            if detail_number:
+                                transaction.payment_method = f"{channel_id} - {detail_number}"
+                                
+                            print(f"Payment Method Updated from Check Status: {transaction.payment_method}")
+                    except Exception as e:
+                        print(f"Failed to extract payment method from check status: {e}")
+
                     # 1. Update status transaksi di object transaction DULU (agar aman)
                     transaction.status = "success"
                     # Simpan respon lengkap doku untuk bukti
