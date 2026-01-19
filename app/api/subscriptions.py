@@ -133,6 +133,22 @@ def process_successful_payment(db: Session, transaction: PaymentTransaction) -> 
     transaction.status = "success"
     transaction.subscription_id = subscription.id
     
+    # Record to General Transaction History
+    # Check if already exists to avoid duplicates
+    existing_txn_history = db.query(Transaction).filter(
+        Transaction.reference_id == transaction.invoice_number
+    ).first()
+    
+    if not existing_txn_history:
+        new_txn_history = Transaction(
+            user_id=user.id_users,
+            type="credit",
+            amount=transaction.amount,
+            description=f"Payment for {package.name}",
+            reference_id=transaction.invoice_number
+        )
+        db.add(new_txn_history)
+    
     # Update User Quota/Credits (Accumulate)
     # DISABLED: User requested to handle credit addition on FE side (or not at all here)
     # user.publish_quota += package.publish_quota
@@ -611,9 +627,7 @@ async def check_payment_status(
                     except Exception as e:
                         print(f"Failed to extract payment method from check status: {e}")
 
-                    # 1. Update status transaksi di object transaction DULU (agar aman)
-                    transaction.status = "success"
-                    # Simpan respon lengkap doku untuk bukti
+                    # 1. Simpan respon lengkap doku untuk bukti
                     import json
                     try:
                         transaction.doku_response = json.dumps(status_response)
@@ -623,13 +637,23 @@ async def check_payment_status(
                     # 2. Coba proses logic bisnis (kasih kredit/subscription)
                     # Kita bungkus try-except agar jika ini gagal, DATA KEUANGAN TETAP AMAN (SUCCESS)
                     try:
+                        # Jangan set status success dulu, biarkan process_successful_payment yang handle
+                        # agar tidak kena check idempotency (double processing)
                         logic_result = process_successful_payment(db, transaction)
+                        
                         if logic_result:
                             print("✅ Business logic (credits/sub) applied")
                         else:
                             print("⚠️ Business logic returned False (package mismatch?), but Payment is Valid.")
+                            # Force success status karena uang sudah masuk
+                            if transaction.status != "success":
+                                transaction.status = "success"
+                                
                     except Exception as logic_err:
                         print(f"⚠️ Business logic CRASH: {logic_err}. Payment remains VALID.")
+                        # Force success status
+                        if transaction.status != "success":
+                            transaction.status = "success"
                         
                     # 3. Commit Final
                     db.commit()
