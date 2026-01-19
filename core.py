@@ -717,6 +717,7 @@ Tugas:
 - Output JSON WAJIB memiliki object "global" dengan field WAJIB:
 - comic_title: string judul buku cerita yang singkat, menarik, dan relevan
 - Konsistensi karakter harus ketat.
+- HINDARI deskripsi karakter yang mirip tokoh berhak cipta (misal: "robot kucing biru" yang mirip Doraemon). Gunakan deskripsi original.
 - Setiap BAGIAN wajib tepat 9 PANEL.
 - Family-friendly.
 - Setiap panel wajib ada:
@@ -978,7 +979,8 @@ RULES KETAT:
 - Output harus 2 BAGIAN besar: part_no 1 dan 2.
 - Masing-masing BAGIAN harus punya tepat 9 PANEL (panel_no 1..9).
 - Konsistensi karakter wajib ketat (nama/ciri/outfit).
-- JIKA USER TIDAK MENYEBUT NAMA KARAKTER: Wajib gunakan nama Indonesia/Internasional yang kreatif, modern, dan variatif. Sesuaikan dengan nuansa cerita.
+- JIKA USER TIDAK MENYEBUT NAMA KARAKTER: Wajib gunakan nama Indonesia/Internasional yang kreatif.
+- DESAIN KARAKTER: Wajib ORIGINAL. Jangan mendeskripsikan karakter mirip tokoh populer (seperti Doraemon, Upin Ipin, dll).
 - Family-friendly.
 - Setiap panel wajib punya:
   - panel_no (1..9)
@@ -1271,10 +1273,11 @@ GRID LAYOUT RULES (CRITICAL):
     text_rules = """
 TEXT RULES (CRITICAL):
 - Render all written text in clear Indonesian, perfectly readable.
+- TEXT SAFE AREA: Keep all text/bubbles at least 40 PIXELS AWAY from panel edges. Text touching the edge will be CUT OFF.
 - Use large font sizes for phone portrait viewing.
 - Use high-contrast caption boxes and speech bubbles.
 - Avoid distorted letters, random symbols, or unreadable typography.
-- Do NOT place text over faces; keep safe margins.
+- Do NOT place text over faces.
 - For each panel:
   * 1 narration caption box (bottom or top) using the provided NARRATION.
   * up to 2 speech bubbles using the provided DIALOGUE lines.
@@ -1291,6 +1294,7 @@ LAYOUT / CANVAS (CRITICAL - MUST FOLLOW EXACTLY FOR ALL PARTS):
 - The grid lines must be THIN BLACK lines (1-2px). Panel artwork MUST touch the very edge of the canvas.
 - The image must look like a digital comic page, NOT a printed book scanned with white paper borders.
 - Even if a panel contains a "poster" design, the artwork must extend fully to the panel edges with no internal margins.
+- HOWEVER, Keep important TEXT and FACES inside the "Safe Zone" (center of the panel), away from the cut lines.
 """.strip()
 
     # Character consistency rules - CRITICAL for multi-page comics
