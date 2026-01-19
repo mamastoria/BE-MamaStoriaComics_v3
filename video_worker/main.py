@@ -151,7 +151,7 @@ async def generate_video(request: VideoGenerationRequest):
                     # Create notification
                     new_notif = Notification(
                         user_id=comic.user_id,
-                        type="create",
+                        type="success",
                         title="Komik Selesai",
                         message=f"Komik '{comic.title}' sudah selesai, yuk lihat komik buatanmu!",
                         img_url=comic.cover_url
