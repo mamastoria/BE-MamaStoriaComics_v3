@@ -518,8 +518,8 @@ def process_image_jobs(db: Session) -> Dict[str, Any]:
             comic.render_completed_at = datetime.now()
             comic.clipping_started_at = datetime.now()
             comic.clipping_completed_at = datetime.now()
-            # MANUAL MODE: Set to COMPLETED immediately (skip auto-video)
-            comic.draft_job_status = 'COMPLETED' 
+            # MANUAL MODE: Set to PROCESSING (Images done, ready for manual video)
+            comic.draft_job_status = 'PROCESSING' 
             comic.image_retry_count = 0  # Reset on success
             comic.locked_by = None
             comic.locked_at = None

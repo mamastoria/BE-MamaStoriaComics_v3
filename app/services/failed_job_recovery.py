@@ -24,34 +24,42 @@ RECOVERY_CONFIG = {
 def get_failed_comics_for_recovery(db: Session, limit: int = 10) -> List[Comic]:
     """
     Get comics with FAILED status that can be recovered
+    AND comics stuck in RENDERING but might be done
     
     Conditions:
-    - Status = FAILED
-    - Last error was at least 5 minutes ago (cooling period)
-    - Retry count < max_retries
+    1. Status = FAILED
+    2. Status = RENDERING but stuck for > 30 mins
     """
     min_delay = timedelta(minutes=RECOVERY_CONFIG["min_retry_delay_minutes"])
     retry_threshold = datetime.now() - min_delay
     max_retries = RECOVERY_CONFIG["max_retries"]
     
+    # Stuck rendering check (30 mins timeout)
+    stuck_rendering_threshold = datetime.now() - timedelta(minutes=30)
+    
     comics = db.query(Comic).filter(
-        and_(
-            Comic.draft_job_status == 'FAILED',
-            or_(
-                Comic.last_error_at.is_(None),
-                Comic.last_error_at < retry_threshold
+        or_(
+            # Case 1: Explicit FAILED status
+            and_(
+                Comic.draft_job_status == 'FAILED',
+                or_(
+                    Comic.last_error_at.is_(None),
+                    Comic.last_error_at < retry_threshold
+                ),
+                or_(
+                    Comic.script_retry_count.is_(None),
+                    Comic.script_retry_count < max_retries
+                )
             ),
-            or_(
-                Comic.script_retry_count.is_(None),
-                Comic.script_retry_count < max_retries
-            ),
-            or_(
-                Comic.image_retry_count.is_(None),
-                Comic.image_retry_count < max_retries
-            ),
-            or_(
-                Comic.video_retry_count.is_(None),
-                Comic.video_retry_count < max_retries
+            # Case 2: Stuck in RENDERING (e.g. comic #330)
+            and_(
+                Comic.draft_job_status == 'RENDERING',
+                Comic.render_started_at < stuck_rendering_threshold,
+                # Ensure we don't pick up actively running jobs (check lock)
+                or_(
+                    Comic.locked_by.is_(None),
+                    Comic.locked_at < stuck_rendering_threshold
+                )
             )
         )
     ).order_by(Comic.id.asc()).limit(limit).all()
@@ -94,7 +102,14 @@ def analyze_failure_point(comic: Comic, db: Session) -> str:
         return "SCRIPT_READY"
     
     elif comic.preview_video_url is None:
-        # All images exist but no video = video generation failed
+        # All images exist but no video
+        
+        # Case A: Stuck in RENDERING with all images (Comic #330 case)
+        if comic.draft_job_status == 'RENDERING':
+            logger.info(f"Comic #{comic.id}: Stuck in RENDERING but has all images -> Reset to PROCESSING")
+            return "PROCESSING"
+            
+        # Case B: Video generation failed
         logger.info(f"Comic #{comic.id}: All images exist, no video -> Reset to PROCESSING")
         return "PROCESSING"
     
