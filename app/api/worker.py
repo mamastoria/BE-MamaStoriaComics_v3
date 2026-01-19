@@ -184,3 +184,36 @@ async def handle_generate_comic_task(
         raise HTTPException(status_code=500, detail=str(e))
         
     return {"status": "ok", "job_id": job_id}
+
+
+@router.post("/recover-failed-jobs")
+async def recover_failed_jobs(
+    db: Session = Depends(get_db)
+):
+    """
+    Manually trigger recovery of failed jobs
+    
+    This endpoint analyzes all comics with FAILED status and resets them
+    to the appropriate retry status based on what stage they failed at.
+    
+    Useful for:
+    - Recovering comics stuck in FAILED state
+    - Manual intervention after system issues
+    - Testing recovery logic
+    """
+    from app.services.failed_job_recovery import process_failed_job_recovery
+    
+    logger.info("Manual failed job recovery triggered")
+    
+    try:
+        results = process_failed_job_recovery(db)
+        
+        return {
+            "status": "ok",
+            "message": f"Recovered {results['recovered']} out of {results['processed']} failed comics",
+            "results": results
+        }
+    except Exception as e:
+        logger.exception(f"Failed job recovery error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+

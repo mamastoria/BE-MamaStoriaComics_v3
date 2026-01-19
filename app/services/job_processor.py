@@ -275,6 +275,7 @@ def process_script_jobs(db: Session) -> Dict[str, Any]:
                     comic.synopsis = preview_text
                 if not comic.summary:
                     comic.summary = preview_text
+
             
             db.commit()
             logger.info(f"[{worker_id}] Database committed for comic #{comic.id}")
@@ -290,6 +291,19 @@ def process_script_jobs(db: Session) -> Dict[str, Any]:
             logger.error(f"[{worker_id}] ✗ Script generation FAILED for comic #{comic.id}")
             logger.exception(f"[{worker_id}] Exception details: {e}")
             
+            # CRITICAL FIX: Set fallback title even on failure to prevent NULL title errors
+            # This ensures frontend always has a title to display
+            if not comic.title:
+                fallback_title = (comic.story_idea[:80] if comic.story_idea else "Untitled Comic").strip()
+                comic.title = fallback_title
+                logger.info(f"[{worker_id}] Set fallback title for comic #{comic.id}: '{fallback_title}'")
+            
+            # Set fallback synopsis/summary if missing
+            if not comic.synopsis and comic.story_idea:
+                comic.synopsis = comic.story_idea[:500]
+            if not comic.summary and comic.story_idea:
+                comic.summary = comic.story_idea[:500]
+            
             # Update failure status
             comic.draft_job_status = 'SCRIPT_FAILED'
             comic.script_retry_count = (comic.script_retry_count or 0) + 1
@@ -302,6 +316,7 @@ def process_script_jobs(db: Session) -> Dict[str, Any]:
             results["failed"] += 1
             job_result["status"] = "failed"
             job_result["error"] = str(e)[:200]
+
         
         results["processed"] += 1
         results["jobs"].append(job_result)
@@ -744,8 +759,13 @@ def process_video_jobs(db: Session) -> Dict[str, Any]:
 def process_all_jobs(db: Session) -> Dict[str, Any]:
     """
     Process all types of jobs in one call
+    Includes automatic recovery of failed jobs
     """
+    # First, recover any failed jobs
+    from app.services.failed_job_recovery import process_failed_job_recovery
+    
     results = {
+        "recovery": process_failed_job_recovery(db),  # NEW: Auto-recover FAILED comics
         "script": process_script_jobs(db),
         "image": process_image_jobs(db),
         "video": process_video_jobs(db),

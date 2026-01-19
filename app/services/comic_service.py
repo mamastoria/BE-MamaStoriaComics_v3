@@ -75,16 +75,21 @@ class ComicService:
             genre=genre_keys,  # Store as array of ID strings
             style=str(style_key),  # Store style ID as string for core.COMIC_STYLES matching
             draft_job_status="PENDING",
-            publisher=user.full_name or user.username
+            publisher=user.full_name or user.username,
+            # CRITICAL FIX: Set fallback title immediately to prevent NULL errors
+            title=(story_idea[:80] if story_idea else "Untitled Comic").strip(),
+            synopsis=story_idea[:500] if story_idea else None,
+            summary=story_idea[:500] if story_idea else None
         )
         
         # DEBUG: Log style and genre being saved
         ComicService.logger.info(
-            "Creating comic with style=%s (from %s), genres=%s (from %s)",
+            "Creating comic with style=%s (from %s), genres=%s (from %s), fallback_title='%s'",
             style_key,
             style.name,
             genre_keys,
             [g.name for g in genres],
+            comic.title[:50] if comic.title else "None"
         )
         
         db.add(comic)
