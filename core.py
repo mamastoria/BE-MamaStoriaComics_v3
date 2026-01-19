@@ -1282,12 +1282,14 @@ TEXT RULES (CRITICAL):
   * 1 narration caption box (bottom or top) using the provided NARRATION.
   * up to 2 speech bubbles using the provided DIALOGUE lines.
 
-VISUAL SAFE AREA (CRITICAL - PREVENT CROPPING):
-- Keep ALL IMPORTANT VISUAL ELEMENTS (faces, characters, key objects) at least 40 PIXELS AWAY from panel edges.
-- Character faces MUST be fully visible - do NOT crop heads, faces, or bodies at panel edges.
-- Position characters in the CENTER of each panel, not touching the edges.
-- Background artwork can extend to edges (full bleed), but MAIN SUBJECTS must stay in the safe zone.
-- If a character appears at the edge and gets cut off, the panel is INVALID.
+VISUAL SAFE AREA & FRAMING (CRITICAL - PREVENT CROPPING):
+- PADDING/BREATHING ROOM: Leave 10% empty space (background) around the main characters inside the panel.
+- DO NOT let characters touch the panel borders. Keep them centered with visible space around them.
+- ZOOM OUT SLIGHTLY: Use "Medium Shot" or "Wide Shot" to ensure the full subject fits comfortably within the safe zone.
+- AVOID "Extreme Close-ups" that risk cropping parts of the head or body.
+- If a character is moving/running, leave extra space in front of them.
+- Background artwork can extend to edges (full bleed), but FACES and BODIES must have a buffer zone.
+- ERROR IF: Character features (ears, elbows, top of head, feet) are cut off by the panel frame.
 """.strip()
 
     layout_rules = f"""
