@@ -1306,8 +1306,21 @@ LAYOUT / CANVAS (CRITICAL - MUST FOLLOW EXACTLY FOR ALL PARTS):
 - HOWEVER, Keep important TEXT and FACES inside the "Safe Zone" (center of the panel), away from the cut lines.
 """.strip()
 
+    # GRID ISOLATION RULES (CRITICAL)
+    isolation_rules = """
+GRID ISOLATION RULES (MANDATORY):
+- CONTENT MUST NOT CROSS GRID LINES.
+- Do NOT let Text, Speech Bubbles, or Characters cross from one panel to another.
+- Each panel is a completely separate container.
+- THE TITLE (if any) MUST BE FULLY INSIDE PANEL 1. Do not spread title across top panels.
+- If text crosses a grid line, it will be cut in half and ruined.
+- Keep all artwork strictly inside its 1/3 cell boundaries.
+""".strip()
+
     # Character consistency rules - CRITICAL for multi-page comics
-    character_consistency_rules = """
+    character_consistency_rules = f"""
+{isolation_rules}
+
 CHARACTER CONSISTENCY (MANDATORY - HIGHEST PRIORITY):
 - EVERY character MUST look EXACTLY THE SAME in EVERY panel they appear.
 - Maintain IDENTICAL: face shape, eye color, hair color, hairstyle, skin tone, body type.
