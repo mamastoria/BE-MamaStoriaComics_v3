@@ -1374,6 +1374,10 @@ async def generate_comic_video(
             detail=f"Failed to process credit deduction: {str(e)}"
         )
     
+    # 4. Set status to PROCESSING (for manual trigger feedback)
+    comic.draft_job_status = 'PROCESSING'
+    db.commit()
+
     # Try to queue to Cloud Tasks (dedicated video worker)
     try:
         from app.services.video_queue import queue_video_generation

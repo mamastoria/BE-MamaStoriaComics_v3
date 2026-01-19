@@ -518,7 +518,8 @@ def process_image_jobs(db: Session) -> Dict[str, Any]:
             comic.render_completed_at = datetime.now()
             comic.clipping_started_at = datetime.now()
             comic.clipping_completed_at = datetime.now()
-            comic.draft_job_status = 'PROCESSING'  # Ready for video
+            # MANUAL MODE: Set to COMPLETED immediately (skip auto-video)
+            comic.draft_job_status = 'COMPLETED' 
             comic.image_retry_count = 0  # Reset on success
             comic.locked_by = None
             comic.locked_at = None
@@ -527,28 +528,29 @@ def process_image_jobs(db: Session) -> Dict[str, Any]:
             if all_panel_urls:
                 comic.cover_url = all_panel_urls[0]
 
-            # Auto-queue video generation once images are ready (>= 18 panels)
-            if len(all_panel_urls) >= 18 and comic.preview_video_url is None:
-                try:
-                    from app.services.video_queue import queue_video_generation
+            # DISABLE AUTO-QUEUE for video (Manual Trigger Only)
+            # if len(all_panel_urls) >= 18 and comic.preview_video_url is None:
+            #     try:
+            #         from app.services.video_queue import queue_video_generation
+            #
+            #         panels_for_video = db.query(ComicPanel).filter(
+            #             ComicPanel.comic_id == comic.id,
+            #             ComicPanel.image_url.isnot(None)
+            #         ).order_by(ComicPanel.page_number, ComicPanel.panel_number).all()
+            #
+            #         panels_data = [{
+            #             "image_url": p.image_url,
+            #             "narration": p.narration or p.page_narration or "",
+            #             "dialogue": p.dialogues or [],
+            #             "description": p.description or p.page_description or ""
+            #         } for p in panels_for_video]
+            #
+            #         task_name = queue_video_generation(
+            #             comic.id,
+            #             panels_data,
+            #             user_id=comic.user_id
+            #         )
 
-                    panels_for_video = db.query(ComicPanel).filter(
-                        ComicPanel.comic_id == comic.id,
-                        ComicPanel.image_url.isnot(None)
-                    ).order_by(ComicPanel.page_number, ComicPanel.panel_number).all()
-
-                    panels_data = [{
-                        "image_url": p.image_url,
-                        "narration": p.narration or p.page_narration or "",
-                        "dialogue": p.dialogues or [],
-                        "description": p.description or p.page_description or ""
-                    } for p in panels_for_video]
-
-                    task_name = queue_video_generation(
-                        comic.id,
-                        panels_data,
-                        user_id=comic.user_id
-                    )
                     if task_name:
                         logger.info(
                             f"[{worker_id}] Auto-queued video for comic #{comic.id}: {task_name}"
