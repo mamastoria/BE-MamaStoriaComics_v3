@@ -42,6 +42,7 @@ except ImportError as e:
 try:
     from app.core.database import get_session_local
     from app.models.comic import Comic
+    from app.models.notification import Notification
     logger.info("Database modules loaded successfully")
 except ImportError as e:
     logger.error(f"Failed to import database modules: {e}")
@@ -146,8 +147,19 @@ async def generate_video(request: VideoGenerationRequest):
                     comic.locked_by = None  # Critical: clear lock
                     comic.locked_at = None
                     comic.video_completed_at = datetime.now()
+                    
+                    # Create notification
+                    new_notif = Notification(
+                        user_id=comic.user_id,
+                        type="video",
+                        title="Video is ready",
+                        message=f"Video for your comic '{comic.title}' has been generated!",
+                        img_url=comic.cover_url
+                    )
+                    db.add(new_notif)
+                    
                     db.commit()
-                    logger.info(f"Database updated for comic {comic_id}: status=COMPLETED, lock cleared")
+                    logger.info(f"Database updated for comic {comic_id}: status=COMPLETED, lock cleared, notification created")
                 else:
                     logger.warning(f"Comic {comic_id} not found in database")
                     
