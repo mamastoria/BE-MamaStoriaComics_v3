@@ -981,6 +981,9 @@ RULES KETAT:
 - Konsistensi karakter wajib ketat (nama/ciri/outfit).
 - JIKA USER TIDAK MENYEBUT NAMA KARAKTER: Wajib gunakan nama Indonesia/Internasional yang kreatif.
 - DESAIN KARAKTER: Wajib ORIGINAL. Jangan mendeskripsikan karakter mirip tokoh populer (seperti Doraemon, Upin Ipin, dll).
+- KONSISTENSI VISUAL SUPER PENTING: Tulis deskripsi "appearance" dan "outfit" sengan SANGAT DETAIL.
+  * Contoh: "Rambut spiky cokelat tua, mata bulat biru, kaos merah dengan garis kuning vertikal, celana pendek hitam."
+  * Hindari deskripsi ambigua seperti "baju bola keren". Harus spesifik warnad an bentuknya.
 - Family-friendly.
 - Setiap panel wajib punya:
   - panel_no (1..9)
@@ -1273,7 +1276,9 @@ GRID LAYOUT RULES (CRITICAL):
     text_rules = """
 TEXT RULES (CRITICAL):
 - Render all written text in clear Indonesian, perfectly readable.
-- TEXT SAFE AREA: Keep all text/bubbles at least 40 PIXELS AWAY from panel edges. Text touching the edge will be CUT OFF.
+- TEXT MARGINS: Keep all text/bubbles at least 50 PIXELS AWAY from panel edges (Top, Bottom, Left, Right).
+- BALANCED PLACEMENT: For titles and narration, CENTER them horizontally with EQUAL left/right margins.
+- TOP GAP: Absolutely NO text touching the top edge. Leave a defined header space.
 - Use large font sizes for phone portrait viewing.
 - Use high-contrast caption boxes and speech bubbles.
 - Avoid distorted letters, random symbols, or unreadable typography.
@@ -1282,14 +1287,13 @@ TEXT RULES (CRITICAL):
   * 1 narration caption box (bottom or top) using the provided NARRATION.
   * up to 2 speech bubbles using the provided DIALOGUE lines.
 
-VISUAL SAFE AREA & FRAMING (CRITICAL - PREVENT CROPPING):
-- PADDING/BREATHING ROOM: Leave 10% empty space (background) around the main characters inside the panel.
-- DO NOT let characters touch the panel borders. Keep them centered with visible space around them.
-- ZOOM OUT SLIGHTLY: Use "Medium Shot" or "Wide Shot" to ensure the full subject fits comfortably within the safe zone.
-- AVOID "Extreme Close-ups" that risk cropping parts of the head or body.
-- If a character is moving/running, leave extra space in front of them.
-- Background artwork can extend to edges (full bleed), but FACES and BODIES must have a buffer zone.
-- ERROR IF: Character features (ears, elbows, top of head, feet) are cut off by the panel frame.
+VISUAL SAFE AREA & FRAMING (CRITICAL - BALANCED MARGINS):
+- BALANCED PADDING: Ensure EQUAL "breathing room" (empty space) on ALL 4 SIDES (Top, Bottom, Left, Right) between the subject and the panel borders.
+- CENTER THE ACTION: Place main characters and text centrally to maintain this symmetry.
+- DO NOT crowd the edges. If a character is on the left, balance the right side with background depth, but keep the SUBJECT with a buffer from the edge.
+- PADDING SIZE: Maintain at least 15% clear background space from the panel edges for portraits.
+- BACKGROUND EXTENSION: Background art MUST extend to the edges (full bleed), BUT important elements (faces, hands, text) MUST have this symmetrical safety margin.
+- ERROR IF: Content feels "stuck" to one side or the top/bottom edges.
 """.strip()
 
     layout_rules = f"""
