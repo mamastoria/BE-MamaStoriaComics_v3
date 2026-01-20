@@ -528,6 +528,28 @@ def process_image_jobs(db: Session) -> Dict[str, Any]:
             if all_panel_urls:
                 comic.cover_url = all_panel_urls[0]
 
+            # Create notification (Comic Finished)
+            try:
+                from app.models.notification import Notification
+                
+                # Verify cover_url
+                cover_image = comic.cover_url
+                if not cover_image and all_panel_urls:
+                    cover_image = all_panel_urls[0]
+                
+                new_notif = Notification(
+                    user_id=comic.user_id,
+                    type="success",
+                    title="Komik Selesai",
+                    message=f"Komik '{comic.title}' sudah selesai, yuk lihat komik buatanmu!",
+                    img_url=cover_image
+                )
+                db.add(new_notif)
+                logger.info(f"[{worker_id}] Notification added to session for comic #{comic.id}")
+            except Exception as notif_e:
+                logger.error(f"[{worker_id}] Failed to prepare notification: {notif_e}")
+                # Don't raise, allow job to complete even if notification fails
+
             # DISABLE AUTO-QUEUE for video (Manual Trigger Only)
             # if len(all_panel_urls) >= 18 and comic.preview_video_url is None:
             #     try:
@@ -551,16 +573,16 @@ def process_image_jobs(db: Session) -> Dict[str, Any]:
             #             user_id=comic.user_id
             #         )
 
-                    if task_name:
-                        logger.info(
-                            f"[{worker_id}] Auto-queued video for comic #{comic.id}: {task_name}"
-                        )
-                    else:
-                        logger.warning(
-                            f"[{worker_id}] Auto-queue video failed for comic #{comic.id}"
-                        )
-                except Exception as e:
-                    logger.warning(f"[{worker_id}] Auto-queue video error for comic #{comic.id}: {e}")
+                    # if task_name:
+                    #     logger.info(
+                    #         f"[{worker_id}] Auto-queued video for comic #{comic.id}: {task_name}"
+                    #     )
+                    # else:
+                    #     logger.warning(
+                    #         f"[{worker_id}] Auto-queue video failed for comic #{comic.id}"
+                    #     )
+                # except Exception as e:
+                #     logger.warning(f"[{worker_id}] Auto-queue video error for comic #{comic.id}: {e}")
 
             db.commit()
             
@@ -722,6 +744,22 @@ def process_video_jobs(db: Session) -> Dict[str, Any]:
             comic.video_retry_count = 0  # Reset on success
             comic.locked_by = None
             comic.locked_at = None
+            
+            # Create notification (Video Finished)
+            try:
+                from app.models.notification import Notification
+                new_notif = Notification(
+                    user_id=comic.user_id,
+                    type="success",
+                    title="Video Selesai",
+                    message=f"Video berhasil di generate untuk komik '{comic.title}', yuk tonton!",
+                    img_url=comic.cover_url
+                )
+                db.add(new_notif)
+                logger.info(f"[{worker_id}] Notification added to session for video #{comic.id}")
+            except Exception as notif_e:
+                logger.error(f"[{worker_id}] Failed to prepare video notification: {notif_e}")
+
             db.commit()
             
             results["success"] += 1

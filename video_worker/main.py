@@ -148,15 +148,20 @@ async def generate_video(request: VideoGenerationRequest):
                     comic.locked_at = None
                     comic.video_completed_at = datetime.now()
                     
-                    # Create notification
-                    new_notif = Notification(
-                        user_id=comic.user_id,
-                        type="success",
-                        title="Komik Selesai",
-                        message=f"Komik '{comic.title}' sudah selesai, yuk lihat komik buatanmu!",
-                        img_url=comic.cover_url
-                    )
-                    db.add(new_notif)
+                    # Create notification (Video Finished)
+                    try:
+                        new_notif = Notification(
+                            user_id=comic.user_id,
+                            type="success",
+                            title="Video Selesai",
+                            message=f"Video berhasil di generate untuk komik '{comic.title}', yuk tonton!",
+                            img_url=comic.cover_url
+                        )
+                        db.add(new_notif)
+                        logger.info(f"Notification added for comic {comic_id}")
+                    except Exception as notif_e:
+                        logger.error(f"Failed to create notification for comic {comic_id}: {notif_e}")
+                        # Continue to commit completion even if notification fails
                     
                     db.commit()
                     logger.info(f"Database updated for comic {comic_id}: status=COMPLETED, lock cleared, notification created")
