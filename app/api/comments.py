@@ -15,7 +15,7 @@ from app.models.comment import Comment
 from app.schemas.user import UserPublic
 from app.utils.pagination import paginate, get_pagination_params
 from app.utils.responses import paginated_response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from datetime import datetime
 
 router = APIRouter()
@@ -41,10 +41,18 @@ class CommentResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     user: Optional[UserPublic] = None
+    profile_photo_path: Optional[str] = None
     replies: List["CommentResponse"] = []
     
     class Config:
         from_attributes = True
+
+    @validator('profile_photo_path', always=True)
+    def set_profile_photo_path(cls, v, values):
+        user = values.get('user')
+        if user and hasattr(user, 'profile_photo_path'):
+            return user.profile_photo_path
+        return v
 
 # Resolve forward reference
 CommentResponse.model_rebuild()
@@ -94,8 +102,12 @@ async def list_comments(
         try:
             comment_dict = CommentResponse.model_validate(comment).model_dump()
             # Add user info if available (joinedload handles this safely)
+            # Redundant if handled by schema, but kept for safety/legacy logic
             if comment.user:
                 comment_dict['user'] = UserPublic.model_validate(comment.user).model_dump()
+                # Ensure profile_photo_path is set if validator didn't catch it (e.g. if user wasn't in values initially)
+                if not comment_dict.get('profile_photo_path'):
+                    comment_dict['profile_photo_path'] = comment.user.profile_photo_path
             comments_data.append(comment_dict)
         except Exception as e:
             logger.error(f"Error processing comment {comment.id}: {e}")
@@ -246,6 +258,7 @@ async def create_comment(
     # Prepare response with user info
     comment_dict = CommentResponse.model_validate(comment).model_dump()
     comment_dict['user'] = UserPublic.model_validate(current_user).model_dump()
+    comment_dict['profile_photo_path'] = current_user.profile_photo_path
     
     return {
         "ok": True,
