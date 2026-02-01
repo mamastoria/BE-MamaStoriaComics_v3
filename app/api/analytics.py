@@ -25,7 +25,7 @@ class DashboardStats(BaseModel):
     total_views: int
     total_likes: int
     total_comments: int
-    total_earnings: int
+    total_earnings: float
     active_subscription: bool
     publish_quota: int
 
@@ -44,14 +44,14 @@ class MonthlyStats(BaseModel):
     views: int
     likes: int
     comments: int
-    earnings: int
+    earnings: float
 
 
 class TransactionHistory(BaseModel):
     """Transaction history item"""
     id: int
     type: str
-    amount: int
+    amount: float
     description: Optional[str]
     created_at: datetime
     
@@ -107,7 +107,7 @@ async def get_dashboard_stats(
             "total_views": int(comics_stats.total_views or 0),
             "total_likes": int(comics_stats.total_likes or 0),
             "total_comments": int(comics_stats.total_comments or 0),
-            "total_earnings": int(earnings),
+            "total_earnings": float(earnings),
             "active_subscription": has_subscription,
             "publish_quota": current_user.publish_quota,
             "current_balance": current_user.balance,
@@ -211,7 +211,7 @@ async def get_monthly_stats(
             "views": total_views,
             "likes": total_likes,
             "comments": total_comments,
-            "earnings": int(earnings)
+            "earnings": float(earnings)
         })
     
     # Reverse to show oldest first
@@ -264,7 +264,7 @@ async def get_yearly_stats(
             "total_views": total_views,
             "total_likes": total_likes,
             "total_comments": total_comments,
-            "total_earnings": int(earnings)
+            "total_earnings": float(earnings)
         }
     }
 
